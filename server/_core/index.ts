@@ -62,6 +62,7 @@ async function startServer() {
   registerOAuthRoutes(app);
 
   app.get("/vendor/supabase.js", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     res.type("application/javascript").sendFile(
       path.join(process.cwd(), "node_modules", "@supabase", "supabase-js", "dist", "umd", "supabase.js"),
     );

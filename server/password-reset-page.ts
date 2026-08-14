@@ -47,7 +47,7 @@ export function createPasswordResetPage({
       </form>
       <p id="message" role="status"></p>
     </main>
-    <script src="/vendor/supabase.js"></script>
+    <script src="/vendor/supabase.js?build=2"></script>
     <script>
       const SUPABASE_URL = ${escapeJsonForScript(supabaseUrl)};
       const SUPABASE_ANON_KEY = ${escapeJsonForScript(supabaseAnonKey)};

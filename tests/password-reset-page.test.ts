@@ -13,7 +13,7 @@ describe("published password reset page", () => {
     expect(page).toContain("access_token");
     expect(page).toContain("exchangeCodeForSession(code)");
     expect(page).toContain("flowType: \"pkce\"");
-    expect(page).toContain("/vendor/supabase.js");
+    expect(page).toContain("/vendor/supabase.js?build=2");
   });
 
   it("does not allow submission when server configuration is missing", () => {
