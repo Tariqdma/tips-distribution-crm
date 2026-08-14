@@ -15,6 +15,13 @@
       "when": 1786687231482,
       "tag": "0001_good_lila_cheney",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786689529802,
+      "tag": "0002_adorable_alex_wilder",
+      "breakpoints": true
     }
   ]
 }

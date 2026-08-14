@@ -38,3 +38,40 @@ export const crmProfiles = mysqlTable("crmProfiles", {
 
 export type CrmProfile = typeof crmProfiles.$inferSelect;
 export type InsertCrmProfile = typeof crmProfiles.$inferInsert;
+
+export const crmTeamInvites = mysqlTable("crmTeamInvites", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  crmRole: mysqlEnum("crmRole", crmRoleValues).notNull(),
+  territory: varchar("territory", { length: 255 }).notNull(),
+  status: mysqlEnum("status", ["pending", "accepted", "revoked"]).default("pending").notNull(),
+  inviteCode: varchar("inviteCode", { length: 96 }).notNull().unique(),
+  invitedByUserId: int("invitedByUserId").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const crmTerritoryBoundaries = mysqlTable("crmTerritoryBoundaries", {
+  id: int("id").autoincrement().primaryKey(),
+  territoryId: varchar("territoryId", { length: 96 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  state: varchar("state", { length: 255 }).notNull(),
+  city: varchar("city", { length: 255 }).notNull(),
+  centerLatitude: varchar("centerLatitude", { length: 32 }).notNull(),
+  centerLongitude: varchar("centerLongitude", { length: 32 }).notNull(),
+  radiusMeters: int("radiusMeters").notNull(),
+  boundaryNotes: text("boundaryNotes"),
+  updatedByUserId: int("updatedByUserId").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const crmCentralNotifications = mysqlTable("crmCentralNotifications", {
+  id: int("id").autoincrement().primaryKey(),
+  recipientUserId: int("recipientUserId"),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  kind: mysqlEnum("kind", ["plan", "visit", "alert", "team"]).notNull(),
+  createdByUserId: int("createdByUserId").notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});

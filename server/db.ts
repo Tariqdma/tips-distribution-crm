@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { crmProfiles, type CrmProfile, type InsertUser, users } from "../drizzle/schema";
+import { crmCentralNotifications, crmProfiles, crmTeamInvites, crmTerritoryBoundaries, type CrmProfile, type InsertUser, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -125,4 +125,46 @@ export async function updateCrmMemberRole(userId: number, role: "manager" | "sal
   if (!profile) throw new Error("Unable to create CRM profile");
   await db.update(crmProfiles).set({ crmRole: role, ...(territory ? { territory } : {}) }).where(eq(crmProfiles.userId, userId));
   return getOrCreateCrmProfile(userId, role === "manager");
+}
+
+export async function listCrmInvites() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(crmTeamInvites);
+}
+
+export async function createCrmInvite(input: { email: string; crmRole: "manager" | "sales_rep" | "medical_rep"; territory: string; invitedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const inviteCode = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db.insert(crmTeamInvites).values({ ...input, inviteCode, expiresAt });
+  return { inviteCode, expiresAt };
+}
+
+export async function listTerritoryBoundaries() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(crmTerritoryBoundaries);
+}
+
+export async function upsertTerritoryBoundary(input: { territoryId: string; name: string; state: string; city: string; centerLatitude: string; centerLongitude: string; radiusMeters: number; boundaryNotes?: string; updatedByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(crmTerritoryBoundaries).values(input).onDuplicateKeyUpdate({
+    set: { name: input.name, state: input.state, city: input.city, centerLatitude: input.centerLatitude, centerLongitude: input.centerLongitude, radiusMeters: input.radiusMeters, boundaryNotes: input.boundaryNotes, updatedByUserId: input.updatedByUserId },
+  });
+  return db.select().from(crmTerritoryBoundaries).where(eq(crmTerritoryBoundaries.territoryId, input.territoryId)).limit(1);
+}
+
+export async function listCentralNotifications(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(crmCentralNotifications).where(eq(crmCentralNotifications.recipientUserId, userId));
+}
+
+export async function createCentralNotification(input: { recipientUserId?: number; title: string; body: string; kind: "plan" | "visit" | "alert" | "team"; createdByUserId: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(crmCentralNotifications).values({ ...input, recipientUserId: input.recipientUserId ?? null });
 }

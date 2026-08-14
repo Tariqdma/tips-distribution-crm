@@ -6,6 +6,12 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
 
+async function requireCrmManager(user: { id: number; role: "user" | "admin" }) {
+  if (user.role === "admin") return;
+  const profile = await db.getOrCreateCrmProfile(user.id, false);
+  if (profile?.crmRole !== "manager") throw new TRPCError({ code: "FORBIDDEN", message: "Manager access required" });
+}
+
 export const appRouter = router({
   // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
@@ -31,14 +37,46 @@ export const appRouter = router({
       };
     }),
     list: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Manager access required" });
+      await requireCrmManager(ctx.user);
       return db.listCrmMembers();
     }),
     updateRole: protectedProcedure
       .input(z.object({ userId: z.number().int().positive(), role: z.enum(["manager", "sales_rep", "medical_rep"]), territory: z.string().min(1).max(255).optional() }))
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "Manager access required" });
+        await requireCrmManager(ctx.user);
         return db.updateCrmMemberRole(input.userId, input.role, input.territory);
+      }),
+    invites: protectedProcedure.query(async ({ ctx }) => {
+      await requireCrmManager(ctx.user);
+      return db.listCrmInvites();
+    }),
+    createInvite: protectedProcedure
+      .input(z.object({ email: z.string().email(), role: z.enum(["manager", "sales_rep", "medical_rep"]), territory: z.string().min(1).max(255) }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCrmManager(ctx.user);
+        return db.createCrmInvite({ email: input.email, crmRole: input.role, territory: input.territory, invitedByUserId: ctx.user.id });
+      }),
+  }),
+  territories: router({
+    listBoundaries: protectedProcedure.query(async ({ ctx }) => {
+      await requireCrmManager(ctx.user);
+      return db.listTerritoryBoundaries();
+    }),
+    saveBoundary: protectedProcedure
+      .input(z.object({ territoryId: z.string().min(1).max(96), name: z.string().min(1).max(255), state: z.string().min(1).max(255), city: z.string().min(1).max(255), centerLatitude: z.string().regex(/^-?\d+(\.\d+)?$/), centerLongitude: z.string().regex(/^-?\d+(\.\d+)?$/), radiusMeters: z.number().int().positive().max(100000), boundaryNotes: z.string().max(2000).optional() }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCrmManager(ctx.user);
+        return db.upsertTerritoryBoundary({ ...input, updatedByUserId: ctx.user.id });
+      }),
+  }),
+  operations: router({
+    notifications: protectedProcedure.query(({ ctx }) => db.listCentralNotifications(ctx.user.id)),
+    createNotification: protectedProcedure
+      .input(z.object({ recipientUserId: z.number().int().positive().optional(), title: z.string().min(1).max(255), body: z.string().min(1).max(3000), kind: z.enum(["plan", "visit", "alert", "team"]) }))
+      .mutation(async ({ ctx, input }) => {
+        await requireCrmManager(ctx.user);
+        await db.createCentralNotification({ ...input, createdByUserId: ctx.user.id });
+        return { success: true };
       }),
   }),
 
