@@ -47,7 +47,6 @@ export function createPasswordResetPage({
       </form>
       <p id="message" role="status"></p>
     </main>
-    <script src="/vendor/supabase.js?build=2"></script>
     <script>
       const SUPABASE_URL = ${escapeJsonForScript(supabaseUrl)};
       const SUPABASE_ANON_KEY = ${escapeJsonForScript(supabaseAnonKey)};
@@ -66,27 +65,13 @@ export function createPasswordResetPage({
       }
 
       async function prepareRecovery() {
-        if (CONFIGURATION_MISSING || !window.supabase) {
+        if (CONFIGURATION_MISSING) {
           throw new Error("تعذر إعداد صفحة الاستعادة. حاول مرة أخرى لاحقاً.");
         }
-
-        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          auth: { detectSessionInUrl: false, flowType: "pkce" },
-        });
         const code = query.get("code");
 
         if (code) {
-          const result = await client.auth.exchangeCodeForSession(code);
-          if (result.error) throw result.error;
-          recoveryAccessToken = result.data.session && result.data.session.access_token;
-        } else if (recoveryAccessToken) {
-          const refreshToken = fragment.get("refresh_token");
-          const result = await client.auth.setSession({
-            access_token: recoveryAccessToken,
-            refresh_token: refreshToken || "",
-          });
-          if (result.error) throw result.error;
-          recoveryAccessToken = result.data.session && result.data.session.access_token;
+          throw new Error("هذا رابط استعادة قديم لا يمكن التحقق منه على الهاتف. اطلب رابطاً جديداً من شاشة الدخول ثم افتحه من نفس الهاتف.");
         }
 
         if (!recoveryAccessToken) {

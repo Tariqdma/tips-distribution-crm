@@ -11,9 +11,10 @@ describe("published password reset page", () => {
     expect(page).toContain("تعيين كلمة مرور جديدة");
     expect(page).toContain("/auth/v1/user");
     expect(page).toContain("access_token");
-    expect(page).toContain("exchangeCodeForSession(code)");
-    expect(page).toContain("flowType: \"pkce\"");
-    expect(page).toContain("/vendor/supabase.js?build=2");
+    expect(page).toContain("access_token");
+    expect(page).toContain("رابط استعادة قديم");
+    expect(page).not.toContain("exchangeCodeForSession");
+    expect(page).not.toContain("flowType: \"pkce\"");
   });
 
   it("does not allow submission when server configuration is missing", () => {
