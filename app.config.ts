@@ -97,6 +97,10 @@ const config: ExpoConfig = {
       "expo-location",
       {
         "locationWhenInUsePermission": "تستخدم Tips CRM موقعك لتأكيد حضورك عند الزيارات الميدانية فقط.",
+        "locationAlwaysAndWhenInUsePermission": "تستخدم Tips CRM موقعك أثناء الدوام المباشر فقط لعرض موقعك ومسارك للإدارة.",
+        "isIosBackgroundLocationEnabled": true,
+        "isAndroidBackgroundLocationEnabled": true,
+        "isAndroidForegroundServiceEnabled": true,
       },
     ],
     [

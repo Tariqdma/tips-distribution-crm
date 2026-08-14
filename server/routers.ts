@@ -79,6 +79,19 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+  tracking: router({
+    record: protectedProcedure
+      .input(z.object({ latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), accuracyMeters: z.number().nonnegative().max(100000).optional(), speedMetersPerSecond: z.number().nonnegative().max(300).optional(), source: z.enum(["foreground", "background"]), capturedAt: z.coerce.date() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.recordDutyLocation({ userId: ctx.user.id, latitude: String(input.latitude), longitude: String(input.longitude), accuracyMeters: input.accuracyMeters ? Math.round(input.accuracyMeters) : undefined, speedMetersPerSecond: input.speedMetersPerSecond?.toFixed(2), source: input.source, capturedAt: input.capturedAt });
+        return { success: true };
+      }),
+    mineToday: protectedProcedure.query(({ ctx }) => db.getMyDutyRoute(ctx.user.id, new Date(new Date().setHours(0, 0, 0, 0)))),
+    live: protectedProcedure.query(async ({ ctx }) => {
+      await requireCrmManager(ctx.user);
+      return db.getLiveDutyLocations(new Date(Date.now() - 15 * 60 * 1000));
+    }),
+  }),
 
   // TODO: add feature routers here, e.g.
   // todo: router({

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { desc, eq, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { crmCentralNotifications, crmProfiles, crmTeamInvites, crmTerritoryBoundaries, type CrmProfile, type InsertUser, users } from "../drizzle/schema";
+import { crmCentralNotifications, crmDutyLocationPoints, crmProfiles, crmTeamInvites, crmTerritoryBoundaries, type CrmProfile, type InsertUser, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -167,4 +167,25 @@ export async function createCentralNotification(input: { recipientUserId?: numbe
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.insert(crmCentralNotifications).values({ ...input, recipientUserId: input.recipientUserId ?? null });
+}
+
+export async function recordDutyLocation(input: { userId: number; latitude: string; longitude: string; accuracyMeters?: number; speedMetersPerSecond?: string; source: "foreground" | "background"; capturedAt: Date }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(crmDutyLocationPoints).values(input);
+}
+
+export async function getMyDutyRoute(userId: number, since: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(crmDutyLocationPoints).where(gte(crmDutyLocationPoints.capturedAt, since)).orderBy(crmDutyLocationPoints.capturedAt);
+}
+
+export async function getLiveDutyLocations(since: Date) {
+  const db = await getDb();
+  if (!db) return [];
+  const points = await db.select({ userId: crmDutyLocationPoints.userId, latitude: crmDutyLocationPoints.latitude, longitude: crmDutyLocationPoints.longitude, accuracyMeters: crmDutyLocationPoints.accuracyMeters, speedMetersPerSecond: crmDutyLocationPoints.speedMetersPerSecond, source: crmDutyLocationPoints.source, capturedAt: crmDutyLocationPoints.capturedAt, name: users.name, crmRole: crmProfiles.crmRole, territory: crmProfiles.territory }).from(crmDutyLocationPoints).leftJoin(users, eq(crmDutyLocationPoints.userId, users.id)).leftJoin(crmProfiles, eq(crmDutyLocationPoints.userId, crmProfiles.userId)).where(gte(crmDutyLocationPoints.capturedAt, since)).orderBy(desc(crmDutyLocationPoints.capturedAt));
+  const latestByUser = new Map<number, (typeof points)[number]>();
+  for (const point of points) if (!latestByUser.has(point.userId)) latestByUser.set(point.userId, point);
+  return [...latestByUser.values()];
 }

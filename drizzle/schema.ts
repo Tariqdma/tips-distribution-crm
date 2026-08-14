@@ -75,3 +75,14 @@ export const crmCentralNotifications = mysqlTable("crmCentralNotifications", {
   readAt: timestamp("readAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+export const crmDutyLocationPoints = mysqlTable("crmDutyLocationPoints", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  latitude: varchar("latitude", { length: 32 }).notNull(),
+  longitude: varchar("longitude", { length: 32 }).notNull(),
+  accuracyMeters: int("accuracyMeters"),
+  speedMetersPerSecond: varchar("speedMetersPerSecond", { length: 32 }),
+  source: mysqlEnum("source", ["foreground", "background"]).notNull(),
+  capturedAt: timestamp("capturedAt").defaultNow().notNull(),
+});

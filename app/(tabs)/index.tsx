@@ -5,9 +5,10 @@ import { AppHeader, AccountAvatar, MetricCard, SectionTitle, StatusBadge, palett
 import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
 import { NotificationButton } from "@/components/notification-button";
+import { DutyTrackerCard } from "@/components/duty-tracker-card";
 
 export default function TodayScreen() {
-  const { data, accountById, unreadNotificationCount } = useCrm();
+  const { data, accountById, unreadNotificationCount, recordDutyPoint } = useCrm();
   const todayVisits = data.visits.filter((visit) => visit.date === "اليوم");
   const completed = todayVisits.filter((visit) => visit.status === "مكتملة").length;
   const progress = todayVisits.length ? Math.round((completed / todayVisits.length) * 100) : 0;
@@ -24,6 +25,7 @@ export default function TodayScreen() {
         </View>
 
         <View style={styles.metrics}><MetricCard label="زيارات اليوم" value={String(todayVisits.length)} icon="event-available" /><MetricCard label="داخل المنطقة" value="100%" icon="my-location" tone="blue" /><MetricCard label="متابعات مفتوحة" value="3" icon="forum" tone="amber" /></View>
+        <DutyTrackerCard onPoint={recordDutyPoint} />
 
         <SectionTitle title="جدول الزيارات" action="عرض الخطة" onPress={() => router.push("/(tabs)/plans" as never)} />
         <View style={styles.scheduleCard}>
