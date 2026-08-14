@@ -11,3 +11,11 @@
 
 - المصدر: [Expo Location — Background location](https://docs.expo.dev/versions/latest/sdk/location/)
 - تاريخ المراجعة: 14 أغسطس 2026.
+
+## مراجع عزل بيانات CRM في Supabase
+
+سيُنشأ CRM داخل مخطط PostgreSQL مستقل باسم `tips_crm` داخل مشروع Supabase الحالي. توضح وثائق Supabase أن المخططات المخصصة يمكن إتاحتها لواجهة البيانات بعد إضافتها إلى قائمة المخططات المعروضة وتحديد منح الوصول صراحةً. كما تؤكد الوثائق أن الحماية تتكون من منح PostgreSQL وRLS معاً؛ لذلك ستُفعّل RLS على جميع جداول CRM وتكتب السياسات مع المنح في الترحيل نفسه.
+
+- المصدر: [Supabase — Using Custom Schemas](https://supabase.com/docs/guides/api/using-custom-schemas)
+- المصدر: [Supabase — Securing your API](https://supabase.com/docs/guides/api/securing-your-api)
+- قرار المستخدم في 14 أغسطس 2026: عزل CRM داخل مخطط مستقل وعدم تعديل جداول `public` القائمة أو سياسات RLS الخاصة بها في هذه المهمة.

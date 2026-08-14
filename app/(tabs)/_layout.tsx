@@ -5,13 +5,19 @@ import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
+import { Redirect } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function TabLayout() {
+  const { session, loading } = useSupabaseAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
 
+  if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.tint} /></View>;
+  if (!session) return <Redirect href="/login" />;
   return (
     <Tabs
       screenOptions={{
@@ -52,8 +58,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="admin"
         options={{
-          title: "الإدارة",
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="chart.bar.xaxis" color={color} />,
+          href: null,
         }}
       />
     </Tabs>

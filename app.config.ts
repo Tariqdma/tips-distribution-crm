@@ -36,6 +36,8 @@ const env = {
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
+  supabaseUrl: process.env.VITE_SUPABASE_URL ?? "",
+  supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY ?? "",
 };
 
 const config: ExpoConfig = {
@@ -83,6 +85,10 @@ const config: ExpoConfig = {
     bundler: "metro",
     output: "static",
     favicon: "./assets/images/favicon.png",
+  },
+  extra: {
+    supabaseUrl: env.supabaseUrl,
+    supabaseAnonKey: env.supabaseAnonKey,
   },
   plugins: [
     "expo-router",

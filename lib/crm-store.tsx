@@ -16,18 +16,20 @@ export type PlanScheduleDay = { id: string; label: string; dateLabel: string; vi
 export type Plan = { id: string; title: string; period: string; kind: "أسبوعية" | "شهرية"; status: PlanStatus; repName: string; visitIds: string[]; schedule?: PlanScheduleDay[]; managerNote?: string; submittedAt: string };
 export type Territory = { id: string; name: string; state: string; city: string; assignees: string[]; accounts: number; coverage: number };
 export type TeamMember = { id: string; name: string; initials: string; role: AppRole; type: string; territory: string };
+export type RoleDefinition = { id: string; name: string; description: string; permissions: string[]; isSystem: boolean; isActive: boolean };
 export type CrmNotification = { id: string; title: string; body: string; time: string; kind: "خطة" | "زيارة" | "تنبيه" | "فريق"; readAt?: string };
 export type TeamInvite = { id: string; email: string; role: AppRole; territory: string; status: "بانتظار الرد" | "مقبولة" | "ملغاة"; sentAt: string; expiresAt: string };
 export type TerritoryBoundary = { territoryId: string; name: string; state: string; city: string; centerLatitude: string; centerLongitude: string; radiusMeters: number; notes?: string; updatedAt: string };
 export type DutyTrackPoint = { latitude: number; longitude: number; accuracyMeters?: number | null; speedMetersPerSecond?: number | null; capturedAt: string; source: "foreground" | "background" };
 export type RepDutyStatus = { memberId: string; isOnDuty: boolean; lastPoint?: DutyTrackPoint; path: DutyTrackPoint[] };
-export type CrmData = { accounts: Account[]; visits: Visit[]; plans: Plan[]; territories: Territory[]; visitResults: VisitResult[]; teamMembers: TeamMember[]; notifications: CrmNotification[]; invites: TeamInvite[]; boundaries: TerritoryBoundary[]; dutyStatuses: RepDutyStatus[] };
+export type CrmData = { accounts: Account[]; visits: Visit[]; plans: Plan[]; territories: Territory[]; visitResults: VisitResult[]; teamMembers: TeamMember[]; roleDefinitions: RoleDefinition[]; notifications: CrmNotification[]; invites: TeamInvite[]; boundaries: TerritoryBoundary[]; dutyStatuses: RepDutyStatus[] };
 
 type VisitCompletion = { result: VisitResult; note: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory: boolean };
 type NewPlanInput = { title: string; period: string; kind: Plan["kind"]; visitIds: string[]; schedule?: PlanScheduleDay[] };
 type CrmContextValue = {
   data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number;
   setRole: (role: AppRole) => void; selectTeamMember: (id: string) => void; updateTeamMemberRole: (id: string, role: AppRole) => void;
+  createRole: (input: Omit<RoleDefinition, "id" | "isSystem" | "isActive">) => void; updateRoleDefinition: (id: string, input: Pick<RoleDefinition, "name" | "description" | "permissions">) => void; toggleRoleDefinition: (id: string) => void; removeRoleDefinition: (id: string) => void;
   accountById: (id: string) => Account | undefined; visitsForAccount: (accountId: string) => Visit[];
   addAccount: (account: Omit<Account, "id" | "lastVisit" | "initials" | "accent">) => void;
   completeVisit: (visitId: string, completion: VisitCompletion) => void; submitPlan: (input: NewPlanInput) => void; approvePlan: (planId: string) => void; returnPlan: (planId: string, note: string) => void;
@@ -52,6 +54,7 @@ const initialData: CrmData = {
   territories: [{ id: "t1", name: "العمارات والرياض", state: "ولاية الخرطوم", city: "الخرطوم", assignees: ["محمد الأمين", "أحمد فضل"], accounts: 34, coverage: 78 }, { id: "t2", name: "بحري", state: "ولاية الخرطوم", city: "الخرطوم بحري", assignees: ["سلمى الطيب"], accounts: 21, coverage: 61 }],
   visitResults: defaultVisitResults,
   teamMembers: [{ id: "u1", name: "محمد الأمين", initials: "م أ", role: "مدير", type: "مدير مبيعات", territory: "كل المناطق" }, { id: "u2", name: "أحمد فضل", initials: "أ ف", role: "مندوب طبي", type: "المجال الطبي", territory: "العمارات والرياض" }, { id: "u3", name: "سلمى الطيب", initials: "س ط", role: "مندوب مبيعات", type: "توزيع ميداني", territory: "بحري" }],
+  roleDefinitions: [{ id: "r1", name: "مدير النظام", description: "إدارة المستخدمين والأدوار وإعدادات الشركة.", permissions: ["إدارة الأدوار", "إدارة المستخدمين", "إدارة الإعدادات"], isSystem: true, isActive: true }, { id: "r2", name: "مدير", description: "متابعة الفريق واعتماد الخطط وإدارة المناطق.", permissions: ["اعتماد الخطط", "إدارة المناطق", "عرض التقارير"], isSystem: true, isActive: true }, { id: "r3", name: "مندوب مبيعات", description: "إدارة زيارات وخطة البيع ضمن المنطقة المعيّنة.", permissions: ["خطتي", "زياراتي", "تتبع الدوام"], isSystem: true, isActive: true }, { id: "r4", name: "مندوب طبي", description: "إدارة زيارة الأطباء والعيادات ضمن المنطقة المعيّنة.", permissions: ["خطتي", "زياراتي", "تتبع الدوام"], isSystem: true, isActive: true }],
   notifications: [{ id: "n1", title: "خطة بانتظار الاعتماد", body: "خطة سبتمبر الطبية لأحمد فضل تحتاج قرارك.", time: "منذ 12 دقيقة", kind: "خطة" }, { id: "n2", title: "تذكير زيارة", body: "زيارة صيدلية السلام مجدولة اليوم عند 11:00 ص.", time: "منذ 35 دقيقة", kind: "زيارة" }],
   invites: [{ id: "i1", email: "medical.rep@tips.sd", role: "مندوب طبي", territory: "العمارات والرياض", status: "بانتظار الرد", sentAt: "اليوم", expiresAt: "بعد 6 أيام" }],
   boundaries: [{ territoryId: "t1", name: "العمارات والرياض", state: "ولاية الخرطوم", city: "الخرطوم", centerLatitude: "15.5581", centerLongitude: "32.5372", radiusMeters: 4200, notes: "تغطية العيادات والصيدليات.", updatedAt: "اليوم" }, { territoryId: "t2", name: "بحري", state: "ولاية الخرطوم", city: "الخرطوم بحري", centerLatitude: "15.6236", centerLongitude: "32.5327", radiusMeters: 3600, notes: "تغطية الموزعين والصيدليات.", updatedAt: "اليوم" }],
@@ -77,6 +80,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     setRole: (nextRole) => commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === activeMemberId ? { ...member, role: nextRole } : member) })),
     selectTeamMember: setActiveMemberId,
     updateTeamMemberRole: (id, nextRole) => commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === id ? { ...member, role: nextRole } : member) })),
+    createRole: (input) => commit((current) => ({ ...current, roleDefinitions: [{ ...input, id: `r-${Date.now()}`, isSystem: false, isActive: true }, ...current.roleDefinitions] })),
+    updateRoleDefinition: (id, input) => commit((current) => ({ ...current, roleDefinitions: current.roleDefinitions.map((roleDefinition) => roleDefinition.id === id ? { ...roleDefinition, ...input } : roleDefinition) })),
+    toggleRoleDefinition: (id) => commit((current) => ({ ...current, roleDefinitions: current.roleDefinitions.map((roleDefinition) => roleDefinition.id === id && !roleDefinition.isSystem ? { ...roleDefinition, isActive: !roleDefinition.isActive } : roleDefinition) })),
+    removeRoleDefinition: (id) => commit((current) => ({ ...current, roleDefinitions: current.roleDefinitions.filter((roleDefinition) => roleDefinition.id !== id || roleDefinition.isSystem) })),
     accountById: (id) => data.accounts.find((account) => account.id === id),
     visitsForAccount: (accountId) => data.visits.filter((visit) => visit.accountId === accountId),
     addAccount: (account) => { const accent: Record<AccountType, string> = { طبيب: "#0F766E", صيدلية: "#B45309", مستشفى: "#2563EB", موزع: "#7C3AED" }; const created: Account = { ...account, id: `a-${Date.now()}`, lastVisit: "لم تتم زيارة", initials: initialsFor(account.name), accent: accent[account.type] }; commit((current) => ({ ...current, accounts: [created, ...current.accounts] })); },
