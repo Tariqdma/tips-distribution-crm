@@ -4,13 +4,15 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { AccountAvatar, AppHeader, InfoRow, PrimaryButton, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
+import { getFieldDataScope } from "@/lib/field-data-scope";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function AccountDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
-  const { accountById, visitsForAccount } = useCrm();
-  const account = accountById(params.id);
-  const visits = visitsForAccount(params.id);
-  if (!account) return <ScreenContainer className="items-center justify-center px-5"><Text>الجهة غير موجودة.</Text></ScreenContainer>;
+  const { data, accountById, visitsForAccount } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile);
+  const account = scope.accounts.find((item) => item.id === params.id);
+  const visits = visitsForAccount(params.id).filter((visit) => scope.visits.some((allowed) => allowed.id === visit.id));
+  if (!account) return <ScreenContainer className="items-center justify-center px-5"><Text style={{ color: palette.muted, textAlign: "center" }}>هذه الجهة غير موجودة أو ليست ضمن نطاق زياراتك.</Text></ScreenContainer>;
   const nextVisit = visits.find((visit) => visit.status === "مجدولة");
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <AppHeader eyebrow="ملف الجهة" title="التفاصيل" right={<TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="arrow-forward" size={22} color={palette.primary} /></TouchableOpacity>} />

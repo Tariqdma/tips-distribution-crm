@@ -6,17 +6,19 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
 import { NotificationButton } from "@/components/notification-button";
 import { DutyTrackerCard } from "@/components/duty-tracker-card";
+import { getFieldDataScope } from "@/lib/field-data-scope";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function TodayScreen() {
-  const { data, accountById, unreadNotificationCount, recordDutyPoint } = useCrm();
-  const todayVisits = data.visits.filter((visit) => visit.date === "اليوم");
+  const { data, accountById, unreadNotificationCount, recordDutyPoint } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile);
+  const todayVisits = scope.visits.filter((visit) => visit.date === "اليوم");
   const completed = todayVisits.filter((visit) => visit.status === "مكتملة").length;
   const progress = todayVisits.length ? Math.round((completed / todayVisits.length) * 100) : 0;
 
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <AppHeader eyebrow="الأربعاء، 14 أغسطس" title="صباح الخير، محمد" right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><View style={styles.profile}><Text style={styles.profileText}>م أ</Text></View></View>} />
+        <AppHeader eyebrow="خطة اليوم والزيارات المخصصة لك" title={`صباح الخير، ${profile?.full_name ?? "بك"}`} right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><View style={styles.profile}><Text style={styles.profileText}>{(profile?.full_name ?? "م").split(" ").slice(0, 2).map((part) => part[0]).join("")}</Text></View></View>} />
 
         <View style={styles.hero}>
           <View style={styles.heroTop}><View style={styles.todayIcon}><MaterialIcons name="today" color="#FFFFFF" size={18} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroEyebrow}>خطة اليوم المعتمدة</Text><Text style={styles.heroTitle}>{completed} من {todayVisits.length} زيارات مكتملة</Text></View></View>
@@ -24,7 +26,7 @@ export default function TodayScreen() {
           <View style={styles.heroBottom}><Text style={styles.heroHint}>تابع الزيارة التالية لتأكيد الحضور</Text><Text style={styles.progressText}>{progress}%</Text></View>
         </View>
 
-        <View style={styles.metrics}><MetricCard label="زيارات اليوم" value={String(todayVisits.length)} icon="event-available" /><MetricCard label="داخل المنطقة" value="100%" icon="my-location" tone="blue" /><MetricCard label="متابعات مفتوحة" value="3" icon="forum" tone="amber" /></View>
+        <View style={styles.metrics}><MetricCard label="زيارات اليوم" value={String(todayVisits.length)} icon="event-available" /><MetricCard label="داخل المنطقة" value={todayVisits.length ? "100%" : "—"} icon="my-location" tone="blue" /><MetricCard label="تحتاج مراجعة" value={String(scope.visits.filter((visit) => visit.status === "تحتاج مراجعة").length)} icon="forum" tone="amber" /></View>
         <DutyTrackerCard onPoint={recordDutyPoint} />
 
         <SectionTitle title="جدول الزيارات" action="عرض الخطة" onPress={() => router.push("/(tabs)/plans" as never)} />

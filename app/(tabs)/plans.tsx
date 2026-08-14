@@ -4,15 +4,17 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { AppHeader, PrimaryButton, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
+import { getFieldDataScope } from "@/lib/field-data-scope";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function PlansScreen() {
-  const { data, role } = useCrm();
+  const { data, role } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile); const currentPlan = scope.plans.find((plan) => plan.status === "معتمدة");
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow={`التزام الزيارة يبدأ بخطة واضحة · ${role}`} title="مخططي" right={<TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity>} />
-    <View style={styles.currentPlan}><View style={styles.calendar}><MaterialIcons name="calendar-month" size={24} color={palette.primary} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><StatusBadge status="معتمدة" /><Text style={styles.currentTitle}>خطة أسبوع 18 أغسطس</Text><Text style={styles.currentMeta}>5 زيارات · العمارات والرياض</Text></View></View>
+    <AppHeader eyebrow={`التزام الزيارة يبدأ بخطة واضحة · ${role}`} title="مخططي" right={scope.isManager ? <TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity> : undefined} />
+    <View style={styles.currentPlan}><View style={styles.calendar}><MaterialIcons name="calendar-month" size={24} color={palette.primary} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><StatusBadge status={currentPlan?.status ?? "مسودة"} /><Text style={styles.currentTitle}>{currentPlan?.title ?? "لا توجد خطة معتمدة"}</Text><Text style={styles.currentMeta}>{currentPlan ? `${currentPlan.visitIds.length} زيارات · ${currentPlan.period}` : "أنشئ خطتك ثم أرسلها للاعتماد"}</Text></View></View>
     <PrimaryButton label="إنشاء خطة جديدة" icon="add" onPress={() => router.push("/plan/new" as never)} style={{ marginTop: 14 }} />
     <SectionTitle title="الخطط الأخيرة" />
-    {data.plans.map((plan) => <View key={plan.id} style={styles.planCard}><View style={styles.planTop}><StatusBadge status={plan.status} /><View style={{ alignItems: "flex-end", flex: 1 }}><Text style={styles.planTitle}>{plan.title}</Text><Text style={styles.planMeta}>{plan.kind} · {plan.period}</Text></View></View><View style={styles.planLine}><View style={styles.repTag}><MaterialIcons name="person-outline" size={15} color={palette.muted} /><Text style={styles.repTagText}>{plan.repName}</Text></View><Text style={styles.visitCount}>{plan.visitIds.length} زيارات</Text></View>{plan.managerNote ? <View style={styles.note}><MaterialIcons name="chat-bubble-outline" size={16} color={palette.error} /><Text style={styles.noteText}>{plan.managerNote}</Text></View> : null}</View>)}
+    {scope.plans.map((plan) => <View key={plan.id} style={styles.planCard}><View style={styles.planTop}><StatusBadge status={plan.status} /><View style={{ alignItems: "flex-end", flex: 1 }}><Text style={styles.planTitle}>{plan.title}</Text><Text style={styles.planMeta}>{plan.kind} · {plan.period}</Text></View></View><View style={styles.planLine}><View style={styles.repTag}><MaterialIcons name="person-outline" size={15} color={palette.muted} /><Text style={styles.repTagText}>{scope.isManager ? plan.repName : "خطتك"}</Text></View><Text style={styles.visitCount}>{plan.visitIds.length} زيارات</Text></View>{plan.managerNote ? <View style={styles.note}><MaterialIcons name="chat-bubble-outline" size={16} color={palette.error} /><Text style={styles.noteText}>{plan.managerNote}</Text></View> : null}</View>)}
     <View style={styles.explainer}><MaterialIcons name="info-outline" size={20} color={palette.info} /><Text style={styles.explainerText}>بعد إرسال الخطة، تظهر للإدارة للاعتماد. الزيارات المعتمدة فقط تدخل في جدولك اليومي.</Text></View>
   </ScrollView></ScreenContainer>;
 }

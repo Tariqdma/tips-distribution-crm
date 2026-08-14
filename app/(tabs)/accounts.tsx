@@ -5,14 +5,16 @@ import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from "r
 import { AccountAvatar, AppHeader, SectionTitle, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { type AccountType, useCrm } from "@/lib/crm-store";
+import { getFieldDataScope } from "@/lib/field-data-scope";
+import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 const filters: Array<"الكل" | AccountType> = ["الكل", "طبيب", "صيدلية", "مستشفى", "موزع"];
 
 export default function AccountsScreen() {
-  const { data } = useCrm();
+  const { data } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile);
   const [filter, setFilter] = useState<(typeof filters)[number]>("الكل");
   const [query, setQuery] = useState("");
-  const accounts = useMemo(() => data.accounts.filter((account) => (filter === "الكل" || account.type === filter) && `${account.name} ${account.area} ${account.city}`.includes(query.trim())), [data.accounts, filter, query]);
+  const accounts = useMemo(() => scope.accounts.filter((account) => (filter === "الكل" || account.type === filter) && `${account.name} ${account.area} ${account.city}`.includes(query.trim())), [scope.accounts, filter, query]);
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <FlatList

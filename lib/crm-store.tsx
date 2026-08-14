@@ -82,8 +82,19 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<CrmData>(initialData);
   const [isReady, setIsReady] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState("u1");
-  const { user } = useSupabaseAuth();
+  const { user, profile } = useSupabaseAuth();
   const remoteAccountIds = useRef<Record<string, string>>({});
+  useEffect(() => {
+    if (!profile) return;
+    setActiveMemberId(profile.id);
+    setData((current) => {
+      const mappedRole = roleFromRemote[profile.role_key] ?? "مندوب مبيعات";
+      const existing = current.teamMembers.find((member) => member.id === profile.id);
+      const member: TeamMember = { id: profile.id, name: profile.full_name, initials: initialsFor(profile.full_name), role: mappedRole, type: profile.role_name, territory: "حسب التعيين" };
+      const teamMembers = existing ? current.teamMembers.map((item) => item.id === profile.id ? { ...item, ...member } : item) : [member, ...current.teamMembers];
+      return { ...current, teamMembers };
+    });
+  }, [profile?.id, profile?.full_name, profile?.role_key, profile?.role_name]);
   useEffect(() => { AsyncStorage.getItem(STORAGE_KEY).then((raw) => { if (!raw) return; const saved = JSON.parse(raw) as Partial<CrmData>; setData({ ...initialData, ...saved, accounts: (saved.accounts ?? initialData.accounts).map((account) => ({ ...account, state: account.state || stateForCity(account.city) })), dutyStatuses: saved.dutyStatuses ?? initialData.dutyStatuses }); }).catch(() => undefined).finally(() => setIsReady(true)); }, []);
   const commit = (updater: (current: CrmData) => CrmData) => setData((current) => { const next = updater(current); void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)); return next; });
   const refreshSharedCatalog = useCallback(async () => {
@@ -116,7 +127,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     });
   }, [isReady, user]);
   useEffect(() => { void refreshSharedCatalog(); }, [refreshSharedCatalog]);
-  const role = data.teamMembers.find((member) => member.id === activeMemberId)?.role ?? "مندوب مبيعات";
+  const role = profile ? (roleFromRemote[profile.role_key] ?? "مندوب مبيعات") : (data.teamMembers.find((member) => member.id === activeMemberId)?.role ?? "مندوب مبيعات");
   const send = (title: string, body: string) => void sendOperationalNotification(title, body);
   const syncAccount = async (account: Account) => {
     if (!supabase || !user) return null;
