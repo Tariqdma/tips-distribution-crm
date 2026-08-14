@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -59,6 +60,12 @@ async function startServer() {
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+
+  app.get("/vendor/supabase.js", (_req, res) => {
+    res.type("application/javascript").sendFile(
+      path.join(process.cwd(), "node_modules", "@supabase", "supabase-js", "dist", "umd", "supabase.js"),
+    );
+  });
 
   app.get("/reset-password", (_req, res) => {
     res.type("html").send(
