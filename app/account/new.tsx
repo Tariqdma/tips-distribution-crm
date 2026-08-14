@@ -1,38 +1,33 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { citiesForState, SUDAN_STATES } from "@/lib/sudan-locations";
 import { type AccountType, useCrm } from "@/lib/crm-store";
 
 const types: AccountType[] = ["طبيب", "صيدلية", "مستشفى", "موزع"];
-
 export default function NewAccountScreen() {
-  const { addAccount } = useCrm();
-  const [name, setName] = useState("");
-  const [type, setType] = useState<AccountType>("طبيب");
-  const [specialty, setSpecialty] = useState("");
-  const [city, setCity] = useState("الخرطوم");
-  const [area, setArea] = useState("");
-  const [address, setAddress] = useState("");
-  const [contact, setContact] = useState("");
-  const save = () => {
-    if (!name.trim() || !area.trim() || !address.trim()) { Alert.alert("بيانات ناقصة", "أدخل اسم الجهة والمنطقة والعنوان قبل الحفظ."); return; }
-    addAccount({ name: name.trim(), type, specialty: specialty.trim() || undefined, city: city.trim(), area: area.trim(), address: address.trim(), contact: contact.trim() || "غير مسجل", priority: "اعتيادية" });
-    router.back();
-  };
-  return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><AppHeader eyebrow="أضفها مرة لتظهر في الخطط والزيارات" title="جهة جديدة" right={<TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="close" size={21} color={palette.primary} /></TouchableOpacity>} />
-    <Text style={styles.label}>نوع الجهة</Text><View style={styles.types}>{types.map((item) => <TouchableOpacity key={item} onPress={() => setType(item)} style={[styles.type, item === type && styles.typeActive]}><Text style={[styles.typeText, item === type && styles.typeTextActive]}>{item}</Text></TouchableOpacity>)}</View>
-    <Input label="اسم الجهة أو الطبيب" value={name} onChangeText={setName} placeholder="مثال: د. هناء علي" />
-    {type === "طبيب" ? <Input label="التخصص" value={specialty} onChangeText={setSpecialty} placeholder="مثال: أطفال" /> : null}
-    <Input label="المدينة" value={city} onChangeText={setCity} placeholder="الخرطوم" />
-    <Input label="المنطقة" value={area} onChangeText={setArea} placeholder="مثال: العمارات" />
-    <Input label="العنوان التفصيلي" value={address} onChangeText={setAddress} placeholder="الشارع أو اسم المبنى" />
+  const { addAccount } = useCrm(); const [name, setName] = useState(""); const [type, setType] = useState<AccountType>("طبيب"); const [specialty, setSpecialty] = useState(""); const [state, setState] = useState("ولاية الخرطوم"); const [city, setCity] = useState("الخرطوم"); const [area, setArea] = useState(""); const [address, setAddress] = useState(""); const [contact, setContact] = useState(""); const [picker, setPicker] = useState<"state" | "city" | null>(null);
+  const cities = citiesForState(state);
+  const save = () => { if (!name.trim() || !area.trim() || !address.trim()) { Alert.alert("بيانات ناقصة", "أدخل اسم الجهة والمنطقة والعنوان قبل الحفظ."); return; } addAccount({ name: name.trim(), type, specialty: specialty.trim() || undefined, state, city, area: area.trim(), address: address.trim(), contact: contact.trim() || "غير مسجل", priority: "اعتيادية" }); router.back(); };
+  const pick = (value: string) => { if (picker === "state") { setState(value); setCity(citiesForState(value)[0] ?? ""); } else setCity(value); setPicker(null); };
+  const options = picker === "state" ? SUDAN_STATES.map((item) => item.name) : cities;
+  return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><AppHeader eyebrow="أدخل بيانات واضحة تساعد الإدارة على التوزيع الصحيح" title="إضافة جهة" right={<TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="close" size={21} color={palette.primary} /></TouchableOpacity>} />
+    <View style={styles.info}><MaterialIcons name="info-outline" size={19} color={palette.info} /><Text style={styles.infoText}>ابدأ بنوع الجهة، ثم الولاية والمدينة، وبعدها أدخل بيانات التواصل والعنوان التفصيلي.</Text></View>
+    <Label text="نوع الجهة" /><View style={styles.types}>{types.map((item) => <TouchableOpacity key={item} onPress={() => setType(item)} style={[styles.type, item === type && styles.typeActive]}><Text style={[styles.typeText, item === type && styles.typeTextActive]}>{item}</Text></TouchableOpacity>)}</View>
+    <Input label="الاسم الكامل للجهة أو الطبيب" value={name} onChangeText={setName} placeholder="مثال: د. هناء علي أو صيدلية الوفاء" />
+    {type === "طبيب" ? <Input label="تخصص الطبيب" value={specialty} onChangeText={setSpecialty} placeholder="مثال: أطفال أو باطنية" /> : null}
+    <Label text="الولاية" /><Selector value={state} onPress={() => setPicker("state")} />
+    <Label text="المدينة" /><Selector value={city} onPress={() => setPicker("city")} />
+    <Input label="المنطقة أو الحي" value={area} onChangeText={setArea} placeholder="مثال: العمارات أو السوق الرئيسي" />
+    <Input label="العنوان التفصيلي" value={address} onChangeText={setAddress} placeholder="اسم المبنى أو الشارع أو رقم العيادة" />
     <Input label="رقم الهاتف" value={contact} onChangeText={setContact} placeholder="0912 000 000" keyboardType="phone-pad" />
-    <PrimaryButton label="حفظ الجهة" icon="check" onPress={save} style={{ marginTop: 14 }} />
-  </ScrollView></ScreenContainer>;
+    <PrimaryButton label="حفظ الجهة" icon="check" onPress={save} style={{ marginTop: 15 }} />
+  </ScrollView><Modal visible={picker !== null} transparent animationType="slide" onRequestClose={() => setPicker(null)}><View style={styles.modalBackdrop}><View style={styles.sheet}><View style={styles.sheetHead}><TouchableOpacity onPress={() => setPicker(null)}><Text style={styles.closeText}>إغلاق</Text></TouchableOpacity><Text style={styles.sheetTitle}>{picker === "state" ? "اختر الولاية" : "اختر المدينة"}</Text></View><ScrollView>{options.map((item) => <TouchableOpacity key={item} onPress={() => pick(item)} style={styles.option}><MaterialIcons name={(picker === "state" ? state : city) === item ? "check-circle" : "chevron-left"} size={20} color={(picker === "state" ? state : city) === item ? palette.success : palette.muted} /><Text style={styles.optionText}>{item}</Text></TouchableOpacity>)}</ScrollView></View></View></Modal></ScreenContainer>;
 }
-
-function Input({ label, value, onChangeText, placeholder, keyboardType }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; keyboardType?: "default" | "phone-pad" }) { return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#93A099" textAlign="right" keyboardType={keyboardType} style={styles.input} returnKeyType="done" /></View>; }
-const styles = StyleSheet.create({ content: { paddingTop: 10, paddingBottom: 28 }, back: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, label: { color: palette.ink, fontWeight: "800", fontSize: 13, textAlign: "right", marginBottom: 8 }, types: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8, marginBottom: 19 }, type: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: "#FFFFFF" }, typeActive: { backgroundColor: "#E9F8F2", borderColor: "#A9D8CC" }, typeText: { color: palette.muted, fontWeight: "700", fontSize: 12 }, typeTextActive: { color: palette.primary }, field: { marginBottom: 16 }, input: { minHeight: 49, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: "#FFFFFF", color: palette.ink, fontSize: 14, paddingHorizontal: 13 } });
+function Label({ text }: { text: string }) { return <Text style={styles.label}>{text}</Text>; }
+function Input({ label, value, onChangeText, placeholder, keyboardType }: { label: string; value: string; onChangeText: (value: string) => void; placeholder: string; keyboardType?: "default" | "phone-pad" }) { return <View style={styles.field}><Label text={label} /><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#93A099" textAlign="right" keyboardType={keyboardType} style={styles.input} returnKeyType="done" /></View>; }
+function Selector({ value, onPress }: { value: string; onPress: () => void }) { return <TouchableOpacity onPress={onPress} style={styles.selector}><MaterialIcons name="expand-more" size={22} color={palette.primary} /><Text style={styles.selectorValue}>{value}</Text></TouchableOpacity>; }
+const styles = StyleSheet.create({ content: { paddingTop: 10, paddingBottom: 30 }, back: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, info: { flexDirection: "row", gap: 8, padding: 12, borderRadius: 15, backgroundColor: "#EFF6FF", marginBottom: 19, alignItems: "flex-start" }, infoText: { color: "#285A8E", fontSize: 11, lineHeight: 17, flex: 1, textAlign: "right" }, label: { color: palette.ink, fontWeight: "800", fontSize: 13, textAlign: "right", marginBottom: 8 }, types: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8, marginBottom: 19 }, type: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: "#FFFFFF" }, typeActive: { backgroundColor: "#E9F8F2", borderColor: "#A9D8CC" }, typeText: { color: palette.muted, fontWeight: "700", fontSize: 12 }, typeTextActive: { color: palette.primary }, field: { marginTop: 16 }, input: { minHeight: 49, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: "#FFFFFF", color: palette.ink, fontSize: 14, paddingHorizontal: 13 }, selector: { minHeight: 50, paddingHorizontal: 13, borderRadius: 14, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: palette.line, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }, selectorValue: { color: palette.ink, fontSize: 14, fontWeight: "700", textAlign: "right" }, modalBackdrop: { flex: 1, backgroundColor: "rgba(11,34,28,0.4)", justifyContent: "flex-end" }, sheet: { maxHeight: "75%", borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: "#FFFFFF", paddingTop: 16, paddingHorizontal: 20, paddingBottom: 26 }, sheetHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingBottom: 13, borderBottomWidth: 1, borderBottomColor: "#E8EEEB" }, sheetTitle: { color: palette.ink, fontSize: 17, fontWeight: "800" }, closeText: { color: palette.primary, fontWeight: "800", fontSize: 13 }, option: { paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#EEF2F0", flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, optionText: { color: palette.ink, fontWeight: "700", fontSize: 14, textAlign: "right" } });
