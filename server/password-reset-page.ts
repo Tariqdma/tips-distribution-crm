@@ -47,6 +47,7 @@ export function createPasswordResetPage({
       </form>
       <p id="message" role="status"></p>
     </main>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
       const SUPABASE_URL = ${escapeJsonForScript(supabaseUrl)};
       const SUPABASE_ANON_KEY = ${escapeJsonForScript(supabaseAnonKey)};
@@ -54,23 +55,59 @@ export function createPasswordResetPage({
       const form = document.getElementById("reset-form");
       const submitButton = document.getElementById("submit");
       const message = document.getElementById("message");
-      const accessToken = new URLSearchParams(window.location.hash.slice(1)).get("access_token");
+      const query = new URLSearchParams(window.location.search);
+      const fragment = new URLSearchParams(window.location.hash.slice(1));
+      let recoveryAccessToken = fragment.get("access_token");
+      let recoveryReady = false;
 
       function setMessage(text, kind) {
         message.textContent = text;
         message.className = kind || "";
       }
 
-      if (CONFIGURATION_MISSING) {
-        setMessage("تعذر إعداد صفحة الاستعادة. حاول مرة أخرى لاحقاً.", "error");
-        submitButton.disabled = true;
-      } else if (!accessToken) {
-        setMessage("رابط الاستعادة غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً من شاشة الدخول.", "error");
-        submitButton.disabled = true;
+      async function prepareRecovery() {
+        if (CONFIGURATION_MISSING || !window.supabase) {
+          throw new Error("تعذر إعداد صفحة الاستعادة. حاول مرة أخرى لاحقاً.");
+        }
+
+        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { detectSessionInUrl: false, flowType: "pkce" },
+        });
+        const code = query.get("code");
+
+        if (code) {
+          const result = await client.auth.exchangeCodeForSession(code);
+          if (result.error) throw result.error;
+          recoveryAccessToken = result.data.session && result.data.session.access_token;
+        } else if (recoveryAccessToken) {
+          const refreshToken = fragment.get("refresh_token");
+          const result = await client.auth.setSession({
+            access_token: recoveryAccessToken,
+            refresh_token: refreshToken || "",
+          });
+          if (result.error) throw result.error;
+          recoveryAccessToken = result.data.session && result.data.session.access_token;
+        }
+
+        if (!recoveryAccessToken) {
+          throw new Error("رابط الاستعادة غير صالح أو انتهت صلاحيته. اطلب رابطاً جديداً من شاشة الدخول.");
+        }
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+        recoveryReady = true;
+        submitButton.disabled = false;
+        setMessage("أدخل كلمة المرور الجديدة ثم اضغط حفظ.");
       }
+
+      submitButton.disabled = true;
+      setMessage("جارٍ التحقق من رابط الاستعادة…");
+      prepareRecovery().catch((error) => {
+        setMessage(error instanceof Error ? error.message : "تعذر التحقق من رابط الاستعادة. اطلب رابطاً جديداً وحاول مرة أخرى.", "error");
+      });
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (!recoveryReady || !recoveryAccessToken) return;
         const password = document.getElementById("password").value;
         const confirmation = document.getElementById("confirm-password").value;
         if (password.length < 8) { setMessage("كلمة المرور يجب أن تحتوي على 8 أحرف على الأقل.", "error"); return; }
@@ -81,7 +118,7 @@ export function createPasswordResetPage({
         try {
           const response = await fetch(SUPABASE_URL + "/auth/v1/user", {
             method: "PUT",
-            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + accessToken },
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + recoveryAccessToken },
             body: JSON.stringify({ password }),
           });
           const body = await response.json().catch(() => ({}));
