@@ -1,0 +1,79 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useMemo } from "react";
+import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { AppHeader, MetricCard, PrimaryButton, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
+import { ScreenContainer } from "@/components/screen-container";
+import { useCrm } from "@/lib/crm-store";
+
+export default function AdminScreen() {
+  const { data, role, setRole, approvePlan, returnPlan, accountById } = useCrm();
+  const { width } = useWindowDimensions();
+  const isWide = Platform.OS === "web" && width >= 800;
+  const pendingPlans = data.plans.filter((plan) => plan.status === "بانتظار الاعتماد");
+  const completed = data.visits.filter((visit) => visit.status === "مكتملة").length;
+  const attentionVisits = data.visits.filter((visit) => visit.status === "تحتاج مراجعة");
+  const latestVisits = useMemo(() => data.visits.filter((visit) => visit.status !== "مجدولة").slice(0, 4), [data.visits]);
+
+  if (role !== "مدير") return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="admin-panel-settings" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>مساحة الإدارة</Text><Text style={styles.lockedText}>اعرض لوحة الموافقات والمناطق والزيارات من منظور المدير.</Text><PrimaryButton label="فتح عرض المدير" icon="admin-panel-settings" onPress={() => setRole("مدير")} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
+
+  return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={[styles.content, isWide && styles.wideContent]} showsVerticalScrollIndicator={false}>
+    <AppHeader eyebrow="مسؤولية اليوم · الخرطوم" title="لوحة الإدارة" right={<TouchableOpacity onPress={() => setRole("مندوب")} style={styles.roleButton}><MaterialIcons name="person" size={19} color={palette.primary} /></TouchableOpacity>} />
+    <View style={styles.managerBanner}><View style={styles.managerIcon}><MaterialIcons name="verified-user" size={21} color="#FFFFFF" /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.managerTitle}>فريقك يتحرك وفق خطة معتمدة</Text><Text style={styles.managerHint}>راقب الانضباط الميداني قبل نهاية اليوم</Text></View></View>
+    <View style={styles.metrics}><MetricCard label="إنجاز اليوم" value={`${completed}/4`} icon="task-alt" /><MetricCard label="خطط معلقة" value={String(pendingPlans.length)} icon="pending-actions" tone="amber" /><MetricCard label="مناطق نشطة" value={String(data.territories.length)} icon="map" tone="blue" /></View>
+
+    <View style={isWide ? styles.wideGrid : undefined}>
+      <View style={isWide ? styles.wideColumn : undefined}><SectionTitle title="خطط تحتاج قرارك" /><View style={styles.pendingList}>{pendingPlans.length ? pendingPlans.map((plan) => <View key={plan.id} style={styles.pendingCard}><View style={styles.pendingHead}><StatusBadge status={plan.status} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.pendingTitle}>{plan.title}</Text><Text style={styles.pendingMeta}>{plan.repName} · {plan.visitIds.length} زيارات · {plan.period}</Text></View></View><View style={styles.pendingActions}><TouchableOpacity onPress={() => returnPlan(plan.id, "يرجى إضافة مبرر ترتيب الأولويات وتوزيع الزيارات على أيام الأسبوع.")} style={styles.returnButton}><Text style={styles.returnText}>إعادة للمراجعة</Text></TouchableOpacity><TouchableOpacity onPress={() => approvePlan(plan.id)} style={styles.approveButton}><MaterialIcons name="check" size={17} color="#FFFFFF" /><Text style={styles.approveText}>اعتماد الخطة</Text></TouchableOpacity></View></View>) : <View style={styles.noPending}><MaterialIcons name="check-circle" size={22} color={palette.success} /><Text style={styles.noPendingText}>لا توجد خطط معلقة الآن.</Text></View>}</View></View>
+      <View style={isWide ? styles.wideColumn : undefined}><SectionTitle title="آخر الزيارات المؤكدة" /><View style={styles.activityCard}>{latestVisits.map((visit, index) => { const account = accountById(visit.accountId); return <View key={visit.id} style={[styles.activityRow, index < latestVisits.length - 1 && styles.activityLine]}><View style={[styles.activityMark, { backgroundColor: visit.status === "تحتاج مراجعة" ? palette.errorBg : palette.successBg }]}><MaterialIcons name={visit.status === "تحتاج مراجعة" ? "warning-amber" : "location-on"} size={18} color={visit.status === "تحتاج مراجعة" ? palette.error : palette.success} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><View style={styles.activityTitleRow}><StatusBadge status={visit.status} /><Text style={styles.activityTitle}>{account?.name ?? "جهة"}</Text></View><Text style={styles.activityMeta}>{visit.checkedInAt ?? "—"} · {visit.result ?? "لم تسجل نتيجة"}</Text></View></View>; })}</View></View>
+    </View>
+
+    <SectionTitle title="المناطق والتغطية" />
+    {data.territories.map((territory) => <View key={territory.id} style={styles.territoryCard}><View style={styles.territoryHead}><View style={styles.coverage}><Text style={styles.coverageText}>{territory.coverage}%</Text></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.territoryName}>{territory.name}</Text><Text style={styles.territoryMeta}>{territory.city} · {territory.accounts} جهة · {territory.assignees.join("، ")}</Text></View></View><View style={styles.coverageTrack}><View style={[styles.coverageFill, { width: `${territory.coverage}%` }]} /></View></View>)}
+    {attentionVisits.length ? <View style={styles.alert}><MaterialIcons name="warning-amber" size={21} color={palette.error} /><Text style={styles.alertText}>{attentionVisits.length} زيارة تحتاج مراجعة بسبب موقع خارج المنطقة أو ضعف دقة القراءة.</Text></View> : null}
+  </ScrollView></ScreenContainer>;
+}
+
+const styles = StyleSheet.create({
+  content: { paddingTop: 10, paddingBottom: 28 },
+  wideContent: { maxWidth: 1160, width: "100%", alignSelf: "center" },
+  roleButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" },
+  locked: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 25 },
+  lockIcon: { width: 68, height: 68, borderRadius: 24, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center", marginBottom: 15 },
+  lockedTitle: { color: palette.ink, fontWeight: "800", fontSize: 23 },
+  lockedText: { color: palette.muted, textAlign: "center", lineHeight: 21, marginTop: 8, fontSize: 14 },
+  managerBanner: { backgroundColor: "#143D35", borderRadius: 20, padding: 16, flexDirection: "row", gap: 12, alignItems: "center" },
+  managerIcon: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "#28715F" },
+  managerTitle: { color: "#FFFFFF", fontWeight: "800", fontSize: 15, textAlign: "right" },
+  managerHint: { color: "#C6E6DD", fontSize: 11, marginTop: 4, textAlign: "right" },
+  metrics: { flexDirection: "row", gap: 8, marginTop: 14 },
+  wideGrid: { flexDirection: "row", gap: 18 },
+  wideColumn: { flex: 1 },
+  pendingList: { gap: 10 },
+  pendingCard: { backgroundColor: "#FFFFFF", borderColor: palette.line, borderWidth: 1, borderRadius: 19, padding: 15 },
+  pendingHead: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
+  pendingTitle: { color: palette.ink, fontWeight: "800", fontSize: 15, textAlign: "right" },
+  pendingMeta: { color: palette.muted, fontSize: 11, marginTop: 4, textAlign: "right" },
+  pendingActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 14 },
+  returnButton: { minHeight: 35, paddingHorizontal: 11, borderRadius: 10, justifyContent: "center", borderWidth: 1, borderColor: "#E4B5B5" },
+  returnText: { color: palette.error, fontSize: 11, fontWeight: "800" },
+  approveButton: { minHeight: 35, paddingHorizontal: 11, borderRadius: 10, justifyContent: "center", alignItems: "center", backgroundColor: palette.primary, flexDirection: "row", gap: 4 },
+  approveText: { color: "#FFFFFF", fontSize: 11, fontWeight: "800" },
+  noPending: { padding: 18, borderRadius: 16, backgroundColor: "#E9F8F2", flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center" },
+  noPendingText: { color: palette.success, fontWeight: "700", fontSize: 12 },
+  activityCard: { backgroundColor: "#FFFFFF", borderRadius: 19, paddingHorizontal: 14, borderColor: palette.line, borderWidth: 1 },
+  activityRow: { paddingVertical: 13, flexDirection: "row", gap: 10, alignItems: "center" },
+  activityLine: { borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
+  activityMark: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  activityTitleRow: { flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "flex-end" },
+  activityTitle: { color: palette.ink, fontWeight: "800", fontSize: 14, textAlign: "right" },
+  activityMeta: { color: palette.muted, fontSize: 11, marginTop: 3, textAlign: "right" },
+  territoryCard: { backgroundColor: "#FFFFFF", borderRadius: 18, borderWidth: 1, borderColor: palette.line, padding: 14, marginBottom: 10 },
+  territoryHead: { flexDirection: "row", alignItems: "center", gap: 11 },
+  coverage: { height: 41, minWidth: 49, paddingHorizontal: 8, backgroundColor: "#E9F8F2", borderRadius: 13, alignItems: "center", justifyContent: "center" },
+  coverageText: { color: palette.success, fontSize: 13, fontWeight: "800" },
+  territoryName: { color: palette.ink, fontWeight: "800", fontSize: 15, textAlign: "right" },
+  territoryMeta: { color: palette.muted, fontSize: 10, marginTop: 4, textAlign: "right" },
+  coverageTrack: { height: 6, borderRadius: 4, backgroundColor: "#EBF0EE", marginTop: 13, overflow: "hidden" },
+  coverageFill: { height: "100%", borderRadius: 4, backgroundColor: palette.teal },
+  alert: { backgroundColor: "#FFF0F0", borderRadius: 16, padding: 13, flexDirection: "row", alignItems: "center", gap: 9, marginTop: 5 },
+  alertText: { color: palette.error, fontSize: 11, lineHeight: 17, flex: 1, textAlign: "right" },
+});

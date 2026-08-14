@@ -1,0 +1,55 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Location from "expo-location";
+import { router, useLocalSearchParams } from "expo-router";
+import { useState } from "react";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { AccountAvatar, AppHeader, PrimaryButton, StatusBadge, palette } from "@/components/crm-ui";
+import { ScreenContainer } from "@/components/screen-container";
+import { type VisitResult, useCrm } from "@/lib/crm-store";
+import { isLocationAcceptable } from "@/lib/crm-logic";
+
+const results: VisitResult[] = ["متابعة", "تم إنشاء فاتورة", "تم تحصيل", "لا يوجد قرار"];
+
+export default function VisitScreen() {
+  const params = useLocalSearchParams<{ id: string }>();
+  const { data, accountById, completeVisit } = useCrm();
+  const visit = data.visits.find((item) => item.id === params.id);
+  const account = visit ? accountById(visit.accountId) : undefined;
+  const [result, setResult] = useState<VisitResult>(visit?.result ?? "متابعة");
+  const [note, setNote] = useState(visit?.note ?? "");
+  const [location, setLocation] = useState(visit?.location);
+  const [locationMessage, setLocationMessage] = useState(visit?.location ? "تم حفظ موقع الحضور" : "لم يتم التقاط الموقع بعد");
+  const [isLocating, setIsLocating] = useState(false);
+  if (!visit || !account) return <ScreenContainer className="items-center justify-center"><Text>الزيارة غير موجودة.</Text></ScreenContainer>;
+  const captureLocation = async () => {
+    setIsLocating(true);
+    try {
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && !navigator.geolocation) { setLocationMessage("المتصفح لا يدعم الموقع الجغرافي."); return; }
+      const serviceEnabled = await Location.hasServicesEnabledAsync();
+      if (!serviceEnabled) { setLocationMessage("يرجى تشغيل خدمات الموقع ثم المحاولة."); return; }
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") { setLocationMessage("لا يمكن تأكيد الحضور دون السماح بالموقع."); return; }
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude, accuracy: current.coords.accuracy });
+      setLocationMessage(`تم التقاط الموقع بدقة ${Math.round(current.coords.accuracy ?? 0)} م`);
+    } catch { setLocationMessage("تعذر الحصول على الموقع الآن. حاول في مكان مفتوح أو تحقق من الإذن."); }
+    finally { setIsLocating(false); }
+  };
+  const save = () => {
+    if (!location) { Alert.alert("يلزم تأكيد الموقع", "التقط موقع الحضور قبل إنهاء الزيارة."); return; }
+    const isInsideTerritory = isLocationAcceptable(location.accuracy);
+    completeVisit(visit.id, { result, note: note.trim() || "تم تأكيد الزيارة دون ملاحظة إضافية.", location, isInsideTerritory });
+    Alert.alert("تم توثيق الزيارة", isInsideTerritory ? "أضيفت الزيارة إلى إنجاز اليوم." : "تم حفظ الزيارة وهي تحتاج مراجعة بسبب دقة الموقع.", [{ text: "العودة لجدولي", onPress: () => router.replace("/(tabs)") }]);
+  };
+  return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><AppHeader eyebrow="خطوة التوثيق النهائية" title="تأكيد الزيارة" right={<TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="close" size={21} color={palette.primary} /></TouchableOpacity>} />
+    <View style={styles.accountCard}><AccountAvatar account={account} size={55} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.accountName}>{account.name}</Text><Text style={styles.accountMeta}>{account.type}{account.specialty ? ` · ${account.specialty}` : ""}</Text><Text style={styles.accountAddress}>{account.address}</Text></View></View>
+    <View style={styles.statusLine}><StatusBadge status={visit.status} /><Text style={styles.time}>{visit.date} · {visit.time}</Text></View>
+    <Text style={styles.sectionLabel}>موقع الحضور</Text><View style={[styles.locationCard, location && styles.locationCaptured]}><View style={styles.locationIcon}><MaterialIcons name={location ? "location-on" : "my-location"} size={23} color={location ? palette.success : palette.primary} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.locationTitle}>{location ? "تم تأكيد الموقع" : "تأكيد الحضور بالموقع"}</Text><Text style={styles.locationHint}>{locationMessage}</Text>{location ? <Text style={styles.coords}>{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</Text> : null}</View></View>
+    <TouchableOpacity onPress={captureLocation} disabled={isLocating || visit.status === "مكتملة"} style={[styles.locationButton, (isLocating || visit.status === "مكتملة") && styles.locationDisabled]}>{isLocating ? <ActivityIndicator color={palette.primary} /> : <><MaterialIcons name="gps-fixed" size={19} color={palette.primary} /><Text style={styles.locationButtonText}>{location ? "تحديث موقعي" : "التقاط موقعي الآن"}</Text></>}</TouchableOpacity>
+    <Text style={styles.sectionLabel}>نتيجة الزيارة</Text><View style={styles.resultGrid}>{results.map((item) => <TouchableOpacity key={item} onPress={() => setResult(item)} style={[styles.result, result === item && styles.resultSelected]}><Text style={[styles.resultText, result === item && styles.resultTextSelected]}>{item}</Text></TouchableOpacity>)}</View>
+    <Text style={styles.sectionLabel}>ملاحظة الزيارة</Text><TextInput value={note} onChangeText={setNote} textAlign="right" multiline placeholder="أضف ملخصاً قصيراً للنقاش أو الخطوة التالية…" placeholderTextColor="#93A099" style={styles.noteInput} />
+    {visit.status !== "مكتملة" ? <PrimaryButton label="حفظ وتأكيد الزيارة" icon="check-circle" onPress={save} style={{ marginTop: 20 }} /> : <View style={styles.completed}><MaterialIcons name="check-circle" size={21} color={palette.success} /><Text style={styles.completedText}>تم توثيق هذه الزيارة سابقاً.</Text></View>}
+  </ScrollView></ScreenContainer>;
+}
+
+const styles = StyleSheet.create({ content: { paddingTop: 10, paddingBottom: 28 }, back: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, accountCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 15, borderWidth: 1, borderColor: palette.line, flexDirection: "row", alignItems: "center", gap: 12 }, accountName: { color: palette.ink, fontSize: 18, fontWeight: "800", textAlign: "right" }, accountMeta: { color: palette.muted, marginTop: 3, fontSize: 12, textAlign: "right" }, accountAddress: { color: palette.primary, fontSize: 11, marginTop: 7, textAlign: "right" }, statusLine: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 }, time: { color: palette.muted, fontSize: 12, fontWeight: "700" }, sectionLabel: { color: palette.ink, fontSize: 14, fontWeight: "800", textAlign: "right", marginTop: 22, marginBottom: 9 }, locationCard: { backgroundColor: "#F7FBF9", borderRadius: 18, padding: 14, borderWidth: 1, borderColor: "#D7E9E2", flexDirection: "row", gap: 11, alignItems: "center" }, locationCaptured: { backgroundColor: "#EAF8F2", borderColor: "#B9DECf" }, locationIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }, locationTitle: { color: palette.ink, fontWeight: "800", fontSize: 14, textAlign: "right" }, locationHint: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 3, textAlign: "right" }, coords: { color: palette.success, fontSize: 10, marginTop: 4, fontWeight: "700" }, locationButton: { marginTop: 9, minHeight: 45, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#B8D7CF", borderRadius: 14, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center" }, locationDisabled: { opacity: 0.55 }, locationButtonText: { color: palette.primary, fontSize: 13, fontWeight: "800" }, resultGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 }, result: { minWidth: "46%", flexGrow: 1, paddingVertical: 11, paddingHorizontal: 10, borderRadius: 12, borderWidth: 1, borderColor: palette.line, backgroundColor: "#FFFFFF", alignItems: "center" }, resultSelected: { borderColor: "#92CDC0", backgroundColor: "#E9F8F2" }, resultText: { color: palette.muted, fontSize: 12, fontWeight: "700" }, resultTextSelected: { color: palette.primary }, noteInput: { height: 106, borderRadius: 15, borderColor: palette.line, borderWidth: 1, backgroundColor: "#FFFFFF", padding: 13, color: palette.ink, fontSize: 13, textAlignVertical: "top" }, completed: { marginTop: 20, padding: 14, borderRadius: 15, backgroundColor: "#E9F8F2", flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }, completedText: { color: palette.success, fontWeight: "800", fontSize: 13 } });
