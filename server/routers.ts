@@ -5,7 +5,6 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import * as db from "./db";
-import { sendInvitationEmail } from "./invite-email";
 
 async function requireCrmManager(user: { id: number; role: "user" | "admin" }) {
   if (user.role === "admin") return;
@@ -25,11 +24,6 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
-  }),
-  crmInviteEmail: router({
-    send: publicProcedure
-      .input(z.object({ inviteId: z.string().uuid(), supabaseAccessToken: z.string().min(20) }))
-      .mutation(({ input }) => sendInvitationEmail(input)),
   }),
   team: router({
     me: protectedProcedure.query(async ({ ctx }) => {

@@ -7,10 +7,7 @@ export type ExportReportRow = { record_type: string; occurred_at: string; actor_
 
 const labels: Record<string, string> = { plan: "خطة", visit: "زيارة", audit: "سجل تدقيق" };
 
-export type ExportReportKind = "report" | "visits" | "plans";
-const exportMeta: Record<ExportReportKind, { file: string; sheet: string; dialog: string }> = { report: { file: "report", sheet: "تقرير Tips CRM", dialog: "تصدير تقرير Tips CRM" }, visits: { file: "visits", sheet: "زيارات Tips CRM", dialog: "تصدير زيارات Tips CRM" }, plans: { file: "plans", sheet: "خطط Tips CRM", dialog: "تصدير خطط Tips CRM" } };
-
-export async function exportReportWorkbook(rows: ExportReportRow[], kind: ExportReportKind = "report") {
+export async function exportReportWorkbook(rows: ExportReportRow[]) {
   const worksheet = XLSX.utils.json_to_sheet(rows.map((row) => ({
     "نوع السجل": labels[row.record_type] ?? row.record_type,
     "التاريخ والوقت": new Date(row.occurred_at).toLocaleString("ar"),
@@ -21,8 +18,8 @@ export async function exportReportWorkbook(rows: ExportReportRow[], kind: Export
   })));
   worksheet["!cols"] = [{ wch: 16 }, { wch: 22 }, { wch: 22 }, { wch: 30 }, { wch: 20 }, { wch: 44 }];
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, exportMeta[kind].sheet);
-  const fileName = `tips-crm-${exportMeta[kind].file}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير Tips CRM");
+  const fileName = `tips-crm-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
   if (Platform.OS === "web") {
     const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
@@ -39,6 +36,6 @@ export async function exportReportWorkbook(rows: ExportReportRow[], kind: Export
   const uri = `${FileSystem.cacheDirectory}${fileName}`;
   const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
   await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
-  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { dialogTitle: exportMeta[kind].dialog, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { dialogTitle: "تصدير تقرير Tips CRM", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   return fileName;
 }
