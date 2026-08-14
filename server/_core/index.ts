@@ -11,6 +11,7 @@ import { createContext } from "./context";
 import { ENV } from "./env";
 import { createPasswordResetPage } from "../password-reset-page";
 import { createTemporaryEmployeeAccount } from "../employee-account";
+import { createCrmLandingPage } from "../crm-landing-page";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -61,6 +62,10 @@ async function startServer() {
 
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+
+  app.get("/", (_req, res) => {
+    res.type("html").send(createCrmLandingPage());
+  });
 
   app.get("/vendor/supabase.js", (_req, res) => {
     res.setHeader("Cache-Control", "no-store, max-age=0");
