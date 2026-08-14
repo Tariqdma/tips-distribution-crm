@@ -10,11 +10,18 @@ describe("Invitation email template", () => {
       territory_label: "بحري",
       invite_token: "safe token/+",
       expires_at: "2026-08-21T12:00:00.000Z",
+      sender_name: "فريق Tips للتوزيع",
+      invite_subject: "دعوة {{role}} لمنطقة {{territory}}",
+      invite_intro: "مرحباً بك بصفتك {{role}} في {{territory}}. الرابط: {{accept_link}}",
+      invite_action_label: "ابدأ الآن",
     });
 
-    expect(message.subject).toContain("دعوة");
+    expect(message.subject).toContain("مندوب طبي");
+    expect(message.subject).toContain("بحري");
     expect(message.text).toContain("مندوب طبي");
     expect(message.html).toContain("بحري");
+    expect(message.html).toContain("فريق Tips للتوزيع");
+    expect(message.html).toContain("ابدأ الآن");
     expect(message.html).toContain("token=safe%20token%2F%2B");
   });
 });
