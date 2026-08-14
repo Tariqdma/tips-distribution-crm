@@ -10,6 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
 import { createPasswordResetPage } from "../password-reset-page";
+import { createTemporaryEmployeeAccount } from "../employee-account";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -79,6 +80,16 @@ async function startServer() {
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
+  });
+
+  app.post("/api/employee-accounts", async (req, res) => {
+    try {
+      const account = await createTemporaryEmployeeAccount(req.body, req.header("authorization"));
+      res.status(201).json({ account });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إنشاء حساب الموظف.";
+      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
   });
 
   app.use(

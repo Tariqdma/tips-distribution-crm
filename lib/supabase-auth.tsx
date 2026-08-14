@@ -2,18 +2,20 @@ import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase-client";
 
-export type SupabaseProfile = { id: string; full_name: string; email: string | null; role_key: string; role_name: string; permissions: string[]; is_active: boolean };
-type SupabaseAuthValue = { session: Session | null; user: User | null; profile: SupabaseProfile | null; loading: boolean; refreshProfile: () => Promise<void>; claimFirstSystemAdmin: () => Promise<boolean>; signOut: () => Promise<void> };
+export type SupabaseProfile = { id: string; full_name: string; email: string | null; role_key: string; role_name: string; permissions: string[]; is_active: boolean; must_change_password: boolean };
+type SupabaseAuthValue = { session: Session | null; user: User | null; profile: SupabaseProfile | null; loading: boolean; refreshProfile: () => Promise<SupabaseProfile | null>; claimFirstSystemAdmin: () => Promise<boolean>; signOut: () => Promise<void> };
 const SupabaseAuthContext = createContext<SupabaseAuthValue | null>(null);
 
 export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<SupabaseProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const refreshProfile = async () => {
-    if (!supabase) return;
+  const refreshProfile = async (): Promise<SupabaseProfile | null> => {
+    if (!supabase) return null;
     const { data } = await supabase.rpc("tips_crm_my_profile");
-    setProfile((data?.[0] as SupabaseProfile | undefined) ?? null);
+    const nextProfile = (data?.[0] as SupabaseProfile | undefined) ?? null;
+    setProfile(nextProfile);
+    return nextProfile;
   };
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }

@@ -10,7 +10,7 @@ import { ActivityIndicator, View } from "react-native";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function TabLayout() {
-  const { session, loading } = useSupabaseAuth();
+  const { session, loading, profile } = useSupabaseAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
@@ -18,6 +18,7 @@ export default function TabLayout() {
 
   if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.tint} /></View>;
   if (!session) return <Redirect href="/login" />;
+  if (profile?.must_change_password) return <Redirect href={"/change-password" as never} />;
   return (
     <Tabs
       screenOptions={{
