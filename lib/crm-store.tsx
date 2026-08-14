@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { sendOperationalNotification } from "@/lib/notifications";
 import { stateForCity } from "@/lib/sudan-locations";
 import { appendDutyPoint } from "@/lib/duty-logic";
@@ -35,7 +35,7 @@ type CrmContextValue = {
   accountById: (id: string) => Account | undefined; visitsForAccount: (accountId: string) => Visit[];
   addAccount: (account: Omit<Account, "id" | "lastVisit" | "initials" | "accent">) => void;
   completeVisit: (visitId: string, completion: VisitCompletion) => void; submitPlan: (input: NewPlanInput) => void; approvePlan: (planId: string) => void; returnPlan: (planId: string, note: string) => void;
-  addVisitResult: (label: string) => void; createInvite: (input: Omit<TeamInvite, "id" | "status" | "sentAt" | "expiresAt" | "acceptUrl">) => Promise<TeamInvite | null>; updateBoundary: (boundary: TerritoryBoundary) => void;
+  addVisitResult: (label: string) => void; createInvite: (input: Omit<TeamInvite, "id" | "status" | "sentAt" | "expiresAt" | "acceptUrl">) => Promise<TeamInvite | null>; resendInvite: (invite: TeamInvite) => Promise<TeamInvite | null>; revokeInvite: (inviteId: string) => Promise<boolean>; updateBoundary: (boundary: TerritoryBoundary) => void;
   createCentralNotification: (input: Pick<CrmNotification, "title" | "body" | "kind">) => void; recordDutyPoint: (point: DutyTrackPoint) => void; markAllNotificationsRead: () => void;
 };
 
@@ -68,6 +68,15 @@ const initialData: CrmData = {
 
 const CrmContext = createContext<CrmContextValue | null>(null);
 const initialsFor = (name: string) => name.replace(/^(د\.|صيدلية|مستشفى|موزع)\s*/, "").split(" ").slice(0, 2).map((part) => part[0]).join(" ");
+const accentForAccountType: Record<AccountType, string> = { طبيب: "#0F766E", صيدلية: "#B45309", مستشفى: "#2563EB", موزع: "#7C3AED" };
+const accountTypeToRemote: Record<AccountType, string> = { طبيب: "doctor", صيدلية: "pharmacy", مستشفى: "hospital", موزع: "distributor" };
+const accountTypeFromRemote: Record<string, AccountType> = { doctor: "طبيب", pharmacy: "صيدلية", hospital: "مستشفى", distributor: "موزع" };
+const roleToRemote: Record<AppRole, string> = { مدير: "sales_manager", "مندوب مبيعات": "sales_rep", "مندوب طبي": "medical_rep" };
+const roleFromRemote: Record<string, AppRole> = { system_admin: "مدير", sales_manager: "مدير", sales_rep: "مندوب مبيعات", medical_rep: "مندوب طبي" };
+const inviteStatusFromRemote: Record<string, TeamInvite["status"]> = { pending: "بانتظار الرد", accepted: "مقبولة", revoked: "ملغاة", expired: "ملغاة" };
+type RemoteAccount = { id: string; local_ref: string | null; account_type: string; name: string; specialty: string | null; state: string; city: string; area: string | null; address: string | null; phone: string | null };
+type RemoteOutcome = { id: string; label: string; is_active: boolean; sort_order: number };
+type RemoteInvite = { id: string; email: string; role_key: string; territory_label: string | null; status: string; invite_token: string; expires_at: string };
 
 export function CrmProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<CrmData>(initialData);
@@ -77,13 +86,42 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const remoteAccountIds = useRef<Record<string, string>>({});
   useEffect(() => { AsyncStorage.getItem(STORAGE_KEY).then((raw) => { if (!raw) return; const saved = JSON.parse(raw) as Partial<CrmData>; setData({ ...initialData, ...saved, accounts: (saved.accounts ?? initialData.accounts).map((account) => ({ ...account, state: account.state || stateForCity(account.city) })), dutyStatuses: saved.dutyStatuses ?? initialData.dutyStatuses }); }).catch(() => undefined).finally(() => setIsReady(true)); }, []);
   const commit = (updater: (current: CrmData) => CrmData) => setData((current) => { const next = updater(current); void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)); return next; });
+  const refreshSharedCatalog = useCallback(async () => {
+    if (!supabase || !user || !isReady) return;
+    const [accountsResponse, outcomesResponse, invitesResponse] = await Promise.all([
+      supabase.rpc("tips_crm_list_accounts"),
+      supabase.rpc("tips_crm_list_visit_outcomes"),
+      supabase.rpc("tips_crm_list_invites"),
+    ]);
+    const remoteAccounts = accountsResponse.error ? null : (accountsResponse.data ?? []) as RemoteAccount[];
+    const remoteOutcomes = outcomesResponse.error ? null : (outcomesResponse.data ?? []) as RemoteOutcome[];
+    const remoteInvites = invitesResponse.error ? null : (invitesResponse.data ?? []) as RemoteInvite[];
+    remoteAccounts?.forEach((account) => { if (account.local_ref) remoteAccountIds.current[account.local_ref] = account.id; });
+    setData((current) => {
+      const sharedAccounts = remoteAccounts?.map((account) => {
+        const type = accountTypeFromRemote[account.account_type] ?? "موزع";
+        const localId = account.local_ref || `remote-${account.id}`;
+        const cached = current.accounts.find((item) => item.id === localId);
+        return { ...cached, id: localId, name: account.name, type, specialty: account.specialty ?? undefined, state: account.state, city: account.city, area: account.area ?? "", address: account.address ?? "", contact: account.phone ?? "", lastVisit: cached?.lastVisit ?? "لم تتم زيارة", priority: cached?.priority ?? "اعتيادية", initials: initialsFor(account.name), accent: accentForAccountType[type] } as Account;
+      });
+      const pendingLocalAccounts = current.accounts.filter((account) => account.id.startsWith("a-") && !sharedAccounts?.some((item) => item.id === account.id));
+      const next: CrmData = {
+        ...current,
+        accounts: sharedAccounts ? [...sharedAccounts, ...pendingLocalAccounts] : current.accounts,
+        visitResults: remoteOutcomes ? remoteOutcomes.filter((outcome) => outcome.is_active).map((outcome) => outcome.label) : current.visitResults,
+        invites: remoteInvites ? remoteInvites.map((invite) => ({ id: invite.id, email: invite.email, role: roleFromRemote[invite.role_key] ?? "مندوب مبيعات", territory: invite.territory_label ?? "غير محددة", status: inviteStatusFromRemote[invite.status] ?? "بانتظار الرد", sentAt: "", expiresAt: new Date(invite.expires_at).toLocaleDateString("ar"), acceptUrl: `https://tipscrm-vevc4ncu.manus.space/invite?token=${invite.invite_token}` })) : current.invites,
+      };
+      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [isReady, user]);
+  useEffect(() => { void refreshSharedCatalog(); }, [refreshSharedCatalog]);
   const role = data.teamMembers.find((member) => member.id === activeMemberId)?.role ?? "مندوب مبيعات";
   const send = (title: string, body: string) => void sendOperationalNotification(title, body);
   const syncAccount = async (account: Account) => {
     if (!supabase || !user) return null;
     if (remoteAccountIds.current[account.id]) return remoteAccountIds.current[account.id];
-    const accountType: Record<AccountType, string> = { طبيب: "doctor", صيدلية: "pharmacy", مستشفى: "hospital", موزع: "distributor" };
-    const { data: remoteId, error } = await supabase.rpc("tips_crm_sync_account", { local_ref: account.id, account_type: accountType[account.type], account_name: account.name, account_specialty: account.specialty ?? "", account_state: account.state, account_city: account.city, account_area: account.area, account_address: account.address, account_phone: account.contact });
+    const { data: remoteId, error } = await supabase.rpc("tips_crm_sync_account", { local_ref_input: account.id, account_type: accountTypeToRemote[account.type], account_name: account.name, account_specialty: account.specialty ?? "", account_state: account.state, account_city: account.city, account_area: account.area, account_address: account.address, account_phone: account.contact });
     if (error || !remoteId) return null;
     remoteAccountIds.current[account.id] = remoteId as string;
     return remoteId as string;
@@ -99,18 +137,20 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     removeRoleDefinition: (id) => commit((current) => ({ ...current, roleDefinitions: current.roleDefinitions.filter((roleDefinition) => roleDefinition.id !== id || roleDefinition.isSystem) })),
     accountById: (id) => data.accounts.find((account) => account.id === id),
     visitsForAccount: (accountId) => data.visits.filter((visit) => visit.accountId === accountId),
-    addAccount: (account) => { const accent: Record<AccountType, string> = { طبيب: "#0F766E", صيدلية: "#B45309", مستشفى: "#2563EB", موزع: "#7C3AED" }; const created: Account = { ...account, id: `a-${Date.now()}`, lastVisit: "لم تتم زيارة", initials: initialsFor(account.name), accent: accent[account.type] }; commit((current) => ({ ...current, accounts: [created, ...current.accounts] })); void syncAccount(created); },
+    addAccount: (account) => { const created: Account = { ...account, id: `a-${Date.now()}`, lastVisit: "لم تتم زيارة", initials: initialsFor(account.name), accent: accentForAccountType[account.type] }; commit((current) => ({ ...current, accounts: [created, ...current.accounts] })); void syncAccount(created).then(() => refreshSharedCatalog()); },
     completeVisit: (visitId, completion) => { const currentVisit = data.visits.find((visit) => visit.id === visitId); const account = currentVisit ? data.accounts.find((item) => item.id === currentVisit.accountId) : undefined; commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, status: completion.isInsideTerritory ? "مكتملة" : "تحتاج مراجعة", result: completion.result, note: completion.note, location: completion.location, isInsideTerritory: completion.isInsideTerritory, checkedInAt: new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }) } : visit), notifications: [notify("تم توثيق زيارة", completion.result, "زيارة"), ...current.notifications] })); if (account && supabase && user) void (async () => { const remoteAccountId = await syncAccount(account); if (!remoteAccountId) return; await supabase.rpc("tips_crm_save_visit", { account_uuid: remoteAccountId, visit_status: completion.isInsideTerritory ? "completed" : "needs_review", visit_outcome: completion.result, visit_notes: completion.note, latitude: completion.location?.latitude ?? null, longitude: completion.location?.longitude ?? null, accuracy: completion.location?.accuracy ?? null }); })(); },
     submitPlan: (input) => { const plan: Plan = { id: `p-${Date.now()}`, title: input.title, period: input.period, kind: input.kind, status: "بانتظار الاعتماد", repName: data.teamMembers.find((member) => member.id === activeMemberId)?.name ?? "مندوب", visitIds: input.visitIds, schedule: input.schedule, submittedAt: "الآن" }; commit((current) => ({ ...current, plans: [plan, ...current.plans], notifications: [notify("خطة جديدة بانتظار الاعتماد", `${plan.repName} أرسل ${plan.title}.`, "خطة"), ...current.notifications] })); send("خطة جديدة بانتظار الاعتماد", plan.title); if (supabase && user) void (async () => { const start = new Date(); const end = new Date(start); end.setDate(start.getDate() + (input.kind === "أسبوعية" ? 6 : 30)); const { data: remoteId } = await supabase.rpc("tips_crm_create_plan", { plan_title: input.title, plan_type: input.kind === "أسبوعية" ? "weekly" : "monthly", starts_on: start.toISOString().slice(0, 10), ends_on: end.toISOString().slice(0, 10) }); if (remoteId) commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === plan.id ? { ...item, remoteId: remoteId as string } : item) })); })(); },
     approvePlan: (planId) => { const plan = data.plans.find((item) => item.id === planId); commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معتمدة", managerNote: undefined } : item), notifications: [notify("تم اعتماد الخطة", `${plan?.title ?? "الخطة"} أصبحت جاهزة للتنفيذ.`, "خطة"), ...current.notifications] })); if (plan?.remoteId && supabase && user) void supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "approved", note: null }); },
     returnPlan: (planId, note) => { const plan = data.plans.find((item) => item.id === planId); commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معادة للمراجعة", managerNote: note } : item), notifications: [notify("تمت إعادة الخطة للمراجعة", `${plan?.title ?? "الخطة"}: ${note}`, "خطة"), ...current.notifications] })); if (plan?.remoteId && supabase && user) void supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "returned", note }); },
-    addVisitResult: (label) => { const item = label.trim(); if (item) commit((current) => current.visitResults.includes(item) ? current : { ...current, visitResults: [...current.visitResults, item] }); },
-    createInvite: async (input) => { let invite: TeamInvite = { ...input, id: `i-${Date.now()}`, status: "بانتظار الرد", sentAt: "الآن", expiresAt: "بعد 7 أيام" }; if (supabase && user) { const roleKey: Record<AppRole, string> = { مدير: "sales_manager", "مندوب مبيعات": "sales_rep", "مندوب طبي": "medical_rep" }; const { data: remoteInvite, error } = await supabase.rpc("tips_crm_create_invite", { invitee_email: input.email, invite_role_key: roleKey[input.role], invite_territory: input.territory }); if (error || !remoteInvite?.[0]) return null; const result = remoteInvite[0] as { invite_token: string; expires_at: string }; invite = { ...invite, id: result.invite_token, expiresAt: new Date(result.expires_at).toLocaleDateString("ar"), acceptUrl: `https://tipscrm-vevc4ncu.manus.space/invite?token=${result.invite_token}` }; } commit((current) => ({ ...current, invites: [invite, ...current.invites], notifications: [notify("تم إرسال دعوة للفريق", `تمت دعوة ${invite.email}.`, "فريق"), ...current.notifications] })); return invite; },
+    addVisitResult: (label) => { const item = label.trim(); if (!item) return; commit((current) => current.visitResults.includes(item) ? current : { ...current, visitResults: [...current.visitResults, item] }); if (supabase && user) void supabase.rpc("tips_crm_save_visit_outcome", { outcome_label: item, outcome_sort_order: data.visitResults.length * 10 + 10 }).then(() => refreshSharedCatalog()); },
+    createInvite: async (input) => { let invite: TeamInvite = { ...input, id: `i-${Date.now()}`, status: "بانتظار الرد", sentAt: "الآن", expiresAt: "بعد 7 أيام" }; if (supabase && user) { const { data: remoteInvite, error } = await supabase.rpc("tips_crm_create_invite", { invitee_email: input.email, invite_role_key: roleToRemote[input.role], invite_territory: input.territory }); if (error || !remoteInvite?.[0]) return null; const result = remoteInvite[0] as { invite_id: string; invite_token: string; expires_at: string }; invite = { ...invite, id: result.invite_id, expiresAt: new Date(result.expires_at).toLocaleDateString("ar"), acceptUrl: `https://tipscrm-vevc4ncu.manus.space/invite?token=${result.invite_token}` }; } commit((current) => ({ ...current, invites: [invite, ...current.invites], notifications: [notify("تم إرسال دعوة للفريق", `تمت دعوة ${invite.email}.`, "فريق"), ...current.notifications] })); return invite; },
+    resendInvite: async (invite) => { if (!supabase || !user) return null; const { data: response, error } = await supabase.rpc("tips_crm_resend_invite", { invite_id: invite.id }); if (error || !response?.[0]) return null; const result = response[0] as { invite_token: string; expires_at: string }; const updated: TeamInvite = { ...invite, status: "بانتظار الرد", sentAt: "الآن", expiresAt: new Date(result.expires_at).toLocaleDateString("ar"), acceptUrl: `https://tipscrm-vevc4ncu.manus.space/invite?token=${result.invite_token}` }; commit((current) => ({ ...current, invites: current.invites.map((item) => item.id === invite.id ? updated : item), notifications: [notify("أعيد إرسال الدعوة", `تم تمديد رابط دعوة ${invite.email}.`, "فريق"), ...current.notifications] })); return updated; },
+    revokeInvite: async (inviteId) => { if (!supabase || !user) return false; const { data: revoked, error } = await supabase.rpc("tips_crm_revoke_invite", { invite_id: inviteId }); if (error || !revoked) return false; commit((current) => ({ ...current, invites: current.invites.map((item) => item.id === inviteId ? { ...item, status: "ملغاة" } : item), notifications: [notify("تم إلغاء الدعوة", "أصبح رابط الدعوة غير صالح للاستخدام.", "فريق"), ...current.notifications] })); return true; },
     updateBoundary: (boundary) => commit((current) => ({ ...current, boundaries: current.boundaries.map((item) => item.territoryId === boundary.territoryId ? boundary : item) })),
     createCentralNotification: (input) => { commit((current) => ({ ...current, notifications: [notify(input.title, input.body, input.kind), ...current.notifications] })); send(input.title, input.body); },
     recordDutyPoint: (point) => commit((current) => ({ ...current, dutyStatuses: current.dutyStatuses.some((status) => status.memberId === activeMemberId) ? current.dutyStatuses.map((status) => status.memberId === activeMemberId ? { ...status, isOnDuty: true, lastPoint: point, path: appendDutyPoint(status.path, point) } : status) : [...current.dutyStatuses, { memberId: activeMemberId, isOnDuty: true, lastPoint: point, path: [point] }] })),
     markAllNotificationsRead: () => commit((current) => ({ ...current, notifications: current.notifications.map((item) => ({ ...item, readAt: item.readAt ?? "الآن" })) })),
-  }), [data, isReady, role, activeMemberId, user]);
+  }), [data, isReady, role, activeMemberId, user, refreshSharedCatalog]);
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }
 
