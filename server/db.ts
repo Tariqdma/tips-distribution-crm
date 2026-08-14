@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { crmProfiles, type CrmProfile, type InsertUser, users } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,40 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getOrCreateCrmProfile(userId: number, isSystemAdmin: boolean): Promise<CrmProfile | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const existing = await db.select().from(crmProfiles).where(eq(crmProfiles.userId, userId)).limit(1);
+  if (existing[0]) return existing[0];
+  await db.insert(crmProfiles).values({
+    userId,
+    crmRole: isSystemAdmin ? "manager" : "sales_rep",
+    territory: isSystemAdmin ? "كل المناطق" : "غير معين",
+  });
+  const created = await db.select().from(crmProfiles).where(eq(crmProfiles.userId, userId)).limit(1);
+  return created[0];
+}
+
+export async function listCrmMembers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      role: crmProfiles.crmRole,
+      territory: crmProfiles.territory,
+    })
+    .from(users)
+    .leftJoin(crmProfiles, eq(users.id, crmProfiles.userId));
+}
+
+export async function updateCrmMemberRole(userId: number, role: "manager" | "sales_rep" | "medical_rep", territory?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const profile = await getOrCreateCrmProfile(userId, false);
+  if (!profile) throw new Error("Unable to create CRM profile");
+  await db.update(crmProfiles).set({ crmRole: role, ...(territory ? { territory } : {}) }).where(eq(crmProfiles.userId, userId));
+  return getOrCreateCrmProfile(userId, role === "manager");
+}

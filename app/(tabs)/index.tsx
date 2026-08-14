@@ -4,9 +4,10 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { AppHeader, AccountAvatar, MetricCard, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
+import { NotificationButton } from "@/components/notification-button";
 
 export default function TodayScreen() {
-  const { data, accountById } = useCrm();
+  const { data, accountById, unreadNotificationCount } = useCrm();
   const todayVisits = data.visits.filter((visit) => visit.date === "اليوم");
   const completed = todayVisits.filter((visit) => visit.status === "مكتملة").length;
   const progress = todayVisits.length ? Math.round((completed / todayVisits.length) * 100) : 0;
@@ -14,7 +15,7 @@ export default function TodayScreen() {
   return (
     <ScreenContainer className="px-5" containerClassName="bg-background">
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <AppHeader eyebrow="الأربعاء، 14 أغسطس" title="صباح الخير، محمد" right={<View style={styles.profile}><Text style={styles.profileText}>م أ</Text></View>} />
+        <AppHeader eyebrow="الأربعاء، 14 أغسطس" title="صباح الخير، محمد" right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><View style={styles.profile}><Text style={styles.profileText}>م أ</Text></View></View>} />
 
         <View style={styles.hero}>
           <View style={styles.heroTop}><View style={styles.todayIcon}><MaterialIcons name="today" color="#FFFFFF" size={18} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroEyebrow}>خطة اليوم المعتمدة</Text><Text style={styles.heroTitle}>{completed} من {todayVisits.length} زيارات مكتملة</Text></View></View>
@@ -45,6 +46,7 @@ export default function TodayScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingTop: 10, paddingBottom: 28 },
+  headerActions: { flexDirection: "row", gap: 8, alignItems: "center" },
   profile: { height: 38, width: 38, borderRadius: 19, backgroundColor: "#DFF2EC", alignItems: "center", justifyContent: "center" },
   profileText: { color: palette.primary, fontWeight: "800", fontSize: 12 },
   hero: { backgroundColor: palette.primary, borderRadius: 22, padding: 18, shadowColor: "#075E54", shadowOpacity: 0.14, shadowRadius: 12, elevation: 3 },

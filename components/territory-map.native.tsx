@@ -1,0 +1,16 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from "react-native-maps";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import type { Territory } from "@/lib/crm-store";
+import { palette } from "@/components/crm-ui";
+
+const points = [
+  { id: "t1", latitude: 15.5581, longitude: 32.5372, title: "العمارات", count: 18, color: "#0D9488" },
+  { id: "t1", latitude: 15.5645, longitude: 32.5644, title: "الرياض", count: 16, color: "#0D9488" },
+  { id: "t2", latitude: 15.6236, longitude: 32.5327, title: "بحري", count: 21, color: "#2563EB" },
+];
+export function TerritoryMap({ territories, activeId, onSelect }: { territories: Territory[]; activeId: string; onSelect: (id: string) => void }) {
+  const focused = activeId === "all" ? points : points.filter((point) => point.id === activeId);
+  return <View style={styles.wrap}><View style={styles.mapWrap}><MapView provider={PROVIDER_DEFAULT} style={styles.map} initialRegion={{ latitude: 15.586, longitude: 32.545, latitudeDelta: 0.11, longitudeDelta: 0.11 }} showsUserLocation={false} rotateEnabled={false} pitchEnabled={false}>{focused.map((point) => <Marker key={point.title} coordinate={{ latitude: point.latitude, longitude: point.longitude }} title={point.title} description={`${point.count} جهة مغطاة`} pinColor={point.color} />)}<Polyline coordinates={focused.map((point) => ({ latitude: point.latitude, longitude: point.longitude }))} strokeColor="#F0B426" strokeWidth={3} lineDashPattern={[8, 6]} /></MapView><View style={styles.mapBadge}><MaterialIcons name="map" size={15} color={palette.primary} /><Text style={styles.mapBadgeText}>خريطة حية</Text></View></View><View style={styles.filters}><TouchableOpacity onPress={() => onSelect("all")} style={[styles.filter, activeId === "all" && styles.filterActive]}><Text style={[styles.filterText, activeId === "all" && styles.filterTextActive]}>كل المناطق</Text></TouchableOpacity>{territories.map((territory) => <TouchableOpacity key={territory.id} onPress={() => onSelect(territory.id)} style={[styles.filter, activeId === territory.id && styles.filterActive]}><Text style={[styles.filterText, activeId === territory.id && styles.filterTextActive]}>{territory.name}</Text></TouchableOpacity>)}</View></View>;
+}
+const styles = StyleSheet.create({ wrap: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: palette.line, borderRadius: 19, overflow: "hidden" }, mapWrap: { height: 230, position: "relative" }, map: { width: "100%", height: "100%" }, mapBadge: { position: "absolute", top: 12, right: 12, backgroundColor: "#FFFFFF", paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10, flexDirection: "row", alignItems: "center", gap: 5, elevation: 2 }, mapBadgeText: { color: palette.primary, fontSize: 10, fontWeight: "800" }, filters: { flexDirection: "row-reverse", gap: 7, padding: 11 }, filter: { flex: 1, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1, borderColor: palette.line, alignItems: "center" }, filterActive: { backgroundColor: "#E9F8F2", borderColor: "#A6D6C9" }, filterText: { color: palette.muted, fontSize: 10, fontWeight: "700" }, filterTextActive: { color: palette.primary } });

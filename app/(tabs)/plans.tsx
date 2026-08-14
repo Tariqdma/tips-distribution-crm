@@ -6,9 +6,9 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
 
 export default function PlansScreen() {
-  const { data, role, setRole } = useCrm();
+  const { data, role } = useCrm();
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow="التزام الزيارة يبدأ بخطة واضحة" title="مخططي" right={<TouchableOpacity onPress={() => setRole(role === "مندوب" ? "مدير" : "مندوب")} style={styles.roleButton}><MaterialIcons name={role === "مندوب" ? "person" : "admin-panel-settings"} size={19} color={palette.primary} /></TouchableOpacity>} />
+    <AppHeader eyebrow={`التزام الزيارة يبدأ بخطة واضحة · ${role}`} title="مخططي" right={<TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity>} />
     <View style={styles.currentPlan}><View style={styles.calendar}><MaterialIcons name="calendar-month" size={24} color={palette.primary} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><StatusBadge status="معتمدة" /><Text style={styles.currentTitle}>خطة أسبوع 18 أغسطس</Text><Text style={styles.currentMeta}>5 زيارات · العمارات والرياض</Text></View></View>
     <PrimaryButton label="إنشاء خطة جديدة" icon="add" onPress={() => router.push("/plan/new" as never)} style={{ marginTop: 14 }} />
     <SectionTitle title="الخطط الأخيرة" />

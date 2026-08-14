@@ -87,6 +87,13 @@ const config: ExpoConfig = {
   plugins: [
     "expo-router",
     [
+      "expo-notifications",
+      {
+        "color": "#075E54",
+        "defaultChannel": "tips-operations"
+      }
+    ],
+    [
       "expo-location",
       {
         "locationWhenInUsePermission": "تستخدم Tips CRM موقعك لتأكيد حضورك عند الزيارات الميدانية فقط.",
