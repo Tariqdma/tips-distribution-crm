@@ -5,6 +5,7 @@ import { Alert, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { type AppRole, type TeamInvite, useCrm } from "@/lib/crm-store";
+import { useInvitationEmail } from "@/lib/use-invitation-email";
 
 const roleMeta: Record<AppRole, { label: string; icon: keyof typeof MaterialIcons.glyphMap; tint: string }> = {
   مدير: { label: "مدير", icon: "admin-panel-settings", tint: "#075E54" },
@@ -18,6 +19,7 @@ export default function TeamScreen() {
   const [inviteRole, setInviteRole] = useState<AppRole>("مندوب مبيعات");
   const [territory, setTerritory] = useState("بحري");
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  const { send: sendInvitationEmail } = useInvitationEmail();
 
   const sendInvite = async () => {
     const normalized = email.trim().toLowerCase();
@@ -26,16 +28,16 @@ export default function TeamScreen() {
     const invite = await createInvite({ email: normalized, role: inviteRole, territory: territory.trim() });
     if (!invite) { Alert.alert("تعذر إرسال الدعوة", "تحقق من أن حسابك يملك صلاحية إدارة المستخدمين ثم أعد المحاولة."); return; }
     setEmail("");
-    if (invite.acceptUrl) await Share.share({ message: `دعوة Tips CRM: سجّل الدخول أو أنشئ حسابك من الرابط التالي ثم سيتم تعيين دورك تلقائياً: ${invite.acceptUrl}` });
-    Alert.alert("تمت الدعوة", invite.acceptUrl ? "تم إنشاء رابط آمن وفتحت نافذة المشاركة لإرساله للعضو." : "أضيفت الدعوة إلى سجل الفريق.");
+    try { await sendInvitationEmail(invite.id); Alert.alert("تم إرسال الدعوة بالبريد", `أُرسلت رسالة قبول الدعوة إلى ${invite.email}.`); }
+    catch { if (invite.acceptUrl) await Share.share({ message: `دعوة Tips CRM: سجّل الدخول أو أنشئ حسابك من الرابط التالي ثم سيتم تعيين دورك تلقائياً: ${invite.acceptUrl}` }); Alert.alert("تم إنشاء الدعوة", "تعذر تسليم البريد آلياً؛ فُتحت نافذة المشاركة لإرسال الرابط يدوياً."); }
   };
   const handleResend = async (invite: TeamInvite) => {
     setBusyInviteId(invite.id);
     const updated = await resendInvite(invite);
     setBusyInviteId(null);
     if (!updated) { Alert.alert("تعذر إعادة الإرسال", "تحقق من صلاحيات إدارة المستخدمين ثم أعد المحاولة."); return; }
-    if (updated.acceptUrl) await Share.share({ message: `دعوة Tips CRM المحدثة: ${updated.acceptUrl}` });
-    Alert.alert("تمت إعادة الإرسال", "تم إنشاء رابط جديد صالح لمدة سبعة أيام.");
+    try { await sendInvitationEmail(updated.id); Alert.alert("تمت إعادة الإرسال", `أُرسلت الدعوة المحدّثة إلى ${updated.email}.`); }
+    catch { if (updated.acceptUrl) await Share.share({ message: `دعوة Tips CRM المحدثة: ${updated.acceptUrl}` }); Alert.alert("تم إنشاء رابط جديد", "تعذر تسليم البريد آلياً؛ فُتحت نافذة المشاركة لإرسال الرابط يدوياً."); }
   };
   const confirmRevoke = (invite: TeamInvite) => Alert.alert("إلغاء الدعوة", `هل تريد إلغاء دعوة ${invite.email}؟ لن يصبح الرابط صالحاً بعد ذلك.`, [
     { text: "رجوع", style: "cancel" },
