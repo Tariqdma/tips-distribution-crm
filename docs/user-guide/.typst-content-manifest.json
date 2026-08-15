@@ -1,0 +1,11 @@
+{
+  "task_kind": "new-document",
+  "output": "pdf",
+  "signals": [],
+  "hard_constraints": ["Arabic RTL", "illustrated user guide", "PDF"],
+  "content_features": {
+    "code_blocks": 0,
+    "defined_terms": 7,
+    "portrait_images": 1
+  }
+}
