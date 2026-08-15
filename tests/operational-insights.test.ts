@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildMonthlyComparison, executionRate, findDuplicateAccount, isFollowUpDue, targetProgress } from "../lib/operational-insights";
-import type { Account, Plan, TeamMember, Territory, Visit } from "../lib/crm-store";
+import { buildHistoricalComparison, buildMonthlyComparison, checkAlertThreshold, executionRate, findDuplicateAccount, isFollowUpDue, targetProgress } from "../lib/operational-insights";
+import type { Account, MonthlyTarget, Plan, TeamMember, Territory, Visit } from "../lib/crm-store";
 
 const account: Account = { id: "a-1", name: "صيدلية الوفاء", type: "صيدلية", state: "ولاية الخرطوم", city: "الخرطوم", area: "العمارات", address: "شارع 1", contact: "0912", lastVisit: "لم تتم زيارة", priority: "اعتيادية", initials: "ص و", accent: "#000" };
 
@@ -33,5 +33,33 @@ describe("operational insights", () => {
   it("يحسب نسبة تحقيق هدف الشهر والفجوة المتبقية", () => {
     expect(targetProgress(7, 10)).toEqual({ target: 10, completed: 7, gap: 3, achievementRate: 70 });
     expect(targetProgress(4, 0).achievementRate).toBe(0);
+  });
+
+  it("يحسب التحصيل والإيرادات الفعلية من الزيارات المكتملة", () => {
+    const visits: Visit[] = [{ id: "v-1", accountId: "a-1", date: "اليوم", time: "09:00", status: "مكتملة", collectionAmount: 1250.5, revenueAmount: 3400 }, { id: "v-2", accountId: "a-1", date: "اليوم", time: "10:00", status: "تحتاج مراجعة", collectionAmount: 900, revenueAmount: 1200 }];
+    const plans: Plan[] = [{ id: "p-1", title: "سبتمبر", period: "سبتمبر", kind: "شهرية", status: "معتمدة", repName: "سلمى", visitIds: ["v-1", "v-2"], submittedAt: "الآن" }];
+    const members: TeamMember[] = [{ id: "u-1", name: "سلمى", initials: "س", role: "مندوب مبيعات", type: "مبيعات", territory: "الخرطوم" }];
+    const territories: Territory[] = [{ id: "t-1", name: "الخرطوم", state: "الخرطوم", city: "الخرطوم", assignees: ["سلمى"], accounts: 1, coverage: 0 }];
+    expect(buildMonthlyComparison({ accounts: [account], visits, plans, members, territories, metric: "collection" }).reps[0].actual).toBe(1250.5);
+    expect(buildMonthlyComparison({ accounts: [account], visits, plans, members, territories, metric: "revenue" }).reps[0].actual).toBe(3400);
+  });
+
+  it("يطلق التنبيه فقط عندما يكون الإنجاز دون الحد المحدد", () => {
+    expect(checkAlertThreshold(69, 100, 70)).toMatchObject({ achievementRate: 69, threshold: 70, shouldAlert: true });
+    expect(checkAlertThreshold(70, 100, 70).shouldAlert).toBe(false);
+    expect(checkAlertThreshold(0, 0, 70).shouldAlert).toBe(false);
+  });
+
+  it("يقارن الهدف الفعلي للشهر مع الشهر السابق ومتوسط الأشهر السابقة", () => {
+    const targets: MonthlyTarget[] = [
+      { id: "one", monthStart: "2026-06-01", targetType: "مندوب", targetKey: "u-1", targetValue: 10000, metric: "collection", alertThreshold: 70 },
+      { id: "two", monthStart: "2026-07-01", targetType: "مندوب", targetKey: "u-1", targetValue: 12000, metric: "collection", alertThreshold: 70 },
+      { id: "three", monthStart: "2026-08-01", targetType: "مندوب", targetKey: "u-1", targetValue: 15000, metric: "collection", alertThreshold: 75 },
+    ];
+    const history = buildHistoricalComparison({ targets, performance: [{ monthStart: "2026-06-01", targetType: "مندوب", targetKey: "u-1", metric: "collection", actualValue: 8000 }, { monthStart: "2026-07-01", targetType: "مندوب", targetKey: "u-1", metric: "collection", actualValue: 9000 }, { monthStart: "2026-08-01", targetType: "مندوب", targetKey: "u-1", metric: "collection", actualValue: 11000 }], monthStart: "2026-08-01", targetType: "مندوب", targetKey: "u-1", metric: "collection", months: 2 });
+    expect(history.current).toEqual({ monthStart: "2026-08-01", targetValue: 15000, actualValue: 11000 });
+    expect(history.previousActual).toBe(9000);
+    expect(history.averagePrevious).toBe(8500);
+    expect(history.deltaFromPrevious).toBe(2000);
   });
 });
