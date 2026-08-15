@@ -10,6 +10,7 @@ export type TemporaryEmployeeInput = {
   password: string;
   roleKey: EmployeeRoleKey;
   territoryLabel?: string;
+  territoryLabels?: string[];
   territoryId?: string;
   territoryIds?: string[];
   forcePasswordChange: boolean;
@@ -78,9 +79,18 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
   const { actorProfile, adminClient } = await requireUserManager(authorization);
   const normalizedEmail = input.email.trim().toLowerCase();
   const territoryKeys = Array.from(new Set(input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : [])));
-  const { data: territories, error: territoryError } = territoryKeys.length ? await adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("client_key", territoryKeys).eq("is_active", true) : { data: [], error: null };
-  if (territoryError || (territoryKeys.length && (territories?.length ?? 0) !== territoryKeys.length)) throw new Error("إحدى مناطق العمل لم تعد متاحة. حدّث الصفحة ثم اختر مناطق معتمدة.");
-  const sortedTerritories = territoryKeys.map((territoryKey) => territories?.find((territory) => territory.client_key === territoryKey)).filter((territory): territory is NonNullable<typeof territory> => Boolean(territory));
+  const submittedLabels = input.territoryLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
+  const territoryLabelsFromInput = submittedLabels.length ? submittedLabels : (input.territoryLabel ?? "").split("،").map((label) => label.trim()).filter(Boolean);
+  const uuidTerritoryKeys = territoryKeys.filter((key) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key));
+  const [byClientKey, byId, byName] = await Promise.all([
+    territoryKeys.length ? adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("client_key", territoryKeys).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
+    uuidTerritoryKeys.length ? adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("id", uuidTerritoryKeys).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
+    territoryLabelsFromInput.length ? adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("name", territoryLabelsFromInput).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (byClientKey.error || byId.error || byName.error) throw new Error("تعذر التحقق من مناطق العمل المعتمدة. حدّث الصفحة ثم أعد المحاولة.");
+  const territories = [...(byClientKey.data ?? []), ...(byId.data ?? []), ...(byName.data ?? [])].filter((territory, index, all) => all.findIndex((item) => item.id === territory.id) === index);
+  const sortedTerritories = territoryKeys.map((territoryKey, index) => territories.find((territory) => territory.client_key === territoryKey || territory.id === territoryKey || territory.name === territoryLabelsFromInput[index])).filter((territory): territory is NonNullable<typeof territory> => Boolean(territory));
+  if (territoryKeys.length && sortedTerritories.length !== territoryKeys.length) throw new Error("إحدى مناطق العمل لم تعد متاحة. حدّث قائمة المناطق ثم اختر مناطق معتمدة.");
   const territoryLabels = sortedTerritories.map((territory) => territory.name);
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email: normalizedEmail,
