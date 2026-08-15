@@ -54,7 +54,7 @@ export function buildMonthlyComparison({ accounts, visits, plans, members, terri
   return { reps, territories: territoriesRows };
 }
 
-export type DailyCollectionRow = { visitId: string; reportDate: string; checkedInAt?: string; repId?: string; repName: string; accountId: string; accountName: string; accountType: Account["type"]; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; notes?: string };
+export type DailyCollectionRow = { visitId: string; reportDate: string; checkedInAt?: string; repId?: string; repName: string; accountId: string; accountName: string; accountType: Account["type"]; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; receiptReference?: string; notes?: string };
 export type DailyCollectionRepSummary = { repId?: string; repName: string; visitCount: number; accountCount: number; collectionAmount: number; revenueAmount: number };
 
 const roundAmount = (value: number) => Math.round(Math.max(0, Number.isFinite(value) ? value : 0) * 100) / 100;
@@ -69,7 +69,7 @@ export function buildDailyCollectionReport({ visits, accounts, plans, reportDate
     if (!account) return [];
     const plansForVisit = plans.filter((plan) => plan.visitIds.includes(visit.id));
     const plan = plansForVisit.find((item) => item.status === "معتمدة") ?? plansForVisit[0];
-    return [{ visitId: visit.id, reportDate, checkedInAt: visit.completedAt, repId: undefined, repName: plan?.repName ?? "غير مرتبط بخطة", accountId: account.id, accountName: account.name, accountType: account.type, state: account.state, city: account.city, area: account.area, outcome: visit.result, collectionAmount: amount, revenueAmount: roundAmount(visit.revenueAmount ?? 0), notes: visit.note } satisfies DailyCollectionRow];
+    return [{ visitId: visit.id, reportDate, checkedInAt: visit.completedAt, repId: undefined, repName: plan?.repName ?? "غير مرتبط بخطة", accountId: account.id, accountName: account.name, accountType: account.type, state: account.state, city: account.city, area: account.area, outcome: visit.result, collectionAmount: amount, revenueAmount: roundAmount(visit.revenueAmount ?? 0), receiptReference: visit.receiptReference, notes: visit.note } satisfies DailyCollectionRow];
   });
   return summarizeDailyCollectionRows(rows, reportDate);
 }

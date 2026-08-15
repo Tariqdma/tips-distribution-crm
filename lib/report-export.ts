@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { Platform } from "react-native";
 
 export type ExportReportRow = { record_type: string; occurred_at: string; actor_name: string; title: string; status: string; details: string };
-export type DailyCollectionExportRow = { checkedInAt?: string; repName: string; accountName: string; accountType: string; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; notes?: string };
+export type DailyCollectionExportRow = { checkedInAt?: string; repName: string; accountName: string; accountType: string; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; receiptReference?: string; notes?: string };
 export type DailyCollectionExportSummary = { repName: string; visitCount: number; accountCount: number; collectionAmount: number; revenueAmount: number };
 
 const labels: Record<string, string> = { plan: "خطة", visit: "زيارة", audit: "سجل تدقيق", territory_exit: "خروج من منطقة العمل", executive: "مؤشر تنفيذي" };
@@ -59,9 +59,10 @@ export async function exportDailyCollectionsWorkbook({ reportDate, rows, repSumm
     "نتيجة الزيارة": row.outcome ?? "",
     "قيمة التحصيل (ج.س)": row.collectionAmount,
     "قيمة الفاتورة/البيع (ج.س)": row.revenueAmount,
+    "رقم الإيصال أو الفاتورة": row.receiptReference ?? "",
     "ملاحظات": row.notes ?? "",
   })));
-  detailSheet["!cols"] = [{ wch: 15 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 21 }, { wch: 20 }, { wch: 19 }, { wch: 23 }, { wch: 42 }];
+  detailSheet["!cols"] = [{ wch: 15 }, { wch: 22 }, { wch: 22 }, { wch: 28 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 21 }, { wch: 20 }, { wch: 19 }, { wch: 23 }, { wch: 24 }, { wch: 42 }];
   const summarySheet = XLSX.utils.json_to_sheet([
     ...repSummaries.map((summary) => ({ "المندوب": summary.repName, "عدد الزيارات المحصلة": summary.visitCount, "عدد الجهات": summary.accountCount, "إجمالي التحصيل (ج.س)": summary.collectionAmount, "إجمالي الفاتورة/البيع (ج.س)": summary.revenueAmount })),
     { "المندوب": "الإجمالي", "عدد الزيارات المحصلة": totals.visitCount, "عدد الجهات": totals.accountCount, "إجمالي التحصيل (ج.س)": totals.collectionAmount, "إجمالي الفاتورة/البيع (ج.س)": totals.revenueAmount },

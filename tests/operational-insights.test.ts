@@ -66,7 +66,7 @@ describe("operational insights", () => {
   it("ينشئ تقرير تحصيل يومي حسب المندوب والجهة ويستبعد الزيارات غير المكتملة أو من تاريخ آخر", () => {
     const secondAccount: Account = { ...account, id: "a-2", name: "مستشفى الحياة", type: "مستشفى", city: "أم درمان" };
     const visits: Visit[] = [
-      { id: "v-1", accountId: "a-1", date: "اليوم", time: "09:00", status: "مكتملة", completedAt: "2026-08-15T08:10:00.000Z", collectionAmount: 1250.5, revenueAmount: 3000, result: "تم تحصيل" },
+      { id: "v-1", accountId: "a-1", date: "اليوم", time: "09:00", status: "مكتملة", completedAt: "2026-08-15T08:10:00.000Z", collectionAmount: 1250.5, revenueAmount: 3000, receiptReference: "RCP-2026-0001", result: "تم تحصيل" },
       { id: "v-2", accountId: "a-2", date: "اليوم", time: "11:00", status: "مكتملة", completedAt: "2026-08-15T10:05:00.000Z", collectionAmount: 750, revenueAmount: 1250, result: "تم إنشاء فاتورة" },
       { id: "v-3", accountId: "a-1", date: "اليوم", time: "12:00", status: "تحتاج مراجعة", completedAt: "2026-08-15T11:00:00.000Z", collectionAmount: 500 },
       { id: "v-4", accountId: "a-1", date: "أمس", time: "13:00", status: "مكتملة", completedAt: "2026-08-14T11:00:00.000Z", collectionAmount: 900 },
@@ -74,7 +74,7 @@ describe("operational insights", () => {
     const plans: Plan[] = [{ id: "p-1", title: "خطة اليوم", period: "15 أغسطس", kind: "أسبوعية", status: "معتمدة", repName: "سلمى", visitIds: ["v-1", "v-2", "v-3", "v-4"], submittedAt: "الآن" }];
     const report = buildDailyCollectionReport({ visits, accounts: [account, secondAccount], plans, reportDate: "2026-08-15", today: "2026-08-15" });
     expect(report.rows).toHaveLength(2);
-    expect(report.rows[0]).toMatchObject({ repName: "سلمى", accountName: "صيدلية الوفاء", collectionAmount: 1250.5 });
+    expect(report.rows[0]).toMatchObject({ repName: "سلمى", accountName: "صيدلية الوفاء", collectionAmount: 1250.5, receiptReference: "RCP-2026-0001" });
     expect(report.totals).toEqual({ visitCount: 2, accountCount: 2, repCount: 1, collectionAmount: 2000.5, revenueAmount: 4250 });
     expect(report.repSummaries[0]).toMatchObject({ repName: "سلمى", visitCount: 2, accountCount: 2, collectionAmount: 2000.5 });
   });
