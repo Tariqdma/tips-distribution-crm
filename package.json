@@ -4,9 +4,11 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail \"pnpm dev:server\" \"pnpm dev:metro\"",
+    "dev": "concurrently --kill-others-on-fail \"pnpm dev:server\" \"pnpm dev:static\"",
     "dev:server": "cross-env NODE_ENV=development tsx watch server/_core/index.ts",
     "dev:metro": "cross-env CI=0 EXPO_USE_METRO_WORKSPACE_ROOT=1 npx expo start --web --max-workers 2 --port ${EXPO_PORT:-8081}",
+    "dev:static": "pnpm export:web && tsx server/static-preview.ts",
+    "export:web": "cross-env EXPO_NO_METRO_WORKSPACE_ROOT=1 npx expo export --platform web --dev --max-workers 1 --output-dir web-dist",
     "build": "esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
