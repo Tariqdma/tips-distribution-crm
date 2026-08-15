@@ -3,11 +3,31 @@ import * as Sharing from "expo-sharing";
 import * as XLSX from "xlsx";
 import { Platform } from "react-native";
 import type { ReceiptSearchRecord } from "@/lib/receipt-search";
+import type { Plan } from "@/lib/crm-store";
+import { buildWeeklyPlanExportRows } from "@/lib/weekly-plan-export";
+export { buildWeeklyPlanExportRows } from "@/lib/weekly-plan-export";
 
 export type ExportReportRow = { record_type: string; occurred_at: string; actor_name: string; title: string; status: string; details: string };
 export type DailyCollectionExportRow = { checkedInAt?: string; repName: string; accountName: string; accountType: string; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; receiptReference?: string; notes?: string };
 export type DailyCollectionExportSummary = { repName: string; visitCount: number; accountCount: number; collectionAmount: number; revenueAmount: number };
 export type MedicalCoverageExportRow = { repName: string; state: string; city: string; specialty: string; totalVisits: number; completedVisits: number; inPersonVisits: number; remoteVisits: number; highInterest: number; requestedInfo: number; pendingFollowUps: number; promotedProducts: string[] };
+
+export async function exportWeeklyPlansWorkbook({ plans, filters }: { plans: Plan[]; filters: { rep: string; territory: string; status: string } }) {
+  const summarySheet = XLSX.utils.json_to_sheet([{ "اسم المندوب": filters.rep || "الكل", "المنطقة": filters.territory, "الحالة": filters.status, "عدد الخطط": plans.length, "إجمالي الزيارات": plans.reduce((total, plan) => total + plan.visitIds.length, 0), "تاريخ التصدير": new Date().toLocaleString("ar-SD") }]);
+  const detailSheet = XLSX.utils.json_to_sheet(buildWeeklyPlanExportRows(plans));
+  summarySheet["!cols"] = [{ wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 24 }];
+  detailSheet["!cols"] = [{ wch: 27 }, { wch: 22 }, { wch: 20 }, { wch: 20 }, { wch: 16 }, { wch: 26 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 28 }, { wch: 36 }, { wch: 20 }, { wch: 22 }, { wch: 25 }];
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "ملخص الفلاتر");
+  XLSX.utils.book_append_sheet(workbook, detailSheet, "الخطط الأسبوعية");
+  const fileName = `tips-crm-weekly-plans-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  if (Platform.OS === "web") { const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" }); const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = fileName; link.click(); URL.revokeObjectURL(url); return fileName; }
+  const uri = `${FileSystem.cacheDirectory}${fileName}`;
+  const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" });
+  await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { dialogTitle: "تصدير الخطط الأسبوعية المفلترة", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  return fileName;
+}
 
 const labels: Record<string, string> = { plan: "خطة", visit: "زيارة", audit: "سجل تدقيق", territory_exit: "خروج من منطقة العمل", executive: "مؤشر تنفيذي" };
 
