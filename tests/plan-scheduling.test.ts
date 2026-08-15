@@ -12,10 +12,11 @@ describe("plan scheduling", () => {
 
   it("creates scheduled visit drafts from selected accounts instead of requiring existing visits", () => {
     const [week] = buildFutureWeeks(new Date(2026, 7, 15, 9, 0, 0), 1);
-    const result = buildPlanSchedule(week, { "account-1": week.days[0].id, "account-2": week.days[3].id });
-    expect(result.plannedVisits.map((visit) => visit.accountId)).toEqual(["account-1", "account-2"]);
-    expect(result.visitIds).toHaveLength(2);
+    const result = buildPlanSchedule(week, { "account-1": [week.days[0].id, week.days[3].id], "account-2": [week.days[3].id] });
+    expect(result.plannedVisits.map((visit) => visit.accountId)).toEqual(["account-1", "account-1", "account-2"]);
+    expect(result.visitIds).toHaveLength(3);
     expect(result.schedule[0].visitIds).toHaveLength(1);
-    expect(result.schedule[3].visitIds).toHaveLength(1);
+    expect(result.schedule[3].visitIds).toHaveLength(2);
+    expect(new Set(result.visitIds).size).toBe(3);
   });
 });

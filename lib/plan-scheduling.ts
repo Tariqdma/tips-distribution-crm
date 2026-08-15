@@ -14,6 +14,8 @@ export type PlannedVisitDraft = {
   time: string;
 };
 
+export type PlanAssignments = Record<string, string[]>;
+
 const weekdayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 const dateText = (date: Date, options: Intl.DateTimeFormatOptions) => date.toLocaleDateString("ar-SD", options).replace("،", "");
 
@@ -49,18 +51,18 @@ export function buildFutureWeeks(referenceDate = new Date(), count = 8): FutureP
   });
 }
 
-export function buildPlanSchedule(week: FuturePlanWeek, assignments: Record<string, string>) {
+export function buildPlanSchedule(week: FuturePlanWeek, assignments: PlanAssignments) {
   const scheduledAccounts = Object.entries(assignments)
-    .map(([accountId, dayId]) => ({ accountId, dayId, day: week.days.find((item) => item.id === dayId) }))
+    .flatMap(([accountId, dayIds]) => Array.from(new Set(dayIds)).map((dayId) => ({ accountId, dayId, day: week.days.find((item) => item.id === dayId) })))
     .filter((item): item is { accountId: string; dayId: string; day: FuturePlanWeek["days"][number] } => Boolean(item.day));
 
-  const visitIdFor = (accountId: string) => `plan-${week.id}-${accountId}`;
+  const visitIdFor = (accountId: string, dayId: string) => `plan-${week.id}-${accountId}-${dayId}`;
   const schedule = week.days.map((day) => ({
     ...day,
-    visitIds: scheduledAccounts.filter((item) => item.dayId === day.id).map((item) => visitIdFor(item.accountId)),
+    visitIds: scheduledAccounts.filter((item) => item.dayId === day.id).map((item) => visitIdFor(item.accountId, item.dayId)),
   }));
   const plannedVisits: PlannedVisitDraft[] = scheduledAccounts.map((item) => ({
-    id: visitIdFor(item.accountId),
+    id: visitIdFor(item.accountId, item.dayId),
     accountId: item.accountId,
     date: item.day.dateLabel,
     time: "يحدد عند اعتماد الخطة",
