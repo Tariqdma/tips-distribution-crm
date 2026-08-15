@@ -12,6 +12,7 @@ import { ENV } from "./env";
 import { createPasswordResetPage } from "../password-reset-page";
 import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
 import { createCrmLandingPage } from "../crm-landing-page";
+import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -113,6 +114,27 @@ async function startServer() {
       res.json({ account });
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إعادة تعيين كلمة مرور الموظف.";
+      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.get("/api/financial-control", async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ snapshot: await readFinancialSnapshot(req.header("authorization")) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر قراءة بيانات التحكم المالي.";
+      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/financial-control/customer-mappings", async (req, res) => {
+    try {
+      const accountId = typeof req.body?.accountId === "string" ? req.body.accountId : "";
+      const customerCode = typeof req.body?.customerCode === "string" ? req.body.customerCode : "";
+      res.json({ mapping: await assignFinanceCustomerCode({ accountId, customerCode }, req.header("authorization")) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر حفظ مطابقة العميل.";
       res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });
