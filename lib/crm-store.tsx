@@ -26,7 +26,8 @@ export type MonthlyPerformance = { monthStart: string; targetType: MonthlyTarget
 export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
 export type Visit = { id: string; accountId: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; checkedInAt?: string; completedAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean; collectionAmount?: number; revenueAmount?: number; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string };
 export type PlanScheduleDay = { id: string; label: string; dateLabel: string; visitIds: string[] };
-export type Plan = { id: string; remoteId?: string; title: string; period: string; kind: "أسبوعية" | "شهرية"; status: PlanStatus; repName: string; visitIds: string[]; schedule?: PlanScheduleDay[]; managerNote?: string; submittedAt: string };
+export type PlanVisitDetail = { id: string; accountName: string; scheduledFor: string };
+export type Plan = { id: string; remoteId?: string; title: string; period: string; kind: "أسبوعية" | "شهرية"; status: PlanStatus; repName: string; visitIds: string[]; schedule?: PlanScheduleDay[]; scheduledVisitDetails?: PlanVisitDetail[]; managerNote?: string; submittedAt: string };
 export type Territory = { id: string; name: string; state: string; city: string; assignees: string[]; accounts: number; coverage: number };
 export type TeamMember = { id: string; name: string; initials: string; role: AppRole; type: string; territory: string; territoryId?: string; territoryIds?: string[]; territories?: string[] };
 export type RoleDefinition = { id: string; name: string; description: string; permissions: string[]; isSystem: boolean; isActive: boolean };
@@ -38,7 +39,7 @@ export type RepDutyStatus = { memberId: string; isOnDuty: boolean; lastPoint?: D
 export type CrmData = { accounts: Account[]; visits: Visit[]; plans: Plan[]; territories: Territory[]; visitResults: VisitResult[]; teamMembers: TeamMember[]; roleDefinitions: RoleDefinition[]; notifications: CrmNotification[]; invites: TeamInvite[]; boundaries: TerritoryBoundary[]; dutyStatuses: RepDutyStatus[]; monthlyTargets: MonthlyTarget[]; monthlyPerformance: MonthlyPerformance[] };
 
 type VisitCompletion = { result: VisitResult; note: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory: boolean; collectionAmount?: number; revenueAmount?: number; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string };
-type PlannedVisitInput = Pick<Visit, "id" | "accountId" | "date" | "time">;
+type PlannedVisitInput = Pick<Visit, "id" | "accountId" | "date" | "time"> & { scheduledFor?: string };
 type NewPlanInput = { title: string; period: string; kind: Plan["kind"]; visitIds: string[]; schedule?: PlanScheduleDay[]; plannedVisits?: PlannedVisitInput[]; startsOn?: string; endsOn?: string };
 type CrmContextValue = {
   data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number;
@@ -98,6 +99,7 @@ type RemoteTerritory = { client_key: string | null; name: string; state: string;
 type RemoteNotification = { id: string; title: string; body: string; kind: "plan" | "visit" | "alert" | "team" | "duty"; created_at: string; read_at: string | null };
 type RemoteMonthlyTarget = { id: string; month_start: string; target_type: "rep" | "territory"; target_key: string; target_value: number | string; metric: TargetMetric; alert_threshold: number | string; updated_at: string };
 type RemoteMonthlyPerformance = { month_start: string; target_type: "rep" | "territory"; target_key: string; metric: TargetMetric; actual_value: number | string };
+type RemotePlan = { id: string; title: string; plan_type: "weekly" | "monthly"; starts_on: string; ends_on: string; status: "pending" | "approved" | "returned"; manager_note: string | null; created_at: string; owner_name: string; scheduled_visits?: Array<{ id: string; account_name: string; scheduled_for: string }> };
 
 function polygonPointsFromRemote(value: RemoteTerritory["boundary_geojson"]) {
   const points = value?.polygon_points;
@@ -110,6 +112,11 @@ function polygonPointsFromRemote(value: RemoteTerritory["boundary_geojson"]) {
   });
   return valid.length >= 3 ? valid : undefined;
 }
+
+const planStatusFromRemote: Record<RemotePlan["status"], PlanStatus> = { pending: "بانتظار الاعتماد", approved: "معتمدة", returned: "معادة للمراجعة" };
+const dateLabelForPlan = (value: string) => new Intl.DateTimeFormat("ar-SD", { day: "numeric", month: "short" }).format(new Date(`${value.slice(0, 10)}T12:00:00`));
+const weekdayForPlan = (value: string) => new Intl.DateTimeFormat("ar-SD", { weekday: "long" }).format(new Date(`${value.slice(0, 10)}T12:00:00`));
+const planPeriodFromRemote = (plan: RemotePlan) => `${dateLabelForPlan(plan.starts_on)} — ${dateLabelForPlan(plan.ends_on)}`;
 
 export function CrmProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<CrmData>(initialData);
@@ -174,7 +181,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const refreshSharedCatalog = useCallback(async () => {
     if (!supabase || !user || !isReady) return;
     const historyStart = new Date(); historyStart.setMonth(historyStart.getMonth() - 5); const historyMonthStart = `${historyStart.toISOString().slice(0, 7)}-01`;
-    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse, monthlyPerformanceResponse] = await Promise.all([
+    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse, monthlyPerformanceResponse, plansResponse] = await Promise.all([
       supabase.rpc("tips_crm_list_accounts"),
       supabase.rpc("tips_crm_list_visit_outcomes"),
       supabase.rpc("tips_crm_list_invites"),
@@ -182,6 +189,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       supabase.rpc("tips_crm_list_my_notifications"),
       supabase.schema("tips_crm").from("monthly_targets").select("*").gte("month_start", historyMonthStart).lte("month_start", `${new Date().toISOString().slice(0, 7)}-01`),
       supabase.rpc("tips_crm_list_monthly_target_performance", { months_back: 6 }),
+      supabase.rpc("tips_crm_list_plans"),
     ]);
     const remoteAccounts = accountsResponse.error ? null : (accountsResponse.data ?? []) as RemoteAccount[];
     const remoteOutcomes = outcomesResponse.error ? null : (outcomesResponse.data ?? []) as RemoteOutcome[];
@@ -190,6 +198,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const remoteNotifications = notificationsResponse.error ? null : (notificationsResponse.data ?? []) as RemoteNotification[];
     const remoteMonthlyTargets = monthlyTargetsResponse.error ? null : (monthlyTargetsResponse.data ?? []) as RemoteMonthlyTarget[];
     const remoteMonthlyPerformance = monthlyPerformanceResponse.error ? null : (monthlyPerformanceResponse.data ?? []) as RemoteMonthlyPerformance[];
+    const remotePlans = plansResponse.error ? null : (plansResponse.data ?? []) as RemotePlan[];
     remoteAccounts?.forEach((account) => { if (account.local_ref) remoteAccountIds.current[account.local_ref] = account.id; });
     setData((current) => {
       const sharedAccounts = remoteAccounts?.map((account) => {
@@ -208,6 +217,18 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         const cached = current.territories.find((item) => item.id === territory.client_key);
         return [{ id: territory.client_key, name: territory.name, state: territory.state, city: territory.city, assignees: cached?.assignees ?? [], accounts: cached?.accounts ?? 0, coverage: cached?.coverage ?? 0 } satisfies Territory];
       });
+      const sharedPlans = remotePlans?.map((plan) => {
+        const details = plan.scheduled_visits ?? [];
+        const schedule = Array.from(new Set(details.map((visit) => visit.scheduled_for.slice(0, 10)))).map((date) => ({
+          id: `${plan.id}-${date}`,
+          label: weekdayForPlan(date),
+          dateLabel: dateLabelForPlan(date),
+          visitIds: details.filter((visit) => visit.scheduled_for.slice(0, 10) === date).map((visit) => visit.id),
+        }));
+        const localPlan = current.plans.find((item) => item.remoteId === plan.id);
+        return { id: localPlan?.id ?? `remote-plan-${plan.id}`, remoteId: plan.id, title: plan.title, period: planPeriodFromRemote(plan), kind: plan.plan_type === "monthly" ? "شهرية" : "أسبوعية", status: planStatusFromRemote[plan.status], repName: plan.owner_name, visitIds: details.map((visit) => visit.id), schedule, scheduledVisitDetails: details.map((visit) => ({ id: visit.id, accountName: visit.account_name, scheduledFor: visit.scheduled_for })), managerNote: plan.manager_note ?? undefined, submittedAt: new Date(plan.created_at).toLocaleDateString("ar-SD") } satisfies Plan;
+      });
+      const unsyncedCurrentPlans = current.plans.filter((plan) => !plan.remoteId && plan.id.startsWith("p-") && plan.submittedAt === "الآن");
       const next: CrmData = {
         ...current,
         accounts: sharedAccounts ? [...sharedAccounts, ...pendingLocalAccounts] : current.accounts,
@@ -218,6 +239,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         notifications: remoteNotifications ? [...remoteNotifications.map((notification) => ({ id: notification.id, title: notification.title, body: notification.body, time: new Date(notification.created_at).toLocaleString("ar"), kind: notification.kind === "duty" || notification.kind === "alert" ? "تنبيه" : notification.kind === "plan" ? "خطة" : notification.kind === "visit" ? "زيارة" : "فريق", readAt: notification.read_at ?? undefined } satisfies CrmNotification)), ...current.notifications.filter((notification) => !remoteNotifications.some((remote) => remote.id === notification.id))] : current.notifications,
         monthlyTargets: remoteMonthlyTargets ? remoteMonthlyTargets.map((target) => ({ id: target.id, monthStart: target.month_start, targetType: target.target_type === "rep" ? "مندوب" : "منطقة", targetKey: target.target_key, targetValue: Number(target.target_value), metric: target.metric === "collection" || target.metric === "revenue" ? target.metric : "visits", alertThreshold: Math.min(100, Math.max(1, Number(target.alert_threshold) || 70)), updatedAt: target.updated_at } satisfies MonthlyTarget)) : current.monthlyTargets,
         monthlyPerformance: remoteMonthlyPerformance ? remoteMonthlyPerformance.map((item) => ({ monthStart: item.month_start, targetType: item.target_type === "rep" ? "مندوب" : "منطقة", targetKey: item.target_key, metric: item.metric === "collection" || item.metric === "revenue" ? item.metric : "visits", actualValue: Number(item.actual_value) || 0 } satisfies MonthlyPerformance)) : current.monthlyPerformance,
+        plans: sharedPlans ? [...sharedPlans, ...unsyncedCurrentPlans] : current.plans,
       };
       void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -261,7 +283,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       if (completion.followUpDate && account) void scheduleFollowUpReminder({ accountName: account.name, action: completion.followUpAction?.trim() || "راجع الخطوة التالية", dueDate: completion.followUpDate });
       if (account && supabase && user) void (async () => { const remoteAccountId = await syncAccount(account); if (!remoteAccountId) return; const { data: remoteVisitId } = await supabase.rpc("tips_crm_save_visit_report", { account_uuid: remoteAccountId, visit_status: completion.isInsideTerritory ? "completed" : "needs_review", visit_outcome: completion.result, visit_notes: completion.note, follow_up_action_input: completion.followUpAction?.trim() || null, follow_up_on_input: completion.followUpDate || null, visit_priority_input: completion.reportPriority === "عالية" ? "high" : completion.reportPriority === "منخفضة" ? "low" : "medium", latitude: completion.location?.latitude ?? null, longitude: completion.location?.longitude ?? null, accuracy: completion.location?.accuracy ?? null, collection_amount_input: completion.collectionAmount ?? 0, revenue_amount_input: completion.revenueAmount ?? 0, receipt_reference_input: completion.receiptReference?.trim() || null, medical_interaction_type_input: completion.medicalInteractionType ? medicalInteractionToRemote[completion.medicalInteractionType] : null, medical_visit_goal_input: completion.medicalVisitGoal ? medicalGoalToRemote[completion.medicalVisitGoal] : null, promoted_product_input: completion.promotedProduct?.trim() || null, scientific_message_input: completion.scientificMessage?.trim() || null, doctor_interest_input: completion.doctorInterest ? doctorInterestToRemote[completion.doctorInterest] : null, medical_feedback_input: completion.medicalFeedback?.trim() || null }); if (remoteVisitId && completion.attachments?.length) { const uploaded = await uploadVisitAttachments({ visitId: remoteVisitId as string, profileId: user.id, attachments: completion.attachments }); if (uploaded.length) commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, attachments: uploaded } : visit) })); } })();
     },
-    submitPlan: (input) => { const plan: Plan = { id: `p-${Date.now()}`, title: input.title, period: input.period, kind: input.kind, status: "بانتظار الاعتماد", repName: data.teamMembers.find((member) => member.id === activeMemberId)?.name ?? "مندوب", visitIds: input.visitIds, schedule: input.schedule, submittedAt: "الآن" }; commit((current) => { const plannedVisits = (input.plannedVisits ?? []).filter((visit) => !current.visits.some((existing) => existing.id === visit.id)).map((visit) => ({ ...visit, status: "مجدولة" as const })); return { ...current, visits: [...plannedVisits, ...current.visits], plans: [plan, ...current.plans], notifications: [notify("خطة جديدة بانتظار الاعتماد", `${plan.repName} أرسل ${plan.title}.`, "خطة"), ...current.notifications] }; }); send("خطة جديدة بانتظار الاعتماد", plan.title); if (supabase && user) void (async () => { const startsOn = input.startsOn ?? new Date().toISOString().slice(0, 10); const fallbackEnd = new Date(`${startsOn}T12:00:00`); fallbackEnd.setDate(fallbackEnd.getDate() + (input.kind === "أسبوعية" ? 6 : 30)); const { data: remoteId } = await supabase.rpc("tips_crm_create_plan", { plan_title: input.title, plan_type: input.kind === "أسبوعية" ? "weekly" : "monthly", starts_on: startsOn, ends_on: input.endsOn ?? fallbackEnd.toISOString().slice(0, 10) }); if (remoteId) commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === plan.id ? { ...item, remoteId: remoteId as string } : item) })); })(); },
+    submitPlan: (input) => { const plan: Plan = { id: `p-${Date.now()}`, title: input.title, period: input.period, kind: input.kind, status: "بانتظار الاعتماد", repName: data.teamMembers.find((member) => member.id === activeMemberId)?.name ?? "مندوب", visitIds: input.visitIds, schedule: input.schedule, submittedAt: "الآن" }; commit((current) => { const plannedVisits = (input.plannedVisits ?? []).filter((visit) => !current.visits.some((existing) => existing.id === visit.id)).map((visit) => ({ ...visit, status: "مجدولة" as const })); return { ...current, visits: [...plannedVisits, ...current.visits], plans: [plan, ...current.plans], notifications: [notify("خطة جديدة بانتظار الاعتماد", `${plan.repName} أرسل ${plan.title}.`, "خطة"), ...current.notifications] }; }); send("خطة جديدة بانتظار الاعتماد", plan.title); if (supabase && user) void (async () => { const startsOn = input.startsOn ?? new Date().toISOString().slice(0, 10); const fallbackEnd = new Date(`${startsOn}T12:00:00`); fallbackEnd.setDate(fallbackEnd.getDate() + (input.kind === "أسبوعية" ? 6 : 30)); const { data: remoteId } = await supabase.rpc("tips_crm_create_plan", { plan_title: input.title, plan_type: input.kind === "أسبوعية" ? "weekly" : "monthly", starts_on: startsOn, ends_on: input.endsOn ?? fallbackEnd.toISOString().slice(0, 10) }); if (!remoteId) return; commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === plan.id ? { ...item, remoteId: remoteId as string } : item) })); const entries = (await Promise.all((input.plannedVisits ?? []).map(async (visit) => { const account = data.accounts.find((item) => item.id === visit.accountId); const accountId = account ? await syncAccount(account) : null; return accountId && visit.scheduledFor ? { account_id: accountId, scheduled_for: `${visit.scheduledFor}T09:00:00+00:00` } : null; }))).filter((item): item is { account_id: string; scheduled_for: string } => Boolean(item)); if (entries.length) await supabase.rpc("tips_crm_save_plan_visits", { target_plan_id: remoteId as string, planned_visits: entries }); await refreshSharedCatalog(); })(); },
     approvePlan: (planId) => { const plan = data.plans.find((item) => item.id === planId); commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معتمدة", managerNote: undefined } : item), notifications: [notify("تم اعتماد الخطة", `${plan?.title ?? "الخطة"} أصبحت جاهزة للتنفيذ.`, "خطة"), ...current.notifications] })); if (plan?.remoteId && supabase && user) void supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "approved", note: null }); },
     returnPlan: (planId, note) => { const plan = data.plans.find((item) => item.id === planId); commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معادة للمراجعة", managerNote: note } : item), notifications: [notify("تمت إعادة الخطة للمراجعة", `${plan?.title ?? "الخطة"}: ${note}`, "خطة"), ...current.notifications] })); if (plan?.remoteId && supabase && user) void supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "returned", note }); },
     addVisitResult: (label) => { const item = label.trim(); if (!item) return; commit((current) => current.visitResults.includes(item) ? current : { ...current, visitResults: [...current.visitResults, item] }); if (supabase && user) void supabase.rpc("tips_crm_save_visit_outcome", { outcome_label: item, outcome_sort_order: data.visitResults.length * 10 + 10 }).then(() => refreshSharedCatalog()); },

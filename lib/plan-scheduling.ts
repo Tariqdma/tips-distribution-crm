@@ -4,7 +4,7 @@ export type FuturePlanWeek = {
   start: Date;
   startsOn: string;
   endsOn: string;
-  days: Array<{ id: string; label: string; dateLabel: string }>;
+  days: Array<{ id: string; label: string; dateLabel: string; dateIso: string }>;
 };
 
 export type PlannedVisitDraft = {
@@ -12,6 +12,7 @@ export type PlannedVisitDraft = {
   accountId: string;
   date: string;
   time: string;
+  scheduledFor: string;
 };
 
 export type PlanAssignments = Record<string, string[]>;
@@ -45,6 +46,7 @@ export function buildFutureWeeks(referenceDate = new Date(), count = 8): FutureP
           id: `${id}-${dayIndex}`,
           label: weekdayNames[date.getDay()],
           dateLabel: dateText(date, { day: "numeric", month: "short" }),
+          dateIso: date.toISOString().slice(0, 10),
         };
       }),
     };
@@ -66,6 +68,7 @@ export function buildPlanSchedule(week: FuturePlanWeek, assignments: PlanAssignm
     accountId: item.accountId,
     date: item.day.dateLabel,
     time: "يحدد عند اعتماد الخطة",
+    scheduledFor: item.day.dateIso,
   }));
 
   return { schedule, plannedVisits, visitIds: plannedVisits.map((visit) => visit.id) };

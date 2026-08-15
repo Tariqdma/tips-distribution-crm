@@ -18,5 +18,7 @@ describe("plan scheduling", () => {
     expect(result.schedule[0].visitIds).toHaveLength(1);
     expect(result.schedule[3].visitIds).toHaveLength(2);
     expect(new Set(result.visitIds).size).toBe(3);
+    expect(result.plannedVisits[0].scheduledFor).toBe(week.days[0].dateIso);
+    expect(result.plannedVisits[1].scheduledFor).toBe(week.days[3].dateIso);
   });
 });

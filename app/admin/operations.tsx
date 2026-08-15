@@ -45,7 +45,7 @@ export default function AdminOperationsPage() {
     Alert.alert(saved ? "تم حفظ الهدف" : "تعذر حفظ الهدف", saved ? `تم تحديث هدف ${metricMeta.label} لشهر ${monthLabel}.` : "تحقق من اتصالك وصلاحية الحساب ثم حاول مرة أخرى.");
   };
   const exceptions = [
-    { key: "plans", icon: "assignment-late" as const, color: "#B45309", title: "خطط بانتظار القرار", count: pendingPlans.length, copy: "اعتماد أو إعادة خطة للمراجعة", onPress: () => undefined },
+    { key: "plans", icon: "assignment-late" as const, color: "#B45309", title: "خطط بانتظار القرار", count: pendingPlans.length, copy: "اعتماد أو إعادة خطة للمراجعة", onPress: () => router.push("/admin/weekly-plans" as never) },
     { key: "followups", icon: "event-repeat" as const, color: "#A16207", title: "متابعات مستحقة", count: overdueFollowUps.length, copy: "خطوات متابعة تجاوزت موعدها", onPress: () => router.push("/(tabs)" as never) },
     { key: "review", icon: "fact-check" as const, color: "#2563EB", title: "زيارات تحتاج مراجعة", count: reviewVisits.length, copy: "تأكد من الموقع أو جودة التقرير", onPress: () => router.push("/admin/audit" as never) },
     { key: "outside", icon: "warning-amber" as const, color: "#DC2626", title: "مندوبون خارج المناطق", count: outsideDuty.length, copy: "تنبيهات دوام تتطلب المتابعة", onPress: () => router.push("/admin/audit" as never) },
