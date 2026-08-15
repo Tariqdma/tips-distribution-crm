@@ -10,6 +10,7 @@ export type TemporaryEmployeeInput = {
   password: string;
   roleKey: EmployeeRoleKey;
   territoryLabel?: string;
+  territoryId?: string;
   forcePasswordChange: boolean;
 };
 
@@ -73,11 +74,14 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
 
   const { actorProfile, adminClient } = await requireUserManager(authorization);
   const normalizedEmail = input.email.trim().toLowerCase();
+  const territoryKey = input.territoryId?.trim() || null;
+  const { data: territory, error: territoryError } = territoryKey ? await adminClient.schema("tips_crm").from("territories").select("id,name").eq("client_key", territoryKey).eq("is_active", true).maybeSingle() : { data: null, error: null };
+  if (territoryError || (territoryKey && !territory)) throw new Error("المنطقة المحددة لم تعد متاحة. حدّث الصفحة ثم اختر منطقة معتمدة.");
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email: normalizedEmail,
     password: input.password,
     email_confirm: true,
-    user_metadata: { full_name: input.fullName.trim(), territory_label: input.territoryLabel?.trim() || null },
+    user_metadata: { full_name: input.fullName.trim(), territory_id: territoryKey, territory_label: territory?.name ?? (input.territoryLabel?.trim() || null) },
   });
 
   if (createError || !created.user) {
@@ -93,13 +97,17 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
     temporary_password_issued_at: new Date().toISOString(),
   }).eq("id", created.user.id);
   if (profileUpdateError) throw new Error("تم إنشاء الحساب لكن تعذر تعيين صلاحيات الموظف.");
+  if (territory) {
+    const { error: assignmentError } = await adminClient.schema("tips_crm").from("territory_assignments").upsert({ territory_id: territory.id, profile_id: created.user.id, assigned_by: actorProfile.id }, { onConflict: "territory_id,profile_id" });
+    if (assignmentError) throw new Error("تم إنشاء الحساب لكن تعذر ربطه بالمنطقة المحددة.");
+  }
 
   await adminClient.schema("tips_crm").from("audit_log").insert({
     actor_id: actorProfile.id,
     action: "employee_account_created",
     entity_type: "profile",
     entity_id: created.user.id,
-    details: { email: normalizedEmail, role_key: input.roleKey, territory_label: input.territoryLabel?.trim() || null, force_password_change: input.forcePasswordChange },
+    details: { email: normalizedEmail, role_key: input.roleKey, territory_key: territoryKey, territory_label: territory?.name ?? (input.territoryLabel?.trim() || null), force_password_change: input.forcePasswordChange },
   });
 
   return { id: created.user.id, email: normalizedEmail, fullName: input.fullName.trim(), roleKey: input.roleKey, forcePasswordChange: input.forcePasswordChange };

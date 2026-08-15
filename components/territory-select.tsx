@@ -13,11 +13,11 @@ export function TerritorySelect({
 }: {
   territories: TerritoryOption[];
   value: string;
-  onChange: (name: string) => void;
+  onChange: (territoryId: string) => void;
   optional?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = territories.find((territory) => territory.name === value);
+  const selected = territories.find((territory) => territory.id === value);
   const label = selected ? `${selected.name} · ${selected.city}` : optional && !value ? "بدون منطقة محددة" : "اختر منطقة التغطية";
 
   return <View>
@@ -32,7 +32,7 @@ export function TerritorySelect({
           <View style={styles.header}><TouchableOpacity onPress={() => setOpen(false)} style={styles.close}><MaterialIcons name="close" size={20} color={palette.muted} /></TouchableOpacity><View style={styles.titleWrap}><Text style={styles.title}>اختر منطقة التغطية</Text><Text style={styles.copy}>تُدار المناطق وحدودها من شاشة «حدود المناطق».</Text></View></View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.options}>
             {optional ? <Option label="بدون منطقة محددة" meta="يمكن تعيين المنطقة لاحقاً" active={!value} onPress={() => { onChange(""); setOpen(false); }} icon="remove-circle-outline" /> : null}
-            {territories.map((territory) => <Option key={territory.id} label={territory.name} meta={`${territory.state} · ${territory.city}`} active={territory.name === value} onPress={() => { onChange(territory.name); setOpen(false); }} icon="location-on" />)}
+            {territories.map((territory) => <Option key={territory.id} label={territory.name} meta={`${territory.state} · ${territory.city}`} active={territory.id === value} onPress={() => { onChange(territory.id); setOpen(false); }} icon="location-on" />)}
             {!territories.length ? <View style={styles.empty}><MaterialIcons name="map" size={24} color={palette.muted} /><Text style={styles.emptyText}>لا توجد مناطق معتمدة بعد. أنشئ منطقة وحدد حدودها أولاً.</Text></View> : null}
           </ScrollView>
         </View>

@@ -2,7 +2,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase-client";
 
-export type SupabaseProfile = { id: string; full_name: string; email: string | null; role_key: string; role_name: string; permissions: string[]; is_active: boolean; must_change_password: boolean };
+export type SupabaseProfile = { id: string; full_name: string; email: string | null; role_key: string; role_name: string; permissions: string[]; is_active: boolean; must_change_password: boolean; territory_key?: string | null; territory_label?: string | null };
 type SupabaseAuthValue = { session: Session | null; user: User | null; profile: SupabaseProfile | null; loading: boolean; refreshProfile: () => Promise<SupabaseProfile | null>; claimFirstSystemAdmin: () => Promise<boolean>; signOut: () => Promise<void> };
 const SupabaseAuthContext = createContext<SupabaseAuthValue | null>(null);
 
