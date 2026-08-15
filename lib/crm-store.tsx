@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { sendOperationalNotification } from "@/lib/notifications";
 import { stateForCity } from "@/lib/sudan-locations";
 import { appendDutyPoint, isInsideTerritory } from "@/lib/duty-logic";
+import { findDuplicateAccount, isFollowUpDue } from "@/lib/operational-insights";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -11,9 +12,10 @@ export type VisitStatus = "مجدولة" | "مكتملة" | "تحتاج مراج
 export type PlanStatus = "مسودة" | "بانتظار الاعتماد" | "معتمدة" | "معادة للمراجعة";
 export type AppRole = "مدير" | "مندوب مبيعات" | "مندوب طبي";
 export type VisitResult = string;
+export type FollowUpPriority = "عالية" | "متوسطة" | "منخفضة";
 
 export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
-export type Visit = { id: string; accountId: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; checkedInAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean };
+export type Visit = { id: string; accountId: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; checkedInAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean };
 export type PlanScheduleDay = { id: string; label: string; dateLabel: string; visitIds: string[] };
 export type Plan = { id: string; remoteId?: string; title: string; period: string; kind: "أسبوعية" | "شهرية"; status: PlanStatus; repName: string; visitIds: string[]; schedule?: PlanScheduleDay[]; managerNote?: string; submittedAt: string };
 export type Territory = { id: string; name: string; state: string; city: string; assignees: string[]; accounts: number; coverage: number };
@@ -26,14 +28,14 @@ export type DutyTrackPoint = { latitude: number; longitude: number; accuracyMete
 export type RepDutyStatus = { memberId: string; isOnDuty: boolean; lastPoint?: DutyTrackPoint; path: DutyTrackPoint[]; isOutsideTerritory?: boolean; outsideSince?: string; lastTerritoryAlertAt?: string };
 export type CrmData = { accounts: Account[]; visits: Visit[]; plans: Plan[]; territories: Territory[]; visitResults: VisitResult[]; teamMembers: TeamMember[]; roleDefinitions: RoleDefinition[]; notifications: CrmNotification[]; invites: TeamInvite[]; boundaries: TerritoryBoundary[]; dutyStatuses: RepDutyStatus[] };
 
-type VisitCompletion = { result: VisitResult; note: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory: boolean };
+type VisitCompletion = { result: VisitResult; note: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory: boolean };
 type NewPlanInput = { title: string; period: string; kind: Plan["kind"]; visitIds: string[]; schedule?: PlanScheduleDay[] };
 type CrmContextValue = {
   data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number;
   setRole: (role: AppRole) => void; selectTeamMember: (id: string) => void; updateTeamMemberRole: (id: string, role: AppRole) => void;
   createRole: (input: Omit<RoleDefinition, "id" | "isSystem" | "isActive">) => void; updateRoleDefinition: (id: string, input: Pick<RoleDefinition, "name" | "description" | "permissions">) => void; toggleRoleDefinition: (id: string) => void; removeRoleDefinition: (id: string) => void;
   accountById: (id: string) => Account | undefined; visitsForAccount: (accountId: string) => Visit[];
-  addAccount: (account: Omit<Account, "id" | "lastVisit" | "initials" | "accent">) => void;
+  addAccount: (account: Omit<Account, "id" | "lastVisit" | "initials" | "accent">) => { accepted: boolean; duplicate?: Account };
   completeVisit: (visitId: string, completion: VisitCompletion) => void; submitPlan: (input: NewPlanInput) => void; approvePlan: (planId: string) => void; returnPlan: (planId: string, note: string) => void;
   addVisitResult: (label: string) => void; createInvite: (input: Omit<TeamInvite, "id" | "status" | "sentAt" | "expiresAt" | "acceptUrl">) => Promise<TeamInvite | null>; resendInvite: (invite: TeamInvite) => Promise<TeamInvite | null>; revokeInvite: (inviteId: string) => Promise<boolean>; updateBoundary: (boundary: TerritoryBoundary) => void;
   createCentralNotification: (input: Pick<CrmNotification, "title" | "body" | "kind">) => void; setTeamMemberTerritories: (memberId: string, territoryIds: string[]) => Promise<boolean>; recordDutyPoint: (point: DutyTrackPoint) => void; markAllNotificationsRead: () => void;
@@ -113,6 +115,30 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [profile?.id, profile?.full_name, profile?.role_key, profile?.role_name, profile?.territory_key, profile?.territory_label, profile?.territory_keys, profile?.territory_labels]);
   useEffect(() => { AsyncStorage.getItem(STORAGE_KEY).then((raw) => { if (!raw) return; const saved = JSON.parse(raw) as Partial<CrmData>; setData({ ...initialData, ...saved, accounts: (saved.accounts ?? initialData.accounts).map((account) => ({ ...account, state: account.state || stateForCity(account.city) })), dutyStatuses: saved.dutyStatuses ?? initialData.dutyStatuses }); }).catch(() => undefined).finally(() => setIsReady(true)); }, []);
   const commit = (updater: (current: CrmData) => CrmData) => setData((current) => { const next = updater(current); void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)); return next; });
+  useEffect(() => {
+    if (!isReady) return;
+    setData((current) => {
+      const today = new Date().toISOString().slice(0, 10);
+      const followUpAdditions = current.visits.flatMap((visit) => {
+        if (!isFollowUpDue(visit, today)) return [];
+        const id = `follow-up-due-${visit.id}-${visit.followUpDate}`;
+        if (current.notifications.some((notification) => notification.id === id)) return [];
+        const account = current.accounts.find((item) => item.id === visit.accountId);
+        return [{ id, title: "متابعة مستحقة اليوم", body: `${account?.name ?? "جهة"}: ${visit.followUpAction || "راجع الخطوة التالية"}.`, time: "الآن", kind: "تنبيه" as const }];
+      });
+      const planAdditions = current.plans.flatMap((plan) => {
+        if (plan.status !== "مسودة") return [];
+        const id = `plan-draft-${plan.id}`;
+        if (current.notifications.some((notification) => notification.id === id)) return [];
+        return [{ id, title: "مسودة خطة غير مرسلة", body: `${plan.title} ما زالت مسودة. راجعها وأرسلها للاعتماد عندما تكون جاهزة.`, time: "الآن", kind: "خطة" as const }];
+      });
+      const additions = [...followUpAdditions, ...planAdditions];
+      if (!additions.length) return current;
+      const next = { ...current, notifications: [...additions, ...current.notifications] };
+      void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [isReady, data.visits]);
   const refreshSharedCatalog = useCallback(async () => {
     if (!supabase || !user || !isReady) return;
     const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse] = await Promise.all([
@@ -179,8 +205,22 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     removeRoleDefinition: (id) => commit((current) => ({ ...current, roleDefinitions: current.roleDefinitions.filter((roleDefinition) => roleDefinition.id !== id || roleDefinition.isSystem) })),
     accountById: (id) => data.accounts.find((account) => account.id === id),
     visitsForAccount: (accountId) => data.visits.filter((visit) => visit.accountId === accountId),
-    addAccount: (account) => { const created: Account = { ...account, id: `a-${Date.now()}`, lastVisit: "لم تتم زيارة", initials: initialsFor(account.name), accent: accentForAccountType[account.type] }; commit((current) => ({ ...current, accounts: [created, ...current.accounts] })); void syncAccount(created).then(() => refreshSharedCatalog()); },
-    completeVisit: (visitId, completion) => { const currentVisit = data.visits.find((visit) => visit.id === visitId); const account = currentVisit ? data.accounts.find((item) => item.id === currentVisit.accountId) : undefined; commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, status: completion.isInsideTerritory ? "مكتملة" : "تحتاج مراجعة", result: completion.result, note: completion.note, location: completion.location, isInsideTerritory: completion.isInsideTerritory, checkedInAt: new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }) } : visit), notifications: [notify("تم توثيق زيارة", completion.result, "زيارة"), ...current.notifications] })); if (account && supabase && user) void (async () => { const remoteAccountId = await syncAccount(account); if (!remoteAccountId) return; await supabase.rpc("tips_crm_save_visit", { account_uuid: remoteAccountId, visit_status: completion.isInsideTerritory ? "completed" : "needs_review", visit_outcome: completion.result, visit_notes: completion.note, latitude: completion.location?.latitude ?? null, longitude: completion.location?.longitude ?? null, accuracy: completion.location?.accuracy ?? null }); })(); },
+    addAccount: (account) => {
+      const duplicate = findDuplicateAccount(data.accounts, account);
+      if (duplicate) {
+        commit((current) => ({ ...current, notifications: [notify("تم منع تكرار جهة", `${duplicate.name} مسجلة مسبقاً في ${duplicate.city}.`, "تنبيه"), ...current.notifications] }));
+        return { accepted: false, duplicate };
+      }
+      const created: Account = { ...account, id: `a-${Date.now()}`, lastVisit: "لم تتم زيارة", initials: initialsFor(account.name), accent: accentForAccountType[account.type] };
+      commit((current) => ({ ...current, accounts: [created, ...current.accounts] }));
+      void syncAccount(created).then(() => refreshSharedCatalog());
+      return { accepted: true };
+    },
+    completeVisit: (visitId, completion) => {
+      const currentVisit = data.visits.find((visit) => visit.id === visitId); const account = currentVisit ? data.accounts.find((item) => item.id === currentVisit.accountId) : undefined;
+      commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, status: completion.isInsideTerritory ? "مكتملة" : "تحتاج مراجعة", result: completion.result, note: completion.note, followUpAction: completion.followUpAction?.trim() || undefined, followUpDate: completion.followUpDate || undefined, reportPriority: completion.reportPriority ?? "متوسطة", location: completion.location, isInsideTerritory: completion.isInsideTerritory, checkedInAt: new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }) } : visit), notifications: [notify("تم توثيق زيارة", completion.followUpDate ? `${completion.result} · متابعة ${completion.followUpDate}` : completion.result, "زيارة"), ...(completion.followUpDate ? [notify("متابعة مجدولة", `${account?.name ?? "الجهة"}: ${completion.followUpAction?.trim() || "راجع الخطوة التالية"} في ${completion.followUpDate}.`, "تنبيه")] : []), ...current.notifications] }));
+      if (account && supabase && user) void (async () => { const remoteAccountId = await syncAccount(account); if (!remoteAccountId) return; await supabase.rpc("tips_crm_save_visit_report", { account_uuid: remoteAccountId, visit_status: completion.isInsideTerritory ? "completed" : "needs_review", visit_outcome: completion.result, visit_notes: completion.note, follow_up_action_input: completion.followUpAction?.trim() || null, follow_up_on_input: completion.followUpDate || null, visit_priority_input: completion.reportPriority === "عالية" ? "high" : completion.reportPriority === "منخفضة" ? "low" : "medium", latitude: completion.location?.latitude ?? null, longitude: completion.location?.longitude ?? null, accuracy: completion.location?.accuracy ?? null }); })();
+    },
     submitPlan: (input) => { const plan: Plan = { id: `p-${Date.now()}`, title: input.title, period: input.period, kind: input.kind, status: "بانتظار الاعتماد", repName: data.teamMembers.find((member) => member.id === activeMemberId)?.name ?? "مندوب", visitIds: input.visitIds, schedule: input.schedule, submittedAt: "الآن" }; commit((current) => ({ ...current, plans: [plan, ...current.plans], notifications: [notify("خطة جديدة بانتظار الاعتماد", `${plan.repName} أرسل ${plan.title}.`, "خطة"), ...current.notifications] })); send("خطة جديدة بانتظار الاعتماد", plan.title); if (supabase && user) void (async () => { const start = new Date(); const end = new Date(start); end.setDate(start.getDate() + (input.kind === "أسبوعية" ? 6 : 30)); const { data: remoteId } = await supabase.rpc("tips_crm_create_plan", { plan_title: input.title, plan_type: input.kind === "أسبوعية" ? "weekly" : "monthly", starts_on: start.toISOString().slice(0, 10), ends_on: end.toISOString().slice(0, 10) }); if (remoteId) commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === plan.id ? { ...item, remoteId: remoteId as string } : item) })); })(); },
     approvePlan: (planId) => { const plan = data.plans.find((item) => item.id === planId); commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معتمدة", managerNote: undefined } : item), notifications: [notify("تم اعتماد الخطة", `${plan?.title ?? "الخطة"} أصبحت جاهزة للتنفيذ.`, "خطة"), ...current.notifications] })); if (plan?.remoteId && supabase && user) void supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "approved", note: null }); },
     returnPlan: (planId, note) => { const plan = data.plans.find((item) => item.id === planId); commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معادة للمراجعة", managerNote: note } : item), notifications: [notify("تمت إعادة الخطة للمراجعة", `${plan?.title ?? "الخطة"}: ${note}`, "خطة"), ...current.notifications] })); if (plan?.remoteId && supabase && user) void supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "returned", note }); },

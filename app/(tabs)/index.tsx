@@ -1,78 +1,36 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AppHeader, AccountAvatar, MetricCard, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
 import { NotificationButton } from "@/components/notification-button";
 import { DutyTrackerCard } from "@/components/duty-tracker-card";
 import { getFieldDataScope } from "@/lib/field-data-scope";
+import { isFollowUpDue } from "@/lib/operational-insights";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+
+const priorityWeight = { عالية: 0, متوسطة: 1, اعتيادية: 2 } as const;
+const isoToday = () => new Date().toISOString().slice(0, 10);
 
 export default function TodayScreen() {
   const { data, accountById, unreadNotificationCount, recordDutyPoint } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile);
-  const todayVisits = scope.visits.filter((visit) => visit.date === "اليوم");
-  const completed = todayVisits.filter((visit) => visit.status === "مكتملة").length;
-  const progress = todayVisits.length ? Math.round((completed / todayVisits.length) * 100) : 0;
-
-  return (
-    <ScreenContainer className="px-5" containerClassName="bg-background">
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <AppHeader eyebrow="خطة اليوم والزيارات المخصصة لك" title={`صباح الخير، ${profile?.full_name ?? "بك"}`} right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><View style={styles.profile}><Text style={styles.profileText}>{(profile?.full_name ?? "م").split(" ").slice(0, 2).map((part) => part[0]).join("")}</Text></View></View>} />
-
-        <View style={styles.hero}>
-          <View style={styles.heroTop}><View style={styles.todayIcon}><MaterialIcons name="today" color="#FFFFFF" size={18} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroEyebrow}>خطة اليوم المعتمدة</Text><Text style={styles.heroTitle}>{completed} من {todayVisits.length} زيارات مكتملة</Text></View></View>
-          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
-          <View style={styles.heroBottom}><Text style={styles.heroHint}>تابع الزيارة التالية لتأكيد الحضور</Text><Text style={styles.progressText}>{progress}%</Text></View>
-        </View>
-
-        <View style={styles.metrics}><MetricCard label="زيارات اليوم" value={String(todayVisits.length)} icon="event-available" /><MetricCard label="داخل المنطقة" value={todayVisits.length ? "100%" : "—"} icon="my-location" tone="blue" /><MetricCard label="تحتاج مراجعة" value={String(scope.visits.filter((visit) => visit.status === "تحتاج مراجعة").length)} icon="forum" tone="amber" /></View>
-        <DutyTrackerCard onPoint={recordDutyPoint} />
-
-        <SectionTitle title="جدول الزيارات" action="عرض الخطة" onPress={() => router.push("/(tabs)/plans" as never)} />
-        <View style={styles.scheduleCard}>
-          {todayVisits.map((visit, index) => {
-            const account = accountById(visit.accountId);
-            if (!account) return null;
-            return <TouchableOpacity key={visit.id} activeOpacity={0.78} onPress={() => router.push(`/visit/${visit.id}` as never)} style={[styles.visitRow, index < todayVisits.length - 1 && styles.divider]}>
-              <View style={styles.timeCol}><Text style={styles.time}>{visit.time}</Text><View style={[styles.dot, { backgroundColor: visit.status === "مكتملة" ? palette.success : palette.info }]} /></View>
-              <View style={styles.visitMiddle}><Text style={styles.visitType}>{account.type}{account.specialty ? ` · ${account.specialty}` : ""}</Text><Text style={styles.visitAddress} numberOfLines={1}>{account.area} · {account.address}</Text><StatusBadge status={visit.status} /></View>
-              <AccountAvatar account={account} size={46} />
-            </TouchableOpacity>;
-          })}
-        </View>
-
-        <View style={styles.tip}><MaterialIcons name="lightbulb-outline" size={21} color={palette.warning} /><Text style={styles.tipText}>أفضل نتيجة لليوم هي إكمال الزيارة مع توثيق الموقع والملاحظة المختصرة.</Text></View>
-      </ScrollView>
-    </ScreenContainer>
-  );
+  const todayVisits = scope.visits.filter((visit) => visit.date === "اليوم").sort((first, second) => { if (first.status === "مكتملة" && second.status !== "مكتملة") return 1; if (first.status !== "مكتملة" && second.status === "مكتملة") return -1; return priorityWeight[accountById(first.accountId)?.priority ?? "اعتيادية"] - priorityWeight[accountById(second.accountId)?.priority ?? "اعتيادية"]; });
+  const completed = todayVisits.filter((visit) => visit.status === "مكتملة").length; const needsReview = todayVisits.filter((visit) => visit.status === "تحتاج مراجعة").length; const progress = todayVisits.length ? Math.round((completed / todayVisits.length) * 100) : 0;
+  const nextVisit = todayVisits.find((visit) => visit.status !== "مكتملة"); const dueFollowUps = scope.visits.filter((visit) => isFollowUpDue(visit, isoToday())).sort((a, b) => (a.followUpDate ?? "").localeCompare(b.followUpDate ?? ""));
+  const showDailySummary = () => Alert.alert("ملخص اليوم", `الزيارات: ${completed} مكتملة من ${todayVisits.length}.\nتحتاج مراجعة: ${needsReview}.\nمتابعات مستحقة: ${dueFollowUps.length}.\nنسبة الإنجاز: ${progress}%.`);
+  return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <AppHeader eyebrow="خطة اليوم والزيارات المخصصة لك" title={`صباح الخير، ${profile?.full_name ?? "بك"}`} right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><View style={styles.profile}><Text style={styles.profileText}>{(profile?.full_name ?? "م").split(" ").slice(0, 2).map((part) => part[0]).join("")}</Text></View></View>} />
+    <View style={styles.hero}><View style={styles.heroTop}><View style={styles.todayIcon}><MaterialIcons name="today" color="#FFFFFF" size={18} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroEyebrow}>خطة اليوم المعتمدة</Text><Text style={styles.heroTitle}>{completed} من {todayVisits.length} زيارات مكتملة</Text></View></View><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View><View style={styles.heroBottom}><Text style={styles.heroHint}>{nextVisit ? `الآن: الزيارة التالية عند ${nextVisit.time}` : "أكملت زيارات اليوم، راجع ملخصك قبل الإنهاء."}</Text><Text style={styles.progressText}>{progress}%</Text></View></View>
+    <View style={styles.metrics}><MetricCard label="زيارات اليوم" value={String(todayVisits.length)} icon="event-available" /><MetricCard label="متابعات مستحقة" value={String(dueFollowUps.length)} icon="assignment-late" tone="amber" /><MetricCard label="تحتاج مراجعة" value={String(needsReview)} icon="forum" tone="blue" /></View>
+    {nextVisit ? <TouchableOpacity activeOpacity={0.82} onPress={() => router.push(`/visit/${nextVisit.id}` as never)} style={styles.nextCard}><View style={styles.nextIcon}><MaterialIcons name="play-arrow" color="#FFFFFF" size={20} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.nextEyebrow}>أفضل خطوة تالية</Text><Text style={styles.nextTitle}>{accountById(nextVisit.accountId)?.name ?? "الزيارة القادمة"}</Text><Text style={styles.nextMeta}>{nextVisit.time} · {accountById(nextVisit.accountId)?.priority ?? "اعتيادية"} الأولوية</Text></View><MaterialIcons name="chevron-left" color={palette.primary} size={24} /></TouchableOpacity> : null}
+    <DutyTrackerCard onPoint={recordDutyPoint} />
+    {dueFollowUps.length ? <><SectionTitle title="متابعات تحتاج إجراء" /><View style={styles.followupCard}>{dueFollowUps.slice(0, 3).map((visit, index) => <TouchableOpacity onPress={() => router.push(`/account/${visit.accountId}` as never)} key={visit.id} style={[styles.followupRow, index < Math.min(dueFollowUps.length, 3) - 1 && styles.divider]}><MaterialIcons name="event-note" color={palette.warning} size={19} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.followupTitle}>{visit.followUpAction || "متابعة مطلوبة"}</Text><Text style={styles.followupMeta}>{accountById(visit.accountId)?.name} · {visit.followUpDate}</Text></View></TouchableOpacity>)}</View></> : null}
+    <SectionTitle title="جدول الزيارات" action="عرض الخطة" onPress={() => router.push("/(tabs)/plans" as never)} />
+    <View style={styles.scheduleCard}>{todayVisits.map((visit, index) => { const account = accountById(visit.accountId); if (!account) return null; return <TouchableOpacity key={visit.id} activeOpacity={0.78} onPress={() => router.push(`/visit/${visit.id}` as never)} style={[styles.visitRow, index < todayVisits.length - 1 && styles.divider]}><View style={styles.timeCol}><Text style={styles.time}>{visit.time}</Text><View style={[styles.dot, { backgroundColor: visit.status === "مكتملة" ? palette.success : account.priority === "عالية" ? palette.error : palette.info }]} /></View><View style={styles.visitMiddle}><View style={styles.visitNameRow}><StatusBadge status={visit.status} /><Text style={styles.priorityPill}>{account.priority}</Text></View><Text style={styles.visitType}>{account.name}</Text><Text style={styles.visitAddress} numberOfLines={1}>{account.type}{account.specialty ? ` · ${account.specialty}` : ""} · {account.area}</Text></View><AccountAvatar account={account} size={46} /></TouchableOpacity>; })}</View>
+    <TouchableOpacity onPress={showDailySummary} style={styles.summaryButton}><MaterialIcons name="summarize" size={19} color={palette.primary} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.summaryTitle}>ملخص نهاية اليوم</Text><Text style={styles.summaryCopy}>راجع الإنجاز والمتابعات قبل إنهاء دوامك.</Text></View><MaterialIcons name="chevron-left" color={palette.primary} size={23} /></TouchableOpacity>
+    <View style={styles.tip}><MaterialIcons name="lightbulb-outline" size={21} color={palette.warning} /><Text style={styles.tipText}>تقرير مكتمل يعني: نتيجة، ملخص قصير، وخطوة متابعة عند الحاجة. المسودات تحفظ تلقائياً في صفحة الزيارة.</Text></View>
+  </ScrollView></ScreenContainer>;
 }
 
-const styles = StyleSheet.create({
-  content: { paddingTop: 10, paddingBottom: 28 },
-  headerActions: { flexDirection: "row", gap: 8, alignItems: "center" },
-  profile: { height: 38, width: 38, borderRadius: 19, backgroundColor: "#DFF2EC", alignItems: "center", justifyContent: "center" },
-  profileText: { color: palette.primary, fontWeight: "800", fontSize: 12 },
-  hero: { backgroundColor: palette.primary, borderRadius: 22, padding: 18, shadowColor: "#075E54", shadowOpacity: 0.14, shadowRadius: 12, elevation: 3 },
-  heroTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  todayIcon: { height: 38, width: 38, borderRadius: 12, backgroundColor: "#0B7A6D", alignItems: "center", justifyContent: "center" },
-  heroEyebrow: { color: "#CBEDE6", fontSize: 12, marginBottom: 3, textAlign: "right" },
-  heroTitle: { color: "#FFFFFF", fontWeight: "800", fontSize: 18, textAlign: "right" },
-  progressTrack: { height: 7, borderRadius: 5, backgroundColor: "#277C70", overflow: "hidden", marginTop: 19 },
-  progressFill: { height: "100%", borderRadius: 5, backgroundColor: "#8BE3CA" },
-  heroBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 9, alignItems: "center" },
-  heroHint: { color: "#CBEDE6", fontSize: 11, flex: 1, textAlign: "right" },
-  progressText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
-  metrics: { flexDirection: "row", gap: 8, marginTop: 15 },
-  scheduleCard: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 20, paddingHorizontal: 14 },
-  visitRow: { flexDirection: "row", gap: 11, alignItems: "center", paddingVertical: 14 },
-  divider: { borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
-  timeCol: { width: 50, alignItems: "flex-start", gap: 6 },
-  time: { color: palette.ink, fontSize: 12, fontWeight: "700" },
-  dot: { width: 7, height: 7, borderRadius: 4, marginLeft: 7 },
-  visitMiddle: { flex: 1, alignItems: "flex-end" },
-  visitType: { color: palette.ink, fontSize: 15, fontWeight: "800", textAlign: "right" },
-  visitAddress: { color: palette.muted, fontSize: 11, marginTop: 3, textAlign: "right", maxWidth: 190 },
-  tip: { marginTop: 17, padding: 14, backgroundColor: "#FFF9EB", borderRadius: 16, flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  tipText: { color: "#725922", flex: 1, fontSize: 12, lineHeight: 18, textAlign: "right" },
-});
+const styles = StyleSheet.create({ content: { paddingTop: 10, paddingBottom: 28 }, headerActions: { flexDirection: "row", gap: 8, alignItems: "center" }, profile: { height: 38, width: 38, borderRadius: 19, backgroundColor: "#DFF2EC", alignItems: "center", justifyContent: "center" }, profileText: { color: palette.primary, fontWeight: "800", fontSize: 12 }, hero: { backgroundColor: palette.primary, borderRadius: 22, padding: 18, shadowColor: "#075E54", shadowOpacity: 0.14, shadowRadius: 12, elevation: 3 }, heroTop: { flexDirection: "row", alignItems: "center", gap: 12 }, todayIcon: { height: 38, width: 38, borderRadius: 12, backgroundColor: "#0B7A6D", alignItems: "center", justifyContent: "center" }, heroEyebrow: { color: "#CBEDE6", fontSize: 12, marginBottom: 3, textAlign: "right" }, heroTitle: { color: "#FFFFFF", fontWeight: "800", fontSize: 18, textAlign: "right" }, progressTrack: { height: 7, borderRadius: 5, backgroundColor: "#277C70", overflow: "hidden", marginTop: 19 }, progressFill: { height: "100%", borderRadius: 5, backgroundColor: "#8BE3CA" }, heroBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 9, alignItems: "center" }, heroHint: { color: "#CBEDE6", fontSize: 11, flex: 1, textAlign: "right" }, progressText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" }, metrics: { flexDirection: "row", gap: 8, marginTop: 15 }, nextCard: { marginTop: 15, minHeight: 76, padding: 13, backgroundColor: "#EAF8F2", borderWidth: 1, borderColor: "#B9DECF", borderRadius: 17, flexDirection: "row", alignItems: "center", gap: 10 }, nextIcon: { width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary }, nextEyebrow: { color: palette.success, fontSize: 10, fontWeight: "800" }, nextTitle: { color: palette.ink, fontSize: 14, fontWeight: "900", marginTop: 2, textAlign: "right" }, nextMeta: { color: palette.muted, fontSize: 10, marginTop: 3 }, followupCard: { backgroundColor: "#FFF9EB", borderWidth: 1, borderColor: "#F3DC9D", borderRadius: 18, paddingHorizontal: 13 }, followupRow: { minHeight: 57, flexDirection: "row", alignItems: "center", gap: 9 }, followupTitle: { color: "#795D14", fontSize: 12, fontWeight: "800", textAlign: "right" }, followupMeta: { color: "#8D7A45", fontSize: 10, marginTop: 3, textAlign: "right" }, scheduleCard: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 20, paddingHorizontal: 14 }, visitRow: { flexDirection: "row", gap: 11, alignItems: "center", paddingVertical: 14 }, divider: { borderBottomWidth: 1, borderBottomColor: "#EDF1EF" }, timeCol: { width: 50, alignItems: "flex-start", gap: 6 }, time: { color: palette.ink, fontSize: 12, fontWeight: "700" }, dot: { width: 7, height: 7, borderRadius: 4, marginLeft: 7 }, visitMiddle: { flex: 1, alignItems: "flex-end" }, visitNameRow: { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 3 }, priorityPill: { color: palette.muted, backgroundColor: "#F2F5F4", overflow: "hidden", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, fontSize: 9, fontWeight: "800" }, visitType: { color: palette.ink, fontSize: 14, fontWeight: "800", textAlign: "right" }, visitAddress: { color: palette.muted, fontSize: 11, marginTop: 3, textAlign: "right", maxWidth: 190 }, summaryButton: { marginTop: 17, borderRadius: 17, padding: 14, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#D9E8E2", flexDirection: "row", alignItems: "center", gap: 9 }, summaryTitle: { color: palette.ink, fontWeight: "900", fontSize: 13, textAlign: "right" }, summaryCopy: { color: palette.muted, fontSize: 10, marginTop: 3, textAlign: "right" }, tip: { marginTop: 17, padding: 14, backgroundColor: "#FFF9EB", borderRadius: 16, flexDirection: "row", alignItems: "flex-start", gap: 10 }, tipText: { color: "#725922", flex: 1, fontSize: 12, lineHeight: 18, textAlign: "right" } });

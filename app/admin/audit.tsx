@@ -11,7 +11,7 @@ type AuditRow = { id: number; action: string; entity_type: string; details: Reco
 type ReportRep = { id: string; full_name: string };
 type ExitAlertRow = { id: string; occurred_at: string; employee_id: string; employee_name: string; territory_key: string | null; territory_name: string; title: string; body: string; status: string };
 const actionLabels: Record<string, string> = { invite_created: "إنشاء دعوة", invite_resent: "إعادة إرسال دعوة", invite_revoked: "إلغاء دعوة", invite_accepted: "قبول دعوة", plan_submitted: "إرسال خطة", plan_approved: "اعتماد خطة", plan_returned: "إعادة خطة", visit_saved: "توثيق زيارة", account_created: "إضافة جهة", territories_assigned: "تعديل مناطق العمل" };
-const exportLabel: Record<ExportReportKind, string> = { report: "التقرير الكامل", visits: "الزيارات فقط", plans: "الخطط فقط", territory_exits: "تنبيهات الخروج" };
+const exportLabel: Record<ExportReportKind, string> = { report: "التقرير الكامل", visits: "الزيارات فقط", plans: "الخطط فقط", territory_exits: "تنبيهات الخروج", executive: "الملخص التنفيذي" };
 
 export default function AdminAuditPage() {
   const { session } = useSupabaseAuth();

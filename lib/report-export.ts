@@ -5,10 +5,10 @@ import { Platform } from "react-native";
 
 export type ExportReportRow = { record_type: string; occurred_at: string; actor_name: string; title: string; status: string; details: string };
 
-const labels: Record<string, string> = { plan: "خطة", visit: "زيارة", audit: "سجل تدقيق", territory_exit: "خروج من منطقة العمل" };
+const labels: Record<string, string> = { plan: "خطة", visit: "زيارة", audit: "سجل تدقيق", territory_exit: "خروج من منطقة العمل", executive: "مؤشر تنفيذي" };
 
-export type ExportReportKind = "report" | "visits" | "plans" | "territory_exits";
-const exportMeta: Record<ExportReportKind, { file: string; sheet: string; dialog: string }> = { report: { file: "report", sheet: "تقرير Tips CRM", dialog: "تصدير تقرير Tips CRM" }, visits: { file: "visits", sheet: "زيارات Tips CRM", dialog: "تصدير زيارات Tips CRM" }, plans: { file: "plans", sheet: "خطط Tips CRM", dialog: "تصدير خطط Tips CRM" }, territory_exits: { file: "territory-exit-alerts", sheet: "تنبيهات الخروج", dialog: "تصدير تنبيهات الخروج" } };
+export type ExportReportKind = "report" | "visits" | "plans" | "territory_exits" | "executive";
+const exportMeta: Record<ExportReportKind, { file: string; sheet: string; dialog: string }> = { report: { file: "report", sheet: "تقرير Tips CRM", dialog: "تصدير تقرير Tips CRM" }, visits: { file: "visits", sheet: "زيارات Tips CRM", dialog: "تصدير زيارات Tips CRM" }, plans: { file: "plans", sheet: "خطط Tips CRM", dialog: "تصدير خطط Tips CRM" }, territory_exits: { file: "territory-exit-alerts", sheet: "تنبيهات الخروج", dialog: "تصدير تنبيهات الخروج" }, executive: { file: "executive-summary", sheet: "ملخص تنفيذي", dialog: "تصدير الملخص التنفيذي" } };
 
 export async function exportReportWorkbook(rows: ExportReportRow[], kind: ExportReportKind = "report") {
   const worksheet = XLSX.utils.json_to_sheet(rows.map((row) => ({
