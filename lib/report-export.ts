@@ -7,6 +7,7 @@ import type { ReceiptSearchRecord } from "@/lib/receipt-search";
 export type ExportReportRow = { record_type: string; occurred_at: string; actor_name: string; title: string; status: string; details: string };
 export type DailyCollectionExportRow = { checkedInAt?: string; repName: string; accountName: string; accountType: string; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; receiptReference?: string; notes?: string };
 export type DailyCollectionExportSummary = { repName: string; visitCount: number; accountCount: number; collectionAmount: number; revenueAmount: number };
+export type MedicalCoverageExportRow = { repName: string; state: string; city: string; specialty: string; totalVisits: number; completedVisits: number; inPersonVisits: number; remoteVisits: number; highInterest: number; requestedInfo: number; pendingFollowUps: number; promotedProducts: string[] };
 
 const labels: Record<string, string> = { plan: "خطة", visit: "زيارة", audit: "سجل تدقيق", territory_exit: "خروج من منطقة العمل", executive: "مؤشر تنفيذي" };
 
@@ -96,4 +97,15 @@ export async function exportReceiptSearchWorkbook({ query, fromDate, toDate, rec
   const fileName = `tips-crm-receipt-search-${new Date().toISOString().slice(0, 10)}.xlsx`;
   if (Platform.OS === "web") { const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" }); const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = fileName; link.click(); URL.revokeObjectURL(url); return fileName; }
   const uri = `${FileSystem.cacheDirectory}${fileName}`; const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" }); await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 }); if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { dialogTitle: "تصدير سجل بحث الإيصالات", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }); return fileName;
+}
+
+export async function exportMedicalCoverageWorkbook({ startOn, endOn, rows }: { startOn: string; endOn: string; rows: MedicalCoverageExportRow[] }) {
+  const detailSheet = XLSX.utils.json_to_sheet(rows.map((row) => ({ "من التاريخ": startOn, "إلى التاريخ": endOn, "المندوب الطبي": row.repName, "الولاية": row.state, "المدينة": row.city, "التخصص": row.specialty, "إجمالي التفاعلات": row.totalVisits, "الزيارات المكتملة": row.completedVisits, "حضوري/اجتماع": row.inPersonVisits, "هاتف/أونلاين": row.remoteVisits, "اهتمام مرتفع": row.highInterest, "طلب معلومات": row.requestedInfo, "متابعات مستحقة": row.pendingFollowUps, "المنتجات المروجة": row.promotedProducts.join("، ") })));
+  detailSheet["!cols"] = [{ wch: 14 }, { wch: 14 }, { wch: 23 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 17 }, { wch: 17 }, { wch: 17 }, { wch: 16 }, { wch: 14 }, { wch: 15 }, { wch: 16 }, { wch: 38 }];
+  const summary = { "الفترة": `${startOn} إلى ${endOn}`, "المندوبون": new Set(rows.map((row) => row.repName)).size, "إجمالي التفاعلات": rows.reduce((sum, row) => sum + row.totalVisits, 0), "اهتمام مرتفع": rows.reduce((sum, row) => sum + row.highInterest, 0), "طلبات معلومات": rows.reduce((sum, row) => sum + row.requestedInfo, 0), "متابعات مستحقة": rows.reduce((sum, row) => sum + row.pendingFollowUps, 0) };
+  const summarySheet = XLSX.utils.json_to_sheet([summary]); summarySheet["!cols"] = [{ wch: 27 }, { wch: 14 }, { wch: 20 }, { wch: 16 }, { wch: 16 }, { wch: 17 }];
+  const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, summarySheet, "ملخص التغطية"); XLSX.utils.book_append_sheet(workbook, detailSheet, "تفاصيل التغطية");
+  const fileName = `tips-crm-medical-coverage-${startOn}-${endOn}.xlsx`;
+  if (Platform.OS === "web") { const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" }); const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = fileName; link.click(); URL.revokeObjectURL(url); return fileName; }
+  const uri = `${FileSystem.cacheDirectory}${fileName}`; const base64 = XLSX.write(workbook, { type: "base64", bookType: "xlsx" }); await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 }); if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { dialogTitle: "تصدير تقرير التغطية الطبية", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }); return fileName;
 }
