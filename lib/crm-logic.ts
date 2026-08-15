@@ -10,6 +10,10 @@ export function isLocationWithinAssignedTerritory(location: CapturedLocation, bo
   return isLocationAcceptable(location.accuracy, maximumAccuracy) && (!boundary || isInsideTerritory(location, boundary));
 }
 
+export function isLocationWithinAssignedTerritories(location: CapturedLocation, boundaries: TerritoryBoundaryLike[], maximumAccuracy = 150) {
+  return isLocationAcceptable(location.accuracy, maximumAccuracy) && (boundaries.length === 0 || boundaries.some((boundary) => isInsideTerritory(location, boundary)));
+}
+
 export function visitOutcomeFromAccuracy(accuracy: number | null | undefined) {
   return isLocationAcceptable(accuracy) ? "مكتملة" : "تحتاج مراجعة";
 }
