@@ -28,6 +28,7 @@ export type EmployeeDirectoryEntry = {
 };
 
 export type ResetEmployeePasswordInput = { password: string; forcePasswordChange: boolean };
+export type AvailableTerritory = { client_key: string | null; name: string };
 
 export function validateTemporaryEmployeeInput(input: TemporaryEmployeeInput) {
   if (input.fullName.trim().length < 2) return "اكتب الاسم الكامل للموظف.";
@@ -37,6 +38,11 @@ export function validateTemporaryEmployeeInput(input: TemporaryEmployeeInput) {
   const territoryIds = input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : []);
   if (input.roleKey !== "sales_manager" && territoryIds.length === 0) return "اختر منطقة عمل واحدة على الأقل للمندوب.";
   return null;
+}
+
+export function resolveEmployeeTerritories(territoryKeys: string[], territoryLabels: string[], availableTerritories: AvailableTerritory[]) {
+  const selected = territoryKeys.map((territoryKey, index) => availableTerritories.find((territory) => territory.client_key === territoryKey || territory.name === territoryLabels[index])).filter((territory): territory is AvailableTerritory & { client_key: string } => Boolean(territory?.client_key));
+  return { selected, keys: selected.map((territory) => territory.client_key), labels: selected.map((territory) => territory.name) };
 }
 
 function requireAdminConfig() {
@@ -69,34 +75,27 @@ async function requireUserManager(authorization?: string) {
     throw new Error("لا تملك صلاحية إدارة حسابات الموظفين.");
   }
   const adminClient = createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  return { actorProfile, adminClient };
+  return { actorClient, actorProfile, adminClient };
 }
 
 export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInput, authorization?: string) {
   const validationError = validateTemporaryEmployeeInput(input);
   if (validationError) throw new Error(validationError);
 
-  const { actorProfile, adminClient } = await requireUserManager(authorization);
+  const { actorClient, adminClient } = await requireUserManager(authorization);
   const normalizedEmail = input.email.trim().toLowerCase();
   const territoryKeys = Array.from(new Set(input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : [])));
   const submittedLabels = input.territoryLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
   const territoryLabelsFromInput = submittedLabels.length ? submittedLabels : (input.territoryLabel ?? "").split("،").map((label) => label.trim()).filter(Boolean);
-  const uuidTerritoryKeys = territoryKeys.filter((key) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key));
-  const [byClientKey, byId, byName] = await Promise.all([
-    territoryKeys.length ? adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("client_key", territoryKeys).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
-    uuidTerritoryKeys.length ? adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("id", uuidTerritoryKeys).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
-    territoryLabelsFromInput.length ? adminClient.schema("tips_crm").from("territories").select("id,name,client_key").in("name", territoryLabelsFromInput).eq("is_active", true) : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (byClientKey.error || byId.error || byName.error) throw new Error("تعذر التحقق من مناطق العمل المعتمدة. حدّث الصفحة ثم أعد المحاولة.");
-  const territories = [...(byClientKey.data ?? []), ...(byId.data ?? []), ...(byName.data ?? [])].filter((territory, index, all) => all.findIndex((item) => item.id === territory.id) === index);
-  const sortedTerritories = territoryKeys.map((territoryKey, index) => territories.find((territory) => territory.client_key === territoryKey || territory.id === territoryKey || territory.name === territoryLabelsFromInput[index])).filter((territory): territory is NonNullable<typeof territory> => Boolean(territory));
-  if (territoryKeys.length && sortedTerritories.length !== territoryKeys.length) throw new Error("إحدى مناطق العمل لم تعد متاحة. حدّث قائمة المناطق ثم اختر مناطق معتمدة.");
-  const territoryLabels = sortedTerritories.map((territory) => territory.name);
+  const { data: availableTerritories, error: territoriesError } = await actorClient.rpc("tips_crm_list_territories");
+  if (territoriesError) throw new Error("تعذر التحقق من مناطق العمل المعتمدة. حدّث الصفحة ثم أعد المحاولة.");
+  const resolvedTerritories = resolveEmployeeTerritories(territoryKeys, territoryLabelsFromInput, (availableTerritories ?? []) as AvailableTerritory[]);
+  if (territoryKeys.length && resolvedTerritories.selected.length !== territoryKeys.length) throw new Error("إحدى مناطق العمل لم تعد متاحة. حدّث قائمة المناطق ثم اختر مناطق معتمدة.");
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
     email: normalizedEmail,
     password: input.password,
     email_confirm: true,
-    user_metadata: { full_name: input.fullName.trim(), territory_id: territoryKeys[0] ?? null, territory_ids: territoryKeys, territory_label: territoryLabels.join("، ") || (input.territoryLabel?.trim() || null), territory_labels: territoryLabels },
+    user_metadata: { full_name: input.fullName.trim(), territory_id: resolvedTerritories.keys[0] ?? null, territory_ids: resolvedTerritories.keys, territory_label: resolvedTerritories.labels.join("، ") || (input.territoryLabel?.trim() || null), territory_labels: resolvedTerritories.labels },
   });
 
   if (createError || !created.user) {
@@ -104,26 +103,18 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
     throw new Error(detail);
   }
 
-  const { error: profileUpdateError } = await adminClient.schema("tips_crm").from("profiles").update({
-    full_name: input.fullName.trim(),
-    email: normalizedEmail,
-    role_key: input.roleKey,
-    must_change_password: input.forcePasswordChange,
-    temporary_password_issued_at: new Date().toISOString(),
-  }).eq("id", created.user.id);
-  if (profileUpdateError) throw new Error("تم إنشاء الحساب لكن تعذر تعيين صلاحيات الموظف.");
-  if (sortedTerritories.length) {
-    const { error: assignmentError } = await adminClient.schema("tips_crm").from("territory_assignments").upsert(sortedTerritories.map((territory) => ({ territory_id: territory.id, profile_id: created.user.id, assigned_by: actorProfile.id })), { onConflict: "territory_id,profile_id" });
-    if (assignmentError) throw new Error("تم إنشاء الحساب لكن تعذر ربطه بمناطق العمل المحددة.");
-  }
-
-  await adminClient.schema("tips_crm").from("audit_log").insert({
-    actor_id: actorProfile.id,
-    action: "employee_account_created",
-    entity_type: "profile",
-    entity_id: created.user.id,
-    details: { email: normalizedEmail, role_key: input.roleKey, territory_keys: territoryKeys, territory_labels: territoryLabels, force_password_change: input.forcePasswordChange },
+  const { error: finalizeError } = await actorClient.rpc("tips_crm_finalize_employee_account", {
+    target_profile_id: created.user.id,
+    employee_full_name: input.fullName.trim(),
+    employee_email: normalizedEmail,
+    employee_role_key: input.roleKey,
+    employee_territory_keys: resolvedTerritories.keys,
+    employee_force_password_change: input.forcePasswordChange,
   });
+  if (finalizeError) {
+    await adminClient.auth.admin.deleteUser(created.user.id);
+    throw new Error("تعذر تعيين صلاحيات الموظف ومناطق عمله؛ لم يُحتفظ بالحساب.");
+  }
 
   return { id: created.user.id, email: normalizedEmail, fullName: input.fullName.trim(), roleKey: input.roleKey, forcePasswordChange: input.forcePasswordChange };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateResetEmployeePasswordInput, validateTemporaryEmployeeInput } from "../server/employee-account";
+import { resolveEmployeeTerritories, validateResetEmployeePasswordInput, validateTemporaryEmployeeInput } from "../server/employee-account";
 
 const validInput = { fullName: "أحمد محمد", email: "ahmed@tips-sd.com", password: "TempPass1", roleKey: "sales_rep" as const, territoryIds: ["t1", "t2"], forcePasswordChange: true };
 
@@ -19,6 +19,15 @@ describe("temporary employee account validation", () => {
   it("requires at least one territory for field representatives and accepts multiple assignments", () => {
     expect(validateTemporaryEmployeeInput({ ...validInput, territoryIds: [] })).toContain("منطقة عمل");
     expect(validateTemporaryEmployeeInput({ ...validInput, territoryIds: ["t1", "t2", "t3"] })).toBeNull();
+  });
+
+  it("resolves selected territory client keys from the secure shared catalog", () => {
+    const result = resolveEmployeeTerritories(["t1", "t2"], ["العمارات والرياض", "بحري"], [
+      { client_key: "t1", name: "العمارات والرياض" },
+      { client_key: "t2", name: "بحري" },
+    ]);
+    expect(result.keys).toEqual(["t1", "t2"]);
+    expect(result.labels).toEqual(["العمارات والرياض", "بحري"]);
   });
 
   it("requires a strong-enough password when the manager resets an employee password", () => {
