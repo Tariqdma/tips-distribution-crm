@@ -1,0 +1,4 @@
+{
+  "project_id": "luqrrjhvaremronfcvaf",
+  "query": "select key, permissions from tips_crm.roles order by key limit 20;"
+}

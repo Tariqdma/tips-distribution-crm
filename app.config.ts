@@ -102,6 +102,14 @@ const config: ExpoConfig = {
       }
     ],
     [
+      "expo-image-picker",
+      {
+        "photosPermission": "تستخدم Tips CRM الصور التي تختارها لإرفاقها اختيارياً بتقرير الزيارة.",
+        "cameraPermission": "تستخدم Tips CRM الكاميرا لالتقاط صورة اختيارية ضمن تقرير الزيارة."
+      }
+    ],
+    "expo-document-picker",
+    [
       "expo-location",
       {
         "locationWhenInUsePermission": "تستخدم Tips CRM موقعك لتأكيد حضورك عند الزيارات الميدانية فقط.",
