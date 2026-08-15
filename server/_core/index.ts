@@ -13,6 +13,7 @@ import { createPasswordResetPage } from "../password-reset-page";
 import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
 import { createCrmLandingPage } from "../crm-landing-page";
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
+import { sendPlanSubmissionEmail } from "../plan-submission-email";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -95,6 +96,14 @@ async function startServer() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إنشاء حساب الموظف.";
       res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/plan-submission-email", async (req, res) => {
+    try {
+      res.json(await sendPlanSubmissionEmail(req.body));
+    } catch (error) {
+      res.status(400).json({ message: error instanceof Error ? error.message : "تعذر إرسال تنبيه الخطة." });
     }
   });
 

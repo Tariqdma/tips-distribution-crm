@@ -1,5 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback } from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AppHeader, PrimaryButton, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
@@ -8,7 +9,8 @@ import { getFieldDataScope } from "@/lib/field-data-scope";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function PlansScreen() {
-  const { data, role } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile); const currentPlan = scope.plans.find((plan) => plan.status === "معتمدة");
+  const { data, role, refreshSharedCatalog } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile); const currentPlan = scope.plans.find((plan) => plan.status === "معتمدة");
+  useFocusEffect(useCallback(() => { void refreshSharedCatalog(); }, [refreshSharedCatalog]));
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <AppHeader eyebrow={`التزام الزيارة يبدأ بخطة واضحة · ${role}`} title="مخططي" right={scope.isManager ? <TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity> : undefined} />
     <View style={styles.currentPlan}><View style={styles.calendar}><MaterialIcons name="calendar-month" size={24} color={palette.primary} /></View><View style={{ flex: 1, alignItems: "flex-end" }}><StatusBadge status={currentPlan?.status ?? "مسودة"} /><Text style={styles.currentTitle}>{currentPlan?.title ?? "لا توجد خطة معتمدة"}</Text><Text style={styles.currentMeta}>{currentPlan ? `${currentPlan.visitIds.length} زيارات · ${currentPlan.period}` : "أنشئ خطتك ثم أرسلها للاعتماد"}</Text></View></View>
