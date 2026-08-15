@@ -19,8 +19,9 @@ export function GeographicMap({ boundaries, reps = [], height = 300, onMapPress 
       map = L.map(node.current, { zoomControl: true, attributionControl: true });
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(map);
       const bounds = L.latLngBounds([]);
+      const validPoint = (point: { latitude: unknown; longitude: unknown } | null | undefined): point is { latitude: number; longitude: number } => Number.isFinite(Number(point?.latitude)) && Number.isFinite(Number(point?.longitude)) && Math.abs(Number(point?.latitude)) <= 90 && Math.abs(Number(point?.longitude)) <= 180;
       boundaries.forEach((boundary) => {
-        const points = boundary.polygonPoints ?? [];
+        const points = (boundary.polygonPoints ?? []).filter(validPoint).map((point) => ({ latitude: Number(point.latitude), longitude: Number(point.longitude) }));
         if (points.length >= 3) {
           const polygon = L.polygon(points.map((point) => [point.latitude, point.longitude] as [number, number]), { color: "#0F766E", weight: 2, fillColor: "#34D399", fillOpacity: 0.18 });
           polygon.bindTooltip(boundary.name, { direction: "top", sticky: true });
@@ -29,18 +30,22 @@ export function GeographicMap({ boundaries, reps = [], height = 300, onMapPress 
         } else {
           const center: [number, number] = [Number(boundary.centerLatitude), Number(boundary.centerLongitude)];
           if (!Number.isFinite(center[0]) || !Number.isFinite(center[1])) return;
-          const circle = L.circle(center, { radius: boundary.radiusMeters, color: "#0F766E", weight: 2, fillColor: "#34D399", fillOpacity: 0.16 });
+          const radius = Number(boundary.radiusMeters);
+          if (!Number.isFinite(radius) || radius <= 0) return;
+          const circle = L.circle(center, { radius, color: "#0F766E", weight: 2, fillColor: "#34D399", fillOpacity: 0.16 });
           circle.bindTooltip(boundary.name, { direction: "top", sticky: true });
           circle.addTo(map!);
           bounds.extend(circle.getBounds());
         }
       });
       reps.forEach((rep) => {
-        if (rep.path && rep.path.length > 1) {
-          const route = L.polyline(rep.path.map((point) => [point.latitude, point.longitude] as [number, number]), { color: rep.outsideTerritory ? "#DC2626" : "#D97706", weight: 3, dashArray: "7 5", opacity: 0.88 });
+        if (!validPoint(rep)) return;
+        const routePoints = (rep.path ?? []).filter(validPoint).map((point) => [Number(point.latitude), Number(point.longitude)] as [number, number]);
+        if (routePoints.length > 1) {
+          const route = L.polyline(routePoints, { color: rep.outsideTerritory ? "#DC2626" : "#D97706", weight: 3, dashArray: "7 5", opacity: 0.88 });
           route.addTo(map!); bounds.extend(route.getBounds());
         }
-        const marker = L.circleMarker([rep.latitude, rep.longitude], { radius: 9, color: "#FFFFFF", weight: 3, fillColor: rep.outsideTerritory ? "#DC2626" : "#0D9488", fillOpacity: 1 });
+        const marker = L.circleMarker([Number(rep.latitude), Number(rep.longitude)], { radius: 9, color: "#FFFFFF", weight: 3, fillColor: rep.outsideTerritory ? "#DC2626" : "#0D9488", fillOpacity: 1 });
         marker.bindTooltip(`${rep.name} · ${rep.territory}`, { direction: "top", offset: [0, -9] });
         marker.addTo(map!); bounds.extend(marker.getLatLng());
       });
