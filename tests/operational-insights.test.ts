@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDailyCollectionReport, buildHistoricalComparison, buildMonthlyComparison, checkAlertThreshold, executionRate, findDuplicateAccount, isFollowUpDue, targetProgress } from "../lib/operational-insights";
+import { buildDailyCollectionReport, buildHistoricalComparison, buildMonthlyComparison, checkAlertThreshold, executionRate, filterDailyCollectionsByReceiptReference, findDuplicateAccount, isFollowUpDue, targetProgress } from "../lib/operational-insights";
 import type { Account, MonthlyTarget, Plan, TeamMember, Territory, Visit } from "../lib/crm-store";
 
 const account: Account = { id: "a-1", name: "صيدلية الوفاء", type: "صيدلية", state: "ولاية الخرطوم", city: "الخرطوم", area: "العمارات", address: "شارع 1", contact: "0912", lastVisit: "لم تتم زيارة", priority: "اعتيادية", initials: "ص و", accent: "#000" };
@@ -77,5 +77,12 @@ describe("operational insights", () => {
     expect(report.rows[0]).toMatchObject({ repName: "سلمى", accountName: "صيدلية الوفاء", collectionAmount: 1250.5, receiptReference: "RCP-2026-0001" });
     expect(report.totals).toEqual({ visitCount: 2, accountCount: 2, repCount: 1, collectionAmount: 2000.5, revenueAmount: 4250 });
     expect(report.repSummaries[0]).toMatchObject({ repName: "سلمى", visitCount: 2, accountCount: 2, collectionAmount: 2000.5 });
+  });
+
+  it("يبحث في الإيصال أو الفاتورة دون حساسية لحالة الأحرف أو الشرطات أو الأرقام العربية", () => {
+    const rows = [{ visitId: "v-1", reportDate: "2026-08-15", repName: "سلمى", accountId: "a-1", accountName: "صيدلية الوفاء", accountType: "صيدلية" as const, state: "الخرطوم", city: "الخرطوم", area: "العمارات", collectionAmount: 1250, revenueAmount: 3000, receiptReference: "RCP-2026-00125" }, { visitId: "v-2", reportDate: "2026-08-15", repName: "أحمد", accountId: "a-2", accountName: "مستشفى الحياة", accountType: "مستشفى" as const, state: "الخرطوم", city: "أم درمان", area: "الملازمين", collectionAmount: 800, revenueAmount: 1000, receiptReference: "INV-77" }];
+    expect(filterDailyCollectionsByReceiptReference(rows, "rcp ٢٠٢٦ 001").map((row) => row.visitId)).toEqual(["v-1"]);
+    expect(filterDailyCollectionsByReceiptReference(rows, "inv-77").map((row) => row.visitId)).toEqual(["v-2"]);
+    expect(filterDailyCollectionsByReceiptReference(rows, "")).toHaveLength(2);
   });
 });

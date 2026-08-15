@@ -58,6 +58,16 @@ export type DailyCollectionRow = { visitId: string; reportDate: string; checkedI
 export type DailyCollectionRepSummary = { repId?: string; repName: string; visitCount: number; accountCount: number; collectionAmount: number; revenueAmount: number };
 
 const roundAmount = (value: number) => Math.round(Math.max(0, Number.isFinite(value) ? value : 0) * 100) / 100;
+const arabicDigitMap: Record<string, string> = { "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9" };
+
+export function normalizeReceiptReference(value?: string) {
+  return (value ?? "").trim().toLocaleLowerCase("en").replace(/[٠-٩]/g, (digit) => arabicDigitMap[digit] ?? digit).replace(/[\s\-_/]+/g, "");
+}
+
+export function filterDailyCollectionsByReceiptReference(rows: DailyCollectionRow[], query: string) {
+  const normalizedQuery = normalizeReceiptReference(query);
+  return normalizedQuery ? rows.filter((row) => normalizeReceiptReference(row.receiptReference).includes(normalizedQuery)) : rows;
+}
 
 export function buildDailyCollectionReport({ visits, accounts, plans, reportDate, today = new Date().toISOString().slice(0, 10) }: { visits: Visit[]; accounts: Account[]; plans: Plan[]; reportDate: string; today?: string }) {
   const rows = visits.flatMap((visit) => {
