@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMonthlyComparison, executionRate, findDuplicateAccount, isFollowUpDue } from "../lib/operational-insights";
+import { buildMonthlyComparison, executionRate, findDuplicateAccount, isFollowUpDue, targetProgress } from "../lib/operational-insights";
 import type { Account, Plan, TeamMember, Territory, Visit } from "../lib/crm-store";
 
 const account: Account = { id: "a-1", name: "صيدلية الوفاء", type: "صيدلية", state: "ولاية الخرطوم", city: "الخرطوم", area: "العمارات", address: "شارع 1", contact: "0912", lastVisit: "لم تتم زيارة", priority: "اعتيادية", initials: "ص و", accent: "#000" };
@@ -28,5 +28,10 @@ describe("operational insights", () => {
     const result = buildMonthlyComparison({ accounts: [account], visits, plans, members, territories });
     expect(result.reps[0]).toMatchObject({ label: "سلمى", planned: 2, completed: 1, needsReview: 1, rate: 50 });
     expect(result.territories[0]).toMatchObject({ label: "الخرطوم", planned: 2, completed: 1, rate: 50 });
+  });
+
+  it("يحسب نسبة تحقيق هدف الشهر والفجوة المتبقية", () => {
+    expect(targetProgress(7, 10)).toEqual({ target: 10, completed: 7, gap: 3, achievementRate: 70 });
+    expect(targetProgress(4, 0).achievementRate).toBe(0);
   });
 });

@@ -16,6 +16,12 @@ export function executionRate(completed: number, assigned: number) {
 
 export type MonthlyComparisonRow = { id: string; label: string; planned: number; completed: number; needsReview: number; rate: number };
 
+export function targetProgress(completed: number, target: number) {
+  const normalizedTarget = Math.max(0, Math.floor(target));
+  const normalizedCompleted = Math.max(0, Math.floor(completed));
+  return { target: normalizedTarget, completed: normalizedCompleted, gap: Math.max(0, normalizedTarget - normalizedCompleted), achievementRate: normalizedTarget ? Math.round((normalizedCompleted / normalizedTarget) * 100) : 0 };
+}
+
 export function buildMonthlyComparison({ accounts, visits, plans, members, territories }: { accounts: Account[]; visits: Visit[]; plans: Plan[]; members: TeamMember[]; territories: Territory[] }) {
   const approvedPlans = plans.filter((plan) => plan.status === "معتمدة" && plan.kind === "شهرية");
   const sourcePlans = approvedPlans.length ? approvedPlans : plans.filter((plan) => plan.status === "معتمدة");

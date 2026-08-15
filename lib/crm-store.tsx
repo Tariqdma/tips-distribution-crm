@@ -16,6 +16,7 @@ export type AppRole = "مدير" | "مندوب مبيعات" | "مندوب طب�
 export type VisitResult = string;
 export type FollowUpPriority = "عالية" | "متوسطة" | "منخفضة";
 export type { VisitAttachment } from "@/lib/visit-attachments";
+export type MonthlyTarget = { id: string; monthStart: string; targetType: "مندوب" | "منطقة"; targetKey: string; targetValue: number; updatedAt?: string };
 
 export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
 export type Visit = { id: string; accountId: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; checkedInAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean };
@@ -29,7 +30,7 @@ export type TeamInvite = { id: string; email: string; role: AppRole; territory: 
 export type TerritoryBoundary = { territoryId: string; name: string; state: string; city: string; centerLatitude: string; centerLongitude: string; radiusMeters: number; polygonPoints?: Array<{ latitude: number; longitude: number }>; notes?: string; updatedAt: string };
 export type DutyTrackPoint = { latitude: number; longitude: number; accuracyMeters?: number | null; speedMetersPerSecond?: number | null; capturedAt: string; source: "foreground" | "background" };
 export type RepDutyStatus = { memberId: string; isOnDuty: boolean; lastPoint?: DutyTrackPoint; path: DutyTrackPoint[]; isOutsideTerritory?: boolean; outsideSince?: string; lastTerritoryAlertAt?: string };
-export type CrmData = { accounts: Account[]; visits: Visit[]; plans: Plan[]; territories: Territory[]; visitResults: VisitResult[]; teamMembers: TeamMember[]; roleDefinitions: RoleDefinition[]; notifications: CrmNotification[]; invites: TeamInvite[]; boundaries: TerritoryBoundary[]; dutyStatuses: RepDutyStatus[] };
+export type CrmData = { accounts: Account[]; visits: Visit[]; plans: Plan[]; territories: Territory[]; visitResults: VisitResult[]; teamMembers: TeamMember[]; roleDefinitions: RoleDefinition[]; notifications: CrmNotification[]; invites: TeamInvite[]; boundaries: TerritoryBoundary[]; dutyStatuses: RepDutyStatus[]; monthlyTargets: MonthlyTarget[] };
 
 type VisitCompletion = { result: VisitResult; note: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory: boolean };
 type NewPlanInput = { title: string; period: string; kind: Plan["kind"]; visitIds: string[]; schedule?: PlanScheduleDay[] };
@@ -41,7 +42,7 @@ type CrmContextValue = {
   addAccount: (account: Omit<Account, "id" | "lastVisit" | "initials" | "accent">) => { accepted: boolean; duplicate?: Account };
   completeVisit: (visitId: string, completion: VisitCompletion) => void; submitPlan: (input: NewPlanInput) => void; approvePlan: (planId: string) => void; returnPlan: (planId: string, note: string) => void;
   addVisitResult: (label: string) => void; createInvite: (input: Omit<TeamInvite, "id" | "status" | "sentAt" | "expiresAt" | "acceptUrl">) => Promise<TeamInvite | null>; resendInvite: (invite: TeamInvite) => Promise<TeamInvite | null>; revokeInvite: (inviteId: string) => Promise<boolean>; updateBoundary: (boundary: TerritoryBoundary) => void;
-  createCentralNotification: (input: Pick<CrmNotification, "title" | "body" | "kind">) => void; setTeamMemberTerritories: (memberId: string, territoryIds: string[]) => Promise<boolean>; recordDutyPoint: (point: DutyTrackPoint) => void; markAllNotificationsRead: () => void;
+  createCentralNotification: (input: Pick<CrmNotification, "title" | "body" | "kind">) => void; setTeamMemberTerritories: (memberId: string, territoryIds: string[]) => Promise<boolean>; setMonthlyTarget: (input: Omit<MonthlyTarget, "id" | "updatedAt">) => Promise<boolean>; recordDutyPoint: (point: DutyTrackPoint) => void; markAllNotificationsRead: () => void;
 };
 
 const STORAGE_KEY = "tips-crm-demo-data-v4";
@@ -69,6 +70,7 @@ const initialData: CrmData = {
     { memberId: "u2", isOnDuty: true, lastPoint: { latitude: 15.5581, longitude: 32.5372, accuracyMeters: 24, capturedAt: new Date().toISOString(), source: "foreground" }, path: [{ latitude: 15.5502, longitude: 32.5252, capturedAt: new Date(Date.now() - 80 * 60000).toISOString(), source: "foreground" }, { latitude: 15.5534, longitude: 32.5301, capturedAt: new Date(Date.now() - 45 * 60000).toISOString(), source: "foreground" }, { latitude: 15.5581, longitude: 32.5372, capturedAt: new Date().toISOString(), source: "foreground" }] },
     { memberId: "u3", isOnDuty: true, lastPoint: { latitude: 15.6236, longitude: 32.5327, accuracyMeters: 38, capturedAt: new Date(Date.now() - 4 * 60000).toISOString(), source: "background" }, path: [{ latitude: 15.6154, longitude: 32.5238, capturedAt: new Date(Date.now() - 90 * 60000).toISOString(), source: "background" }, { latitude: 15.6196, longitude: 32.5270, capturedAt: new Date(Date.now() - 42 * 60000).toISOString(), source: "background" }, { latitude: 15.6236, longitude: 32.5327, capturedAt: new Date(Date.now() - 4 * 60000).toISOString(), source: "background" }] },
   ],
+  monthlyTargets: [],
 };
 
 const CrmContext = createContext<CrmContextValue | null>(null);
@@ -84,6 +86,7 @@ type RemoteOutcome = { id: string; label: string; is_active: boolean; sort_order
 type RemoteInvite = { id: string; email: string; role_key: string; territory_label: string | null; territory_key: string | null; territory_keys?: string[] | null; status: string; invite_token: string; expires_at: string };
 type RemoteTerritory = { client_key: string | null; name: string; state: string; city: string; center_latitude: number | string | null; center_longitude: number | string | null; radius_meters: number | null; boundary_geojson: { polygon_points?: unknown } | null; updated_at: string };
 type RemoteNotification = { id: string; title: string; body: string; kind: "plan" | "visit" | "alert" | "team" | "duty"; created_at: string; read_at: string | null };
+type RemoteMonthlyTarget = { id: string; month_start: string; target_type: "rep" | "territory"; target_key: string; target_value: number; updated_at: string };
 
 function polygonPointsFromRemote(value: RemoteTerritory["boundary_geojson"]) {
   const points = value?.polygon_points;
@@ -144,18 +147,20 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [isReady, data.visits]);
   const refreshSharedCatalog = useCallback(async () => {
     if (!supabase || !user || !isReady) return;
-    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse] = await Promise.all([
+    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse] = await Promise.all([
       supabase.rpc("tips_crm_list_accounts"),
       supabase.rpc("tips_crm_list_visit_outcomes"),
       supabase.rpc("tips_crm_list_invites"),
       supabase.rpc("tips_crm_list_territories"),
       supabase.rpc("tips_crm_list_my_notifications"),
+      supabase.schema("tips_crm").from("monthly_targets").select("*").eq("month_start", `${new Date().toISOString().slice(0, 7)}-01`),
     ]);
     const remoteAccounts = accountsResponse.error ? null : (accountsResponse.data ?? []) as RemoteAccount[];
     const remoteOutcomes = outcomesResponse.error ? null : (outcomesResponse.data ?? []) as RemoteOutcome[];
     const remoteInvites = invitesResponse.error ? null : (invitesResponse.data ?? []) as RemoteInvite[];
     const remoteTerritories = territoriesResponse.error ? null : (territoriesResponse.data ?? []) as RemoteTerritory[];
     const remoteNotifications = notificationsResponse.error ? null : (notificationsResponse.data ?? []) as RemoteNotification[];
+    const remoteMonthlyTargets = monthlyTargetsResponse.error ? null : (monthlyTargetsResponse.data ?? []) as RemoteMonthlyTarget[];
     remoteAccounts?.forEach((account) => { if (account.local_ref) remoteAccountIds.current[account.local_ref] = account.id; });
     setData((current) => {
       const sharedAccounts = remoteAccounts?.map((account) => {
@@ -181,6 +186,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         boundaries: sharedBoundaries?.length ? sharedBoundaries : current.boundaries,
         territories: sharedTerritories?.length ? sharedTerritories : current.territories,
         notifications: remoteNotifications ? [...remoteNotifications.map((notification) => ({ id: notification.id, title: notification.title, body: notification.body, time: new Date(notification.created_at).toLocaleString("ar"), kind: notification.kind === "duty" || notification.kind === "alert" ? "تنبيه" : notification.kind === "plan" ? "خطة" : notification.kind === "visit" ? "زيارة" : "فريق", readAt: notification.read_at ?? undefined } satisfies CrmNotification)), ...current.notifications.filter((notification) => !remoteNotifications.some((remote) => remote.id === notification.id))] : current.notifications,
+        monthlyTargets: remoteMonthlyTargets ? remoteMonthlyTargets.map((target) => ({ id: target.id, monthStart: target.month_start, targetType: target.target_type === "rep" ? "مندوب" : "منطقة", targetKey: target.target_key, targetValue: target.target_value, updatedAt: target.updated_at } satisfies MonthlyTarget)) : current.monthlyTargets,
       };
       void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -238,6 +244,16 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const territoryLabels = territoryIds.map((territoryId) => data.boundaries.find((item) => item.territoryId === territoryId)?.name).filter((name): name is string => Boolean(name));
       if (supabase && user) { const { error } = await supabase.rpc("tips_crm_set_profile_territories", { target_profile_id: memberId, selected_territory_keys: territoryIds }); if (error) return false; }
       commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === memberId ? { ...member, territoryId: territoryIds[0], territoryIds, territories: territoryLabels, territory: territoryLabels.join("، ") || "غير محددة" } : member) }));
+      return true;
+    },
+    setMonthlyTarget: async (input) => {
+      const targetValue = Math.max(0, Math.floor(input.targetValue));
+      if (supabase && user) {
+        const { error } = await supabase.schema("tips_crm").from("monthly_targets").upsert({ month_start: input.monthStart, target_type: input.targetType === "مندوب" ? "rep" : "territory", target_key: input.targetKey, target_value: targetValue, created_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "month_start,target_type,target_key" });
+        if (error) return false;
+      }
+      const localTarget: MonthlyTarget = { ...input, targetValue, id: `${input.monthStart}-${input.targetType}-${input.targetKey}`, updatedAt: new Date().toISOString() };
+      commit((current) => ({ ...current, monthlyTargets: [...current.monthlyTargets.filter((target) => !(target.monthStart === input.monthStart && target.targetType === input.targetType && target.targetKey === input.targetKey)), localTarget], notifications: [notify("تم تحديث هدف الشهر", `${input.targetType}: ${targetValue} زيارة مستهدفة.`, "تنبيه"), ...current.notifications] }));
       return true;
     },
     recordDutyPoint: (point) => {
