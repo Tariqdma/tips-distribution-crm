@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity,
 import { palette } from "@/components/crm-ui";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
-const navigation = [{ label: "نظرة عامة", icon: "dashboard" as const, href: "/admin" }, { label: "مركز العمليات", icon: "monitor-heart" as const, href: "/admin/operations" }, { label: "الفريق", icon: "groups" as const, href: "/admin/team" }, { label: "نتائج الزيارة", icon: "playlist-add-check" as const, href: "/admin/outcomes" }, { label: "هوية البريد", icon: "markunread-mailbox" as const, href: "/admin/mail" }, { label: "الأدوار", icon: "admin-panel-settings" as const, href: "/admin/roles" }, { label: "سجل التدقيق", icon: "fact-check" as const, href: "/admin/audit" }];
+const navigation = [{ label: "نظرة عامة", icon: "dashboard" as const, href: "/admin" }, { label: "مركز العمليات", icon: "monitor-heart" as const, href: "/admin/operations" }, { label: "التحصيل اليومي", icon: "receipt-long" as const, href: "/admin/daily-collections" }, { label: "الفريق", icon: "groups" as const, href: "/admin/team" }, { label: "نتائج الزيارة", icon: "playlist-add-check" as const, href: "/admin/outcomes" }, { label: "هوية البريد", icon: "markunread-mailbox" as const, href: "/admin/mail" }, { label: "الأدوار", icon: "admin-panel-settings" as const, href: "/admin/roles" }, { label: "سجل التدقيق", icon: "fact-check" as const, href: "/admin/audit" }];
 
 export function AdminWebShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = usePathname();

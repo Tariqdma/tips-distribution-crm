@@ -54,6 +54,39 @@ export function buildMonthlyComparison({ accounts, visits, plans, members, terri
   return { reps, territories: territoriesRows };
 }
 
+export type DailyCollectionRow = { visitId: string; reportDate: string; checkedInAt?: string; repId?: string; repName: string; accountId: string; accountName: string; accountType: Account["type"]; state: string; city: string; area: string; territoryName?: string; outcome?: string; collectionAmount: number; revenueAmount: number; notes?: string };
+export type DailyCollectionRepSummary = { repId?: string; repName: string; visitCount: number; accountCount: number; collectionAmount: number; revenueAmount: number };
+
+const roundAmount = (value: number) => Math.round(Math.max(0, Number.isFinite(value) ? value : 0) * 100) / 100;
+
+export function buildDailyCollectionReport({ visits, accounts, plans, reportDate, today = new Date().toISOString().slice(0, 10) }: { visits: Visit[]; accounts: Account[]; plans: Plan[]; reportDate: string; today?: string }) {
+  const rows = visits.flatMap((visit) => {
+    const amount = roundAmount(visit.collectionAmount ?? 0);
+    const completedDate = visit.completedAt?.slice(0, 10);
+    const isMatchingDate = completedDate ? completedDate === reportDate : reportDate === today && visit.date === "اليوم";
+    if (visit.status !== "مكتملة" || amount <= 0 || !isMatchingDate) return [];
+    const account = accounts.find((item) => item.id === visit.accountId);
+    if (!account) return [];
+    const plansForVisit = plans.filter((plan) => plan.visitIds.includes(visit.id));
+    const plan = plansForVisit.find((item) => item.status === "معتمدة") ?? plansForVisit[0];
+    return [{ visitId: visit.id, reportDate, checkedInAt: visit.completedAt, repId: undefined, repName: plan?.repName ?? "غير مرتبط بخطة", accountId: account.id, accountName: account.name, accountType: account.type, state: account.state, city: account.city, area: account.area, outcome: visit.result, collectionAmount: amount, revenueAmount: roundAmount(visit.revenueAmount ?? 0), notes: visit.note } satisfies DailyCollectionRow];
+  });
+  return summarizeDailyCollectionRows(rows, reportDate);
+}
+
+export function summarizeDailyCollectionRows(rows: DailyCollectionRow[], reportDate: string) {
+  const sortedRows = [...rows].sort((first, second) => first.repName.localeCompare(second.repName, "ar") || first.accountName.localeCompare(second.accountName, "ar"));
+  const repMap = new Map<string, DailyCollectionRepSummary>();
+  sortedRows.forEach((row) => {
+    const key = row.repId ?? row.repName;
+    const current = repMap.get(key) ?? { repId: row.repId, repName: row.repName, visitCount: 0, accountCount: 0, collectionAmount: 0, revenueAmount: 0 };
+    current.visitCount += 1; current.collectionAmount = roundAmount(current.collectionAmount + row.collectionAmount); current.revenueAmount = roundAmount(current.revenueAmount + row.revenueAmount);
+    repMap.set(key, current);
+  });
+  const repSummaries = [...repMap.values()].map((summary) => ({ ...summary, accountCount: new Set(sortedRows.filter((row) => (row.repId ?? row.repName) === (summary.repId ?? summary.repName)).map((row) => row.accountId)).size })).sort((first, second) => second.collectionAmount - first.collectionAmount || first.repName.localeCompare(second.repName, "ar"));
+  return { reportDate, rows: sortedRows, repSummaries, totals: { visitCount: sortedRows.length, accountCount: new Set(sortedRows.map((row) => row.accountId)).size, repCount: repSummaries.length, collectionAmount: roundAmount(sortedRows.reduce((sum, row) => sum + row.collectionAmount, 0)), revenueAmount: roundAmount(sortedRows.reduce((sum, row) => sum + row.revenueAmount, 0)) } };
+}
+
 export type MonthlyPerformanceRecord = { monthStart: string; targetType: MonthlyTarget["targetType"]; targetKey: string; metric: TargetMetric; actualValue: number };
 export type HistoricalComparisonPoint = { monthStart: string; targetValue: number; actualValue: number };
 
