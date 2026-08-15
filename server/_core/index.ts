@@ -10,7 +10,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
 import { createPasswordResetPage } from "../password-reset-page";
-import { createTemporaryEmployeeAccount } from "../employee-account";
+import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
 import { createCrmLandingPage } from "../crm-landing-page";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -93,6 +93,26 @@ async function startServer() {
       res.status(201).json({ account });
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إنشاء حساب الموظف.";
+      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.get("/api/employee-accounts", async (req, res) => {
+    try {
+      const accounts = await listEmployeeAccounts(req.header("authorization"));
+      res.json({ accounts });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر تحميل حسابات الموظفين.";
+      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/employee-accounts/:employeeId/reset-password", async (req, res) => {
+    try {
+      const account = await resetEmployeePassword(req.params.employeeId, req.body, req.header("authorization"));
+      res.json({ account });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إعادة تعيين كلمة مرور الموظف.";
       res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });
