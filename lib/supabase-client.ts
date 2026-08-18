@@ -4,14 +4,28 @@ import { Platform } from "react-native";
 import { createClient } from "@supabase/supabase-js";
 import { buildPasswordRecoveryRequest } from "./password-recovery-request";
 
+const DEFAULT_SUPABASE_URL = "https://luqrrjhvaremronfcvaf.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cXJyamh2YXJlbXJvbmZjdmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MzM2MzgsImV4cCI6MjA3NjMwOTYzOH0.8g_QSxyxra1uVVJFboe45Dilq3X1CCdgHoZTY3UPESk";
+
 const extra = Constants.expoConfig?.extra as { supabaseUrl?: string; supabaseAnonKey?: string } | undefined;
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? extra?.supabaseUrl ?? process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? extra?.supabaseAnonKey ?? process.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ??
+  extra?.supabaseUrl ??
+  process.env.VITE_SUPABASE_URL ??
+  DEFAULT_SUPABASE_URL;
+
+export const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+  extra?.supabaseAnonKey ??
+  process.env.VITE_SUPABASE_ANON_KEY ??
+  DEFAULT_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = isSupabaseConfigured
-  ? createClient(supabaseUrl as string, supabaseAnonKey as string, {
+  ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         storage: Platform.OS === "web" ? undefined : AsyncStorage,
         autoRefreshToken: true,
@@ -29,9 +43,14 @@ export const supabase = isSupabaseConfigured
  * a short-lived recovery token in the redirect fragment instead.
  */
 export async function sendPasswordRecoveryEmail(email: string, redirectTo: string) {
-  const request = buildPasswordRecoveryRequest({ supabaseUrl: supabaseUrl ?? "", supabaseAnonKey: supabaseAnonKey ?? "", email, redirectTo });
+  const request = buildPasswordRecoveryRequest({
+    supabaseUrl: supabaseUrl ?? "",
+    supabaseAnonKey: supabaseAnonKey ?? "",
+    email,
+    redirectTo,
+  });
   const response = await fetch(request.url, request.options);
   if (response.ok) return;
-  const body = await response.json().catch(() => ({})) as { message?: string; error_description?: string };
+  const body = (await response.json().catch(() => ({}))) as { message?: string; error_description?: string };
   throw new Error(body.message || body.error_description || "تعذر إرسال رابط الاستعادة.");
 }

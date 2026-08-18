@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
+import fs from "fs";
 import net from "net";
 import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -65,15 +66,26 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  app.get("/", (_req, res) => {
-    res.type("html").send(createCrmLandingPage());
-  });
+  const webDistDirectory = path.resolve(process.cwd(), "web-dist");
+  const indexHtmlPath = path.join(webDistDirectory, "index.html");
+  const hasWebDist = fs.existsSync(indexHtmlPath);
+
+  if (hasWebDist) {
+    app.use(express.static(webDistDirectory, { extensions: ["html"], maxAge: 0 }));
+  } else {
+    app.get("/", (_req, res) => {
+      res.type("html").send(createCrmLandingPage());
+    });
+  }
 
   app.get("/vendor/supabase.js", (_req, res) => {
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.type("application/javascript").sendFile(
-      path.join(process.cwd(), "node_modules", "@supabase", "supabase-js", "dist", "umd", "supabase.js"),
-    );
+    const localVendor = path.join(process.cwd(), "node_modules", "@supabase", "supabase-js", "dist", "umd", "supabase.js");
+    if (fs.existsSync(localVendor)) {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.type("application/javascript").sendFile(localVendor);
+    } else {
+      res.redirect("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js");
+    }
   });
 
   app.get("/reset-password", (_req, res) => {
@@ -155,6 +167,15 @@ async function startServer() {
       createContext,
     }),
   );
+
+  if (hasWebDist) {
+    app.get("*", (req, res, next) => {
+      if (req.path.startsWith("/api") || req.path.startsWith("/vendor") || req.path === "/reset-password") {
+        return next();
+      }
+      res.sendFile(indexHtmlPath);
+    });
+  }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);

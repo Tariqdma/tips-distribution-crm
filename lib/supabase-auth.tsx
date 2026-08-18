@@ -1,25 +1,10 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase-client";
-import { hasRecoverySessionTokens, parseSupabaseRecoveryUrl } from "@/lib/supabase-recovery-url";
 
 export type SupabaseProfile = { id: string; full_name: string; email: string | null; role_key: string; role_name: string; permissions: string[]; is_active: boolean; must_change_password: boolean; territory_key?: string | null; territory_label?: string | null; territory_keys?: string[] | null; territory_labels?: string[] | null };
 type SupabaseAuthValue = { session: Session | null; user: User | null; profile: SupabaseProfile | null; loading: boolean; refreshProfile: () => Promise<SupabaseProfile | null>; claimFirstSystemAdmin: () => Promise<boolean>; signOut: () => Promise<void> };
 const SupabaseAuthContext = createContext<SupabaseAuthValue | null>(null);
-
-async function hydrateRecoverySessionFromUrl() {
-  if (!supabase || Platform.OS !== "web" || typeof window === "undefined") return;
-  const tokens = parseSupabaseRecoveryUrl(window.location.href);
-  if (tokens.code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(tokens.code);
-    if (!error) window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
-    return;
-  }
-  if (!hasRecoverySessionTokens(tokens)) return;
-  const { error } = await supabase.auth.setSession({ access_token: tokens.accessToken!, refresh_token: tokens.refreshToken! });
-  if (!error) window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
-}
 
 export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -34,13 +19,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   };
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
-    void (async () => {
-      await hydrateRecoverySessionFromUrl();
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
-      if (data.session) await refreshProfile();
-      setLoading(false);
-    })();
+    void supabase.auth.getSession().then(async ({ data }) => { setSession(data.session); if (data.session) await refreshProfile(); setLoading(false); });
     const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, nextSession) => { setSession(nextSession); if (nextSession) await refreshProfile(); else setProfile(null); setLoading(false); });
     return () => subscription.subscription.unsubscribe();
   }, []);

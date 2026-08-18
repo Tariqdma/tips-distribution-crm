@@ -47,5 +47,7 @@ const mappings = {
 for (const [systemVar, expoVar] of Object.entries(mappings)) {
   if (process.env[systemVar] && !process.env[expoVar]) {
     process.env[expoVar] = process.env[systemVar];
+  } else if (process.env[expoVar] && !process.env[systemVar]) {
+    process.env[systemVar] = process.env[expoVar];
   }
 }

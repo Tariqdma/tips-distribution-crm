@@ -14,8 +14,8 @@ SECURITY DEFINER
 SET search_path = tips_crm, auth, public
 AS $$
 DECLARE
-  resolved_territory_count integer;
-  requested_territory_count integer;
+  res_terr_num integer;
+  req_terr_num integer;
 BEGIN
   IF NOT tips_crm.has_permission('manage_users') THEN
     RAISE EXCEPTION 'User management permission required';
@@ -27,17 +27,17 @@ BEGIN
   END IF;
 
   SELECT cardinality(coalesce(employee_territory_keys, ARRAY[]::text[]))
-  INTO requested_territory_count;
+  INTO req_terr_num;
 
-  IF employee_role_key <> 'sales_manager' AND requested_territory_count = 0 THEN
+  IF employee_role_key <> 'sales_manager' AND req_terr_num = 0 THEN
     RAISE EXCEPTION 'At least one territory is required for a representative';
   END IF;
 
-  SELECT count(*) INTO resolved_territory_count
+  SELECT count(*) INTO res_terr_num
   FROM tips_crm.territories
   WHERE is_active AND client_key = ANY(coalesce(employee_territory_keys, ARRAY[]::text[]));
 
-  IF resolved_territory_count <> requested_territory_count THEN
+  IF res_terr_num <> req_terr_num THEN
     RAISE EXCEPTION 'One or more territories are unavailable';
   END IF;
 
