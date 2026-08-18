@@ -5,6 +5,7 @@ import { Redirect, router } from "expo-router";
 import { AppHeader, MetricCard, PrimaryButton, SectionTitle, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { getPlatformPortalFallbackRoute } from "@/lib/post-login-route";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -129,7 +130,7 @@ export default function PlatformPortalScreen() {
   if (loading && !authTimedOut) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingText}>جاري تحميل بوابة المنصة…</Text></ScreenContainer>;
   if (loading && authTimedOut) return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="sync-problem" size={32} color={palette.warning} /></View><Text style={styles.lockedTitle}>تعذر تحميل الجلسة</Text><Text style={styles.lockedText}>لم تصل صلاحية الحساب خلال الوقت المتوقع. أعد المحاولة، أو سجّل الخروج ثم ادخل من جديد.</Text><View style={styles.retryActions}><PrimaryButton label="إعادة المحاولة" icon="refresh" onPress={() => void retryPortal()} style={{ flex: 1 }} /><TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.signOutTextButton}><Text style={styles.signOutText}>تسجيل الخروج</Text></TouchableOpacity></View></View></ScreenContainer>;
   if (fetching) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingText}>جاري تحميل بيانات المنصة…</Text></ScreenContainer>;
-  if (!profile?.is_platform_admin) return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="admin-panel-settings" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>بوابة مدير المنصة</Text><Text style={styles.lockedText}>هذه البوابة مخصصة لمالك منصة Tips فقط. لإدارة العمليات داخل شركتك، استخدم لوحة إدارة الشركة.</Text><PrimaryButton label="الانتقال إلى لوحة الشركة" icon="dashboard" onPress={() => router.replace("/admin" as never)} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
+  if (!profile?.is_platform_admin) return <Redirect href={getPlatformPortalFallbackRoute(profile?.role_key) as never} />;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={[styles.content, isWide && styles.wideContent]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
     <AppHeader eyebrow="إدارة مركزية · جميع الشركات" title="بوابة مدير المنصة" right={<TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.signOut}><MaterialIcons name="logout" size={19} color={palette.primary} /></TouchableOpacity>} />

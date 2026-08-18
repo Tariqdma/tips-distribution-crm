@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "../lib/post-login-route";
+import { getPlatformPortalFallbackRoute, getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "../lib/post-login-route";
 
 describe("post-login routing", () => {
   it("sends web managers to the dedicated company portal", () => {
@@ -16,6 +16,13 @@ describe("post-login routing", () => {
   it("sends a platform administrator to the dedicated platform portal", () => {
     expect(getPostLoginRoute({ roleKey: "system_admin", isPlatformAdmin: true, isWeb: true })).toBe("/platform");
     expect(getPostLoginRoute({ roleKey: "company_manager", isPlatformAdmin: true, isWeb: false })).toBe("/platform");
+  });
+
+  it("redirects non-platform accounts away from the platform URL", () => {
+    expect(getPlatformPortalFallbackRoute("sales_manager")).toBe("/company");
+    expect(getPlatformPortalFallbackRoute("company_manager")).toBe("/company");
+    expect(getPlatformPortalFallbackRoute("sales_supervisor")).toBe("/supervisor");
+    expect(getPlatformPortalFallbackRoute("sales_rep")).toBe("/");
   });
 
   it("sends company supervisors to their supervision workspace", () => {

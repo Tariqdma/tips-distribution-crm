@@ -8,6 +8,14 @@ export function getPostLoginRoute(input: { roleKey?: string | null; mustChangePa
   return "/company";
 }
 
+/** The safe destination when a non-platform account opens the platform URL directly. */
+export function getPlatformPortalFallbackRoute(roleKey?: string | null) {
+  const isCompanyManager = roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager";
+  if (isCompanyManager) return "/company";
+  if (roleKey === "sales_supervisor" || roleKey === "medical_supervisor") return "/supervisor";
+  return "/";
+}
+
 export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string, isPlatformAdmin = false) {
   const isManager = isPlatformAdmin || roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager" || roleKey === "sales_supervisor" || roleKey === "medical_supervisor";
   return isManager && (pathname === "/" || pathname === "/index" || pathname === "/(tabs)" || pathname === "/(tabs)/index");
