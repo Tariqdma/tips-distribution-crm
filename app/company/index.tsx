@@ -1,13 +1,16 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Redirect, router } from "expo-router";
-import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { AdminDashboard } from "@/app/(tabs)/admin";
 import { palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { shouldUseCompanyDesktopShell } from "@/lib/portal-layout";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function CompanyPortalGateway() {
   const { session, profile, loading, signOut } = useSupabaseAuth();
+  const { width } = useWindowDimensions();
+  const shouldUseDesktopPortal = Platform.OS === "web" && shouldUseCompanyDesktopShell(width);
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /></ScreenContainer>;
   if (!session) return <Redirect href="/login" />;
   if (profile?.must_change_password) return <Redirect href="/change-password" />;
@@ -17,7 +20,7 @@ export default function CompanyPortalGateway() {
   }
   const isCompanyManager = profile?.role_key === "company_manager" || profile?.role_key === "sales_manager" || profile?.role_key === "system_admin";
   if (!isCompanyManager) return <Redirect href={profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor" ? "/supervisor" : "/"} />;
-  if (Platform.OS === "web") return <Redirect href="/admin" />;
+  if (shouldUseDesktopPortal) return <Redirect href="/admin" />;
   return <AdminDashboard />;
 }
 

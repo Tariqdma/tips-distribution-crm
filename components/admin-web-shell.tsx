@@ -1,8 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Redirect, router, usePathname } from "expo-router";
 import { type ReactNode } from "react";
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { palette } from "@/components/crm-ui";
+import { shouldUseCompanyDesktopShell } from "@/lib/portal-layout";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 const navigation = [{ label: "نظرة عامة", icon: "dashboard" as const, href: "/admin" }, { label: "اعتماد الخطط", icon: "fact-check" as const, href: "/admin/weekly-plans" }, { label: "مركز العمليات", icon: "monitor-heart" as const, href: "/admin/operations" }, { label: "التحصيل اليومي", icon: "receipt-long" as const, href: "/admin/daily-collections" }, { label: "بحث الإيصالات", icon: "travel-explore" as const, href: "/admin/receipt-search" }, { label: "التحكم المالي", icon: "account-balance-wallet" as const, href: "/admin/financial-control" }, { label: "التغطية الطبية", icon: "medical-services" as const, href: "/admin/medical-reports" }, { label: "البرنامج الطبي", icon: "biotech" as const, href: "/admin/medical-program" }, { label: "الفريق", icon: "groups" as const, href: "/admin/team" }, { label: "نتائج الزيارة", icon: "playlist-add-check" as const, href: "/admin/outcomes" }, { label: "هوية البريد", icon: "markunread-mailbox" as const, href: "/admin/mail" }, { label: "الأدوار", icon: "admin-panel-settings" as const, href: "/admin/roles" }, { label: "سجل التدقيق", icon: "fact-check" as const, href: "/admin/audit" }];
@@ -10,7 +11,9 @@ const navigation = [{ label: "نظرة عامة", icon: "dashboard" as const, hr
 export function AdminWebShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = usePathname();
   const { session, loading, profile } = useSupabaseAuth();
+  const { width } = useWindowDimensions();
   if (Platform.OS !== "web") return <Redirect href={"/company" as never} />;
+  if (!shouldUseCompanyDesktopShell(width)) return <Redirect href={"/company" as never} />;
   if (loading) return <View style={styles.mobileNotice}><Text style={styles.mobileCopy}>يجري التحقق من الجلسة…</Text></View>;
   if (!session) return <View style={styles.mobileNotice}><MaterialIcons name="lock-outline" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>تسجيل الدخول مطلوب</Text><Text style={styles.mobileCopy}>تحتاج إلى حساب معتمد للوصول إلى بوابة الإدارة.</Text><TouchableOpacity onPress={() => router.replace("/login" as never)} style={[styles.navItem, styles.navItemActive]}><Text style={styles.navTextActive}>تسجيل الدخول</Text></TouchableOpacity></View>;
   if (profile?.is_platform_admin) return <Redirect href={"/platform" as never} />;

@@ -51,11 +51,13 @@ export function MetricCard({
   value,
   icon,
   tone = "teal",
+  compact = false,
 }: {
   label: string;
   value: string;
   icon: keyof typeof MaterialIcons.glyphMap;
   tone?: "teal" | "blue" | "amber";
+  compact?: boolean;
 }) {
   const tones = {
     teal: { bg: "#E9F8F2", icon: palette.primary },
@@ -64,13 +66,13 @@ export function MetricCard({
   };
   const colors = tones[tone];
   return (
-    <View style={styles.metricCard}>
+    <View style={[styles.metricCard, compact && styles.metricCardCompact]}>
       <View style={[styles.metricIcon, { backgroundColor: colors.bg }]}>
         <MaterialIcons name={icon} size={19} color={colors.icon} />
       </View>
       <View style={{ alignItems: "flex-end" }}>
-        <Text style={styles.metricValue}>{value}</Text>
-        <Text style={styles.metricLabel}>{label}</Text>
+        <Text style={[styles.metricValue, compact && styles.metricValueCompact]}>{value}</Text>
+        <Text style={[styles.metricLabel, compact && styles.metricLabelCompact]}>{label}</Text>
       </View>
     </View>
   );
@@ -170,9 +172,12 @@ const styles = StyleSheet.create({
   textAction: { paddingVertical: 6, paddingHorizontal: 2 },
   textActionLabel: { color: palette.primary, fontWeight: "700", fontSize: 13 },
   metricCard: { flex: 1, minWidth: 104, backgroundColor: palette.surface, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.line, gap: 9, alignItems: "flex-end" },
+  metricCardCompact: { minWidth: 0, padding: 10, borderRadius: 15, gap: 6 },
   metricIcon: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   metricValue: { color: palette.ink, fontSize: 20, fontWeight: "800", lineHeight: 24 },
+  metricValueCompact: { fontSize: 17, lineHeight: 21 },
   metricLabel: { color: palette.muted, fontSize: 11, textAlign: "right", marginTop: 2 },
+  metricLabelCompact: { fontSize: 9, lineHeight: 13 },
   badge: { flexDirection: "row-reverse", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10 },
   badgeText: { fontSize: 11, fontWeight: "700" },
   avatar: { alignItems: "center", justifyContent: "center" },

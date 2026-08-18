@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { AppHeader, MetricCard, PrimaryButton, SectionTitle, palette } from "@/components/crm-ui";
@@ -15,6 +15,8 @@ const supervisorMeta = {
 export default function SupervisorDashboard() {
   const { profile, signOut } = useSupabaseAuth();
   const { data } = useCrm();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 390;
   const meta = supervisorMeta[profile?.role_key as keyof typeof supervisorMeta];
   const reps = useMemo(() => data.teamMembers.filter((member) => member.role === meta?.role), [data.teamMembers, meta?.role]);
   const pendingPlans = useMemo(() => data.plans.filter((plan) => plan.status === "بانتظار الاعتماد"), [data.plans]);
@@ -25,7 +27,7 @@ export default function SupervisorDashboard() {
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
     <AppHeader eyebrow={profile?.active_company_name || "شركة Tips CRM"} title={meta.title} right={<TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.signOut}><MaterialIcons name="logout" size={19} color={palette.primary} /></TouchableOpacity>} />
     <View style={styles.hero}><View style={styles.heroIcon}><MaterialIcons name="supervisor-account" size={23} color="#FFFFFF" /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroTitle}>مرحباً {profile?.full_name}</Text><Text style={styles.heroText}>{meta.subtitle}</Text></View></View>
-    <View style={styles.metrics}><MetricCard label="أعضاء الفريق" value={String(reps.length)} icon="groups" /><MetricCard label="خطط للمراجعة" value={String(pendingPlans.length)} icon="pending-actions" tone="amber" /><MetricCard label="زيارات مكتملة" value={String(completedVisits)} icon="task-alt" tone="blue" /></View>
+    <View style={styles.metrics}><MetricCard compact={isCompact} label="أعضاء الفريق" value={String(reps.length)} icon="groups" /><MetricCard compact={isCompact} label="خطط للمراجعة" value={String(pendingPlans.length)} icon="pending-actions" tone="amber" /><MetricCard compact={isCompact} label="زيارات مكتملة" value={String(completedVisits)} icon="task-alt" tone="blue" /></View>
     <SectionTitle title="فريقك المباشر" />
     {reps.length ? reps.map((rep) => <View key={rep.id} style={styles.repCard}><View style={styles.avatar}><Text style={styles.avatarText}>{rep.initials}</Text></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.repName}>{rep.name}</Text><Text style={styles.repMeta}>{rep.territory || "لم تُحدد منطقة"}</Text></View><MaterialIcons name={meta.role === "مندوب طبي" ? "medical-services" : "storefront"} size={19} color={palette.primary} /></View>) : <View style={styles.empty}><MaterialIcons name="groups" size={24} color={palette.muted} /><Text style={styles.emptyText}>لا يوجد مندوبون ضمن فريقك المباشر بعد.</Text></View>}
     <SectionTitle title="الخطط بانتظار المراجعة" />
