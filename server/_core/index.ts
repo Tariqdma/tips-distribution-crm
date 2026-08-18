@@ -9,9 +9,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
-import { createPasswordResetPage } from "../password-reset-page";
 import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
-import { createCrmLandingPage } from "../crm-landing-page";
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
 
@@ -37,6 +35,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  const webDistDirectory = path.join(process.cwd(), "web-dist");
+  const sendWebApplication = (_req: express.Request, res: express.Response) => {
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.sendFile(path.join(webDistDirectory, "index.html"));
+  };
 
   // Enable CORS for all routes - reflect the request origin to support credentials
   app.use((req, res, next) => {
@@ -65,9 +68,12 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  app.get("/", (_req, res) => {
-    res.type("html").send(createCrmLandingPage());
-  });
+  // The public domain must serve the real Expo Web application—not the old
+  // server-side recovery landing page. Static assets are cached by filename;
+  // the HTML shell is deliberately not cached so published fixes take effect.
+  app.use(express.static(webDistDirectory, { index: false, maxAge: "1h", immutable: true }));
+
+  app.get("/", sendWebApplication);
 
   app.get("/vendor/supabase.js", (_req, res) => {
     res.setHeader("Cache-Control", "no-store, max-age=0");
@@ -76,14 +82,7 @@ async function startServer() {
     );
   });
 
-  app.get("/reset-password", (_req, res) => {
-    res.type("html").send(
-      createPasswordResetPage({
-        supabaseUrl: ENV.supabaseUrl,
-        supabaseAnonKey: ENV.supabaseAnonKey,
-      }),
-    );
-  });
+  app.get("/reset-password", sendWebApplication);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
@@ -155,6 +154,15 @@ async function startServer() {
       createContext,
     }),
   );
+
+  // Expo Router handles all non-API application routes after the web shell loads.
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api/") || req.path === "/api" || req.path.startsWith("/vendor/")) {
+      next();
+      return;
+    }
+    sendWebApplication(req, res);
+  });
 
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
