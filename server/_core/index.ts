@@ -14,7 +14,7 @@ import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePass
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
 import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
-import { approveCompanyRequest, createCompanyDirect, reviewCompanyRequest } from "../platform-company";
+import { addRequestNote, approveCompanyRequest, cancelManagerInvitation, createCompanyDirect, createPublicCompanyRequest, getPublicCompanyRequestStatus, requestMoreInfo, resendManagerInvitation, reviewCompanyRequest } from "../platform-company";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -127,6 +127,16 @@ async function startServer() {
     }
   });
 
+  app.post("/api/company-requests", async (req, res) => {
+    try {
+      const request = await createPublicCompanyRequest(req.body ?? {});
+      res.status(201).json({ request });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إرسال طلب الشركة.";
+      res.status(400).json({ message });
+    }
+  });
+
   app.post("/api/platform/company-requests/:requestId/approve", async (req, res) => {
     try {
       const company = await approveCompanyRequest({ ...req.body, requestId: req.params.requestId }, req.header("authorization"));
@@ -139,10 +149,40 @@ async function startServer() {
 
   app.post("/api/platform/company-requests/:requestId/review", async (req, res) => {
     try {
-      await reviewCompanyRequest({ requestId: req.params.requestId, status: req.body?.status, reviewNote: req.body?.reviewNote }, req.header("authorization"));
-      res.json({ ok: true });
+      const review = await reviewCompanyRequest({ requestId: req.params.requestId, status: req.body?.status, reviewNote: req.body?.reviewNote }, req.header("authorization"));
+      res.json({ ok: true, review });
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر مراجعة طلب الشركة.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/company-requests/:requestId/notes", async (req, res) => {
+    try {
+      const note = await addRequestNote({ requestId: req.params.requestId, noteText: String(req.body?.noteText ?? "") }, req.header("authorization"));
+      res.status(201).json({ note });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر حفظ ملاحظة الطلب.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/company-requests/:requestId/request-info", async (req, res) => {
+    try {
+      const result = await requestMoreInfo({ requestId: req.params.requestId, informationNeeded: String(req.body?.informationNeeded ?? "") }, req.header("authorization"));
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر طلب المعلومات من الشركة.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/company-requests/:requestId/cancel-invitation", async (req, res) => {
+    try {
+      const result = await cancelManagerInvitation(req.params.requestId, req.header("authorization"));
+      res.json({ ok: true, result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إلغاء دعوة مدير الشركة.";
       res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });
@@ -154,6 +194,27 @@ async function startServer() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إنشاء الشركة.";
       res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/companies/:companyId/resend-invitation", async (req, res) => {
+    try {
+      const result = await resendManagerInvitation(req.params.companyId, req.header("authorization"));
+      res.json({ ok: true, result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إعادة إرسال دعوة مدير الشركة.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.get("/api/company-requests/:referenceId/status", async (req, res) => {
+    try {
+      const request = await getPublicCompanyRequestStatus(req.params.referenceId);
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ request });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر التحقق من حالة الطلب.";
+      res.status(400).json({ message });
     }
   });
 

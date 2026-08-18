@@ -95,6 +95,7 @@ export default function RootLayout() {
             <Stack.Screen name="oauth/callback" />
             <Stack.Screen name="login" />
             <Stack.Screen name="company-request" />
+            <Stack.Screen name="request-status" />
             <Stack.Screen name="company" />
             <Stack.Screen name="platform" />
             <Stack.Screen name="supervisor" />

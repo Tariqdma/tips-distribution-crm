@@ -14,6 +14,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return null;
     const { data } = await supabase.rpc("tips_crm_my_profile");
     const nextProfile = (data?.[0] as SupabaseProfile | undefined) ?? null;
+    if (nextProfile) {
+      await supabase.rpc("tips_crm_mark_company_manager_activation");
+    }
     setProfile(nextProfile);
     return nextProfile;
   };

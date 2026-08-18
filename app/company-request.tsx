@@ -4,10 +4,11 @@ import { router } from "expo-router";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
-import { supabase } from "@/lib/supabase-client";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 export default function CompanyRequestScreen() {
   const [companyName, setCompanyName] = useState("");
+  const [activityType, setActivityType] = useState("");
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -22,28 +23,34 @@ export default function CompanyRequestScreen() {
       setError("اكتب اسم الشركة واسم مسؤول التواصل وبريداً إلكترونياً صحيحاً.");
       return;
     }
-    if (!supabase) {
-      setError("تعذر الاتصال بخدمة الطلبات الآن.");
-      return;
-    }
     setSubmitting(true);
     setError(null);
     const parsedUserCount = Number.parseInt(userCount, 10);
-    const { data, error: requestError } = await supabase.rpc("tips_crm_create_company_request", {
-      request_company_name: companyName.trim(),
-      request_contact_name: contactName.trim(),
-      request_contact_email: contactEmail.trim().toLowerCase(),
-      request_contact_phone: contactPhone.trim() || null,
-      request_expected_user_count: Number.isFinite(parsedUserCount) && parsedUserCount > 0 ? parsedUserCount : null,
-      request_notes: notes.trim() || null,
-    });
-    setSubmitting(false);
-    if (requestError || !data) {
-      setError("تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى.");
-      return;
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/company-requests`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName: companyName.trim(),
+          activityType: activityType.trim() || null,
+          contactName: contactName.trim(),
+          contactEmail: contactEmail.trim().toLowerCase(),
+          contactPhone: contactPhone.trim() || null,
+          expectedUserCount: Number.isFinite(parsedUserCount) && parsedUserCount > 0 ? parsedUserCount : null,
+          notes: notes.trim() || null,
+        }),
+      });
+      const payload = await response.json().catch(() => ({})) as { request?: { requestId?: string }; message?: string };
+      if (!response.ok || !payload.request?.requestId) throw new Error(payload.message || "تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى.");
+      setRequestId(payload.request.requestId);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى.");
+    } finally {
+      setSubmitting(false);
     }
-    setRequestId(String(data));
   };
+
+  const reference = requestId?.slice(0, 8).toUpperCase();
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -52,19 +59,21 @@ export default function CompanyRequestScreen() {
         <View style={styles.successIcon}><MaterialIcons name="mark-email-read" size={32} color={palette.success} /></View>
         <Text style={styles.successTitle}>تم استلام طلب شركتك</Text>
         <Text style={styles.successText}>طلبك الآن قيد المراجعة لدى مدير منصة Tips. لا تحتاج إلى تسجيل الدخول أو الانتقال إلى أي لوحة في هذه المرحلة.</Text>
-        <View style={styles.emailNotice}><MaterialIcons name="mail-outline" size={19} color={palette.primary} /><Text style={styles.emailNoticeText}>بعد اعتماد الطلب، سترسل رسالة إلى {contactEmail || "بريد جهة الاتصال"} فيها بيانات دخول مدير الشركة وخطوات البدء.</Text></View>
-        <Text style={styles.requestRef}>رقم الطلب: {requestId.slice(0, 8).toUpperCase()}</Text>
+        <View style={styles.emailNotice}><MaterialIcons name="mail-outline" size={19} color={palette.primary} /><Text style={styles.emailNoticeText}>أرسلنا تأكيد الاستلام إلى {contactEmail || "بريد جهة الاتصال"}. عند الاعتماد، تصل رسالة إعداد حساب المدير إلى البريد المحدد.</Text></View>
+        <Text style={styles.requestRef}>رقم الطلب: {reference}</Text>
+        <TouchableOpacity onPress={() => router.push(`/request-status?ref=${reference}` as never)} style={styles.trackButton}><MaterialIcons name="manage-search" size={18} color={palette.primary} /><Text style={styles.trackButtonText}>متابعة حالة الطلب</Text></TouchableOpacity>
       </View> : <>
         <View style={styles.intro}><MaterialIcons name="domain-add" size={24} color="#FFFFFF" /><View style={{ flex: 1 }}><Text style={styles.introTitle}>ابدأ بطلب واحد فقط</Text><Text style={styles.introText}>لا تحتاج إلى إنشاء حساب الآن. يعتمد مدير المنصة الطلب ثم ينشئ حساب مدير الشركة الأول.</Text></View></View>
         <Text style={styles.section}>بيانات الشركة</Text>
         <Field label="اسم الشركة" value={companyName} onChangeText={setCompanyName} placeholder="مثال: شركة النيل للتوزيع" />
+        <Field label="طبيعة النشاط" value={activityType} onChangeText={setActivityType} placeholder="مثال: توزيع أدوية ومنتجات صحية" />
         <Field label="عدد المستخدمين المتوقع" value={userCount} onChangeText={setUserCount} placeholder="مثال: 20" keyboardType="number-pad" />
         <Text style={styles.section}>مسؤول التواصل</Text>
         <Field label="الاسم الكامل" value={contactName} onChangeText={setContactName} placeholder="اسم المسؤول" />
         <Field label="البريد الإلكتروني" value={contactEmail} onChangeText={setContactEmail} placeholder="name@company.sd" keyboardType="email-address" autoCapitalize="none" />
         <Field label="رقم الهاتف (اختياري)" value={contactPhone} onChangeText={setContactPhone} placeholder="2499..." keyboardType="phone-pad" />
-        <Text style={styles.label}>ملاحظات أو طبيعة النشاط (اختياري)</Text>
-        <TextInput value={notes} onChangeText={setNotes} multiline textAlign="right" placeholder="مثال: توزيع أدوية في ولايتي الخرطوم والجزيرة" placeholderTextColor="#94A39C" style={styles.notes} />
+        <Text style={styles.label}>ملاحظات إضافية (اختياري)</Text>
+        <TextInput value={notes} onChangeText={setNotes} multiline textAlign="right" placeholder="مثال: نعمل في ولايتي الخرطوم والجزيرة" placeholderTextColor="#94A39C" style={styles.notes} />
         {error ? <View style={styles.error}><MaterialIcons name="error-outline" size={18} color={palette.error} /><Text style={styles.errorText}>{error}</Text></View> : null}
         <PrimaryButton label={submitting ? "جاري إرسال الطلب…" : "إرسال طلب الانضمام"} icon={submitting ? "hourglass-top" : "send"} disabled={submitting} onPress={() => void submit()} style={{ marginTop: 22 }} />
         {submitting ? <ActivityIndicator color={palette.primary} style={{ marginTop: 12 }} /> : null}
@@ -96,4 +105,6 @@ const styles = StyleSheet.create({
   emailNotice: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 8, backgroundColor: "#E9F8F2", borderRadius: 13, padding: 12, marginTop: 15 },
   emailNoticeText: { color: palette.primary, fontSize: 12, fontWeight: "700", lineHeight: 18, flex: 1, textAlign: "right" },
   requestRef: { color: palette.primary, fontSize: 12, fontWeight: "900", marginTop: 13, backgroundColor: "#E9F8F2", paddingVertical: 7, paddingHorizontal: 10, borderRadius: 10 },
+  trackButton: { marginTop: 13, minHeight: 43, borderRadius: 12, borderColor: "#B9DED3", borderWidth: 1, backgroundColor: "#FFFFFF", paddingHorizontal: 15, flexDirection: "row-reverse", gap: 7, alignItems: "center", justifyContent: "center" },
+  trackButtonText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
 });
