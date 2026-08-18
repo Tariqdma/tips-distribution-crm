@@ -1,16 +1,17 @@
-import { Tabs } from "expo-router";
+import { Redirect, Tabs, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
-import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { shouldRedirectManagerFromFieldHome } from "@/lib/post-login-route";
 
 export default function TabLayout() {
   const { session, loading, profile } = useSupabaseAuth();
+  const pathname = usePathname();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
@@ -19,6 +20,7 @@ export default function TabLayout() {
   if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.tint} /></View>;
   if (!session) return <Redirect href="/login" />;
   if (profile?.must_change_password) return <Redirect href={"/change-password" as never} />;
+  if (shouldRedirectManagerFromFieldHome(profile?.role_key, pathname)) return <Redirect href={"/(tabs)/admin" as never} />;
   return (
     <Tabs
       screenOptions={{

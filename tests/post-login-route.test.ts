@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getPostLoginRoute } from "../lib/post-login-route";
+import { getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "../lib/post-login-route";
 
 describe("post-login routing", () => {
   it("sends web managers to the administration portal", () => {
@@ -19,5 +19,12 @@ describe("post-login routing", () => {
 
   it("prioritizes the required password change route", () => {
     expect(getPostLoginRoute({ roleKey: "sales_rep", mustChangePassword: true, isWeb: true })).toBe("/change-password");
+  });
+
+  it("moves a restored mobile manager session away from the field home", () => {
+    expect(shouldRedirectManagerFromFieldHome("system_admin", "/")).toBe(true);
+    expect(shouldRedirectManagerFromFieldHome("sales_manager", "/(tabs)")).toBe(true);
+    expect(shouldRedirectManagerFromFieldHome("sales_rep", "/")).toBe(false);
+    expect(shouldRedirectManagerFromFieldHome("system_admin", "/plans")).toBe(false);
   });
 });
