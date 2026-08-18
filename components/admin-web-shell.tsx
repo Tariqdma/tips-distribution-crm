@@ -12,7 +12,7 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
   const { session, loading, profile, claimFirstSystemAdmin } = useSupabaseAuth();
   const [claimingFirstAdmin, setClaimingFirstAdmin] = useState(false);
   const claimFirstAdmin = async () => { setClaimingFirstAdmin(true); const success = await claimFirstSystemAdmin(); setClaimingFirstAdmin(false); if (success) Alert.alert("تمت التهيئة", "أصبح هذا الحساب مدير النظام الأول. يمكنك الآن متابعة بوابة الإدارة."); else Alert.alert("لا يمكن التهيئة", "يوجد مدير نظام بالفعل أو لم يتم التعرف على هذا الحساب. اطلب من مدير النظام تعيين دورك."); };
-  if (Platform.OS !== "web") return <View style={styles.mobileNotice}><MaterialIcons name="laptop-mac" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>بوابة الإدارة للويب</Text><Text style={styles.mobileCopy}>استخدم لوحة الإدارة من متصفح جهاز مكتبي أو لوحي للحصول على مساحة عمل كاملة.</Text></View>;
+  if (Platform.OS !== "web") return <Redirect href={"/company" as never} />;
   if (loading) return <View style={styles.mobileNotice}><Text style={styles.mobileCopy}>يجري التحقق من الجلسة…</Text></View>;
   if (!session) return <View style={styles.mobileNotice}><MaterialIcons name="lock-outline" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>تسجيل الدخول مطلوب</Text><Text style={styles.mobileCopy}>تحتاج إلى حساب معتمد للوصول إلى بوابة الإدارة.</Text><TouchableOpacity onPress={() => router.replace("/login" as never)} style={[styles.navItem, styles.navItemActive]}><Text style={styles.navTextActive}>تسجيل الدخول</Text></TouchableOpacity></View>;
   if (profile?.is_platform_admin) return <Redirect href={"/platform" as never} />;

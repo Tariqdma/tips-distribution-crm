@@ -5,7 +5,7 @@ export function getPostLoginRoute(input: { roleKey?: string | null; mustChangePa
   const isSupervisor = input.roleKey === "sales_supervisor" || input.roleKey === "medical_supervisor";
   if (isSupervisor) return "/supervisor";
   if (!isCompanyManager) return "/";
-  return input.isWeb ? "/admin" : "/(tabs)/admin";
+  return "/company";
 }
 
 export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string, isPlatformAdmin = false) {

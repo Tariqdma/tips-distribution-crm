@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { AppHeader, MetricCard, PrimaryButton, SectionTitle, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -100,6 +100,8 @@ export default function PlatformPortalScreen() {
   };
 
   const pendingRequests = useMemo(() => requests.filter((request) => request.status === "pending"), [requests]);
+  if (Platform.OS !== "web") return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="laptop-mac" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>بوابة المنصة للويب فقط</Text><Text style={styles.lockedText}>إدارة منصة Tips والشركات مخصصة للمتصفح. افتحها من الويب ولا تستخدم تطبيق الموظفين لهذه المهمة.</Text><PrimaryButton label="فتح بوابة المنصة في المتصفح" icon="open-in-new" onPress={() => void Linking.openURL("https://tipscrm-vevc4ncu.manus.space/platform")} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
+  if (!session) return <Redirect href="/login" />;
   if (loading || fetching) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingText}>جاري تحميل بوابة المنصة…</Text></ScreenContainer>;
   if (!profile?.is_platform_admin) return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="admin-panel-settings" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>بوابة مدير المنصة</Text><Text style={styles.lockedText}>هذه البوابة مخصصة لمالك منصة Tips فقط. لإدارة العمليات داخل شركتك، استخدم لوحة إدارة الشركة.</Text><PrimaryButton label="الانتقال إلى لوحة الشركة" icon="dashboard" onPress={() => router.replace("/admin" as never)} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
 

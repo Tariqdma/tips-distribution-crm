@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "../lib/post-login-route";
 
 describe("post-login routing", () => {
-  it("sends web managers to the administration portal", () => {
-    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: true })).toBe("/admin");
-    expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: true })).toBe("/admin");
+  it("sends web managers to the dedicated company portal", () => {
+    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: true })).toBe("/company");
+    expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: true })).toBe("/company");
   });
 
-  it("sends mobile managers to the mobile administration dashboard", () => {
-    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: false })).toBe("/(tabs)/admin");
-    expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: false })).toBe("/(tabs)/admin");
-    expect(getPostLoginRoute({ roleKey: "company_manager", isWeb: false })).toBe("/(tabs)/admin");
+  it("sends company managers to their dedicated company portal on every client", () => {
+    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: false })).toBe("/company");
+    expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: false })).toBe("/company");
+    expect(getPostLoginRoute({ roleKey: "company_manager", isWeb: true })).toBe("/company");
   });
 
   it("sends a platform administrator to the dedicated platform portal", () => {

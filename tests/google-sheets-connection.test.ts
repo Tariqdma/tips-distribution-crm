@@ -8,5 +8,5 @@ describe("Google Sheets financial connection", () => {
     const result = await validateGoogleFinancialSheetConnection();
     expect(result.spreadsheetId).toBe(process.env.GOOGLE_FINANCIAL_SHEET_ID);
     expect(result.title).toBe("Tips CRM — Financial Control");
-  }, 20_000);
+  }, 45_000);
 });
