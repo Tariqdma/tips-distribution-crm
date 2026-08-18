@@ -47,13 +47,13 @@ export default function CompanyRequestScreen() {
 
   return <ScreenContainer className="px-5" containerClassName="bg-background">
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      <AppHeader title="طلب انضمام شركة" eyebrow="Tips CRM للشركات" right={<TouchableOpacity onPress={() => router.replace("/login" as never)} style={styles.close}><MaterialIcons name="close" size={20} color={palette.primary} /></TouchableOpacity>} />
+      <AppHeader title="طلب انضمام شركة" eyebrow="Tips CRM للشركات" right={<TouchableOpacity onPress={() => requestId ? setRequestId(null) : router.replace("/login" as never)} style={styles.close}><MaterialIcons name={requestId ? "add" : "close"} size={20} color={palette.primary} /></TouchableOpacity>} />
       {requestId ? <View style={styles.successCard}>
         <View style={styles.successIcon}><MaterialIcons name="mark-email-read" size={32} color={palette.success} /></View>
         <Text style={styles.successTitle}>تم استلام طلب شركتك</Text>
-        <Text style={styles.successText}>سيظهر الطلب لمدير منصة Tips للمراجعة. بعد الاعتماد، سيُنشأ حساب مدير الشركة وتصل بيانات الدخول إلى جهة الاتصال.</Text>
+        <Text style={styles.successText}>طلبك الآن قيد المراجعة لدى مدير منصة Tips. لا تحتاج إلى تسجيل الدخول أو الانتقال إلى أي لوحة في هذه المرحلة.</Text>
+        <View style={styles.emailNotice}><MaterialIcons name="mail-outline" size={19} color={palette.primary} /><Text style={styles.emailNoticeText}>بعد اعتماد الطلب، سترسل رسالة إلى {contactEmail || "بريد جهة الاتصال"} فيها بيانات دخول مدير الشركة وخطوات البدء.</Text></View>
         <Text style={styles.requestRef}>رقم الطلب: {requestId.slice(0, 8).toUpperCase()}</Text>
-        <PrimaryButton label="العودة لتسجيل الدخول" icon="login" onPress={() => router.replace("/login" as never)} style={{ alignSelf: "stretch", marginTop: 18 }} />
       </View> : <>
         <View style={styles.intro}><MaterialIcons name="domain-add" size={24} color="#FFFFFF" /><View style={{ flex: 1 }}><Text style={styles.introTitle}>ابدأ بطلب واحد فقط</Text><Text style={styles.introText}>لا تحتاج إلى إنشاء حساب الآن. يعتمد مدير المنصة الطلب ثم ينشئ حساب مدير الشركة الأول.</Text></View></View>
         <Text style={styles.section}>بيانات الشركة</Text>
@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
   intro: { flexDirection: "row-reverse", gap: 12, padding: 16, borderRadius: 19, backgroundColor: "#143D35", alignItems: "flex-start", marginBottom: 9 },
   introTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", textAlign: "right" },
   introText: { color: "#C6E6DD", fontSize: 12, lineHeight: 18, textAlign: "right", marginTop: 4 },
-  section: { color: palette.ink, fontSize: 16, fontWeight: "900", textAlign: "right", marginTop: 18, marginBottom: 4 },
-  field: { marginTop: 10 }, label: { color: palette.ink, fontSize: 12, fontWeight: "800", textAlign: "right", marginBottom: 6 },
+  section: { color: "#E9F8F2", fontSize: 16, fontWeight: "900", textAlign: "right", marginTop: 18, marginBottom: 4 },
+  field: { marginTop: 10 }, label: { color: "#E9F8F2", fontSize: 12, fontWeight: "800", textAlign: "right", marginBottom: 6 },
   input: { minHeight: 50, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#DCE8E3", borderRadius: 14, paddingHorizontal: 13, color: palette.ink, fontSize: 14 },
   notes: { minHeight: 94, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#DCE8E3", borderRadius: 14, padding: 13, color: palette.ink, fontSize: 14, textAlignVertical: "top" },
   error: { flexDirection: "row-reverse", alignItems: "center", gap: 7, backgroundColor: "#FFF0F0", borderColor: "#F2C1C1", borderWidth: 1, borderRadius: 13, padding: 11, marginTop: 14 },
@@ -93,5 +93,7 @@ const styles = StyleSheet.create({
   successIcon: { width: 68, height: 68, borderRadius: 24, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" },
   successTitle: { color: palette.ink, fontSize: 20, fontWeight: "900", marginTop: 16 },
   successText: { color: palette.muted, textAlign: "center", fontSize: 13, lineHeight: 20, marginTop: 8 },
+  emailNotice: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 8, backgroundColor: "#E9F8F2", borderRadius: 13, padding: 12, marginTop: 15 },
+  emailNoticeText: { color: palette.primary, fontSize: 12, fontWeight: "700", lineHeight: 18, flex: 1, textAlign: "right" },
   requestRef: { color: palette.primary, fontSize: 12, fontWeight: "900", marginTop: 13, backgroundColor: "#E9F8F2", paddingVertical: 7, paddingHorizontal: 10, borderRadius: 10 },
 });

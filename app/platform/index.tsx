@@ -14,11 +14,18 @@ type ApprovalForm = { companySlug: string; managerFullName: string; managerEmail
 
 const blankApproval: ApprovalForm = { companySlug: "", managerFullName: "", managerEmail: "", managerPassword: "", planKey: "standard" };
 
+function withTimeout<T>(promise: Promise<T>, milliseconds: number) {
+  return Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error("انتهت مهلة الاتصال بخدمة المنصة.")), milliseconds)),
+  ]);
+}
+
 function dateArabic(value: string) { return new Date(value).toLocaleDateString("ar", { year: "numeric", month: "short", day: "numeric" }); }
 function slugFromCompanyName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 
 export default function PlatformPortalScreen() {
-  const { profile, session, loading, signOut } = useSupabaseAuth();
+  const { profile, session, loading, refreshProfile, signOut } = useSupabaseAuth();
   const { width } = useWindowDimensions();
   const isWide = Platform.OS === "web" && width >= 850;
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -33,24 +40,41 @@ export default function PlatformPortalScreen() {
   const [creatingDirect, setCreatingDirect] = useState(false);
   const [direct, setDirect] = useState({ companyName: "", companySlug: "", contactName: "", contactEmail: "", contactPhone: "", expectedUserCount: "", notes: "", managerFullName: "", managerEmail: "", managerPassword: "", planKey: "standard" });
   const [submitting, setSubmitting] = useState(false);
+  const [authTimedOut, setAuthTimedOut] = useState(false);
 
   const load = useCallback(async () => {
     if (!supabase || !profile?.is_platform_admin) { setFetching(false); return; }
     setFetching(true); setError(null);
-    const [requestsResult, companiesResult] = await Promise.all([
-      supabase.rpc("tips_crm_list_platform_company_requests"),
-      supabase.rpc("tips_crm_list_platform_companies"),
-    ]);
-    if (requestsResult.error || companiesResult.error) setError("تعذر تحميل بيانات المنصة. حدّث الصفحة ثم أعد المحاولة.");
-    else {
-      const platformCompanies = (companiesResult.data ?? []) as Array<{ company_id: string; company_name: string; company_slug: string; status: string; plan_key: string; primary_manager_name: string | null; primary_manager_email: string | null; created_at: string }>;
-      setRequests((requestsResult.data ?? []) as CompanyRequest[]);
-      setCompanies(platformCompanies.map((company) => ({ id: company.company_id, name: company.company_name, slug: company.company_slug, status: company.status, plan_key: company.plan_key, primary_contact_name: company.primary_manager_name, primary_contact_email: company.primary_manager_email, created_at: company.created_at })));
+    try {
+      const [requestsResult, companiesResult] = await withTimeout(Promise.all([
+        supabase.rpc("tips_crm_list_platform_company_requests"),
+        supabase.rpc("tips_crm_list_platform_companies"),
+      ]), 12_000);
+      if (requestsResult.error || companiesResult.error) setError("تعذر تحميل بيانات المنصة. حدّث الصفحة ثم أعد المحاولة.");
+      else {
+        const platformCompanies = (companiesResult.data ?? []) as Array<{ company_id: string; company_name: string; company_slug: string; status: string; plan_key: string; primary_manager_name: string | null; primary_manager_email: string | null; created_at: string }>;
+        setRequests((requestsResult.data ?? []) as CompanyRequest[]);
+        setCompanies(platformCompanies.map((company) => ({ id: company.company_id, name: company.company_name, slug: company.company_slug, status: company.status, plan_key: company.plan_key, primary_contact_name: company.primary_manager_name, primary_contact_email: company.primary_manager_email, created_at: company.created_at })));
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر تحميل بيانات المنصة.");
+    } finally {
+      setFetching(false);
     }
-    setFetching(false);
   }, [profile?.is_platform_admin]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    if (!loading) { setAuthTimedOut(false); return; }
+    const timer = setTimeout(() => setAuthTimedOut(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const retryPortal = async () => {
+    setAuthTimedOut(false);
+    await refreshProfile();
+    await load();
+  };
 
   const requestApi = async (path: string, body: Record<string, unknown>) => {
     if (!session?.access_token) throw new Error("انتهت الجلسة. سجّل الدخول مرة أخرى.");
@@ -102,7 +126,9 @@ export default function PlatformPortalScreen() {
   const pendingRequests = useMemo(() => requests.filter((request) => request.status === "pending"), [requests]);
   if (Platform.OS !== "web") return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="laptop-mac" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>بوابة المنصة للويب فقط</Text><Text style={styles.lockedText}>إدارة منصة Tips والشركات مخصصة للمتصفح. افتحها من الويب ولا تستخدم تطبيق الموظفين لهذه المهمة.</Text><PrimaryButton label="فتح بوابة المنصة في المتصفح" icon="open-in-new" onPress={() => void Linking.openURL("https://tipscrm-vevc4ncu.manus.space/platform")} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
   if (!session) return <Redirect href="/login" />;
-  if (loading || fetching) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingText}>جاري تحميل بوابة المنصة…</Text></ScreenContainer>;
+  if (loading && !authTimedOut) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingText}>جاري تحميل بوابة المنصة…</Text></ScreenContainer>;
+  if (loading && authTimedOut) return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="sync-problem" size={32} color={palette.warning} /></View><Text style={styles.lockedTitle}>تعذر تحميل الجلسة</Text><Text style={styles.lockedText}>لم تصل صلاحية الحساب خلال الوقت المتوقع. أعد المحاولة، أو سجّل الخروج ثم ادخل من جديد.</Text><View style={styles.retryActions}><PrimaryButton label="إعادة المحاولة" icon="refresh" onPress={() => void retryPortal()} style={{ flex: 1 }} /><TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.signOutTextButton}><Text style={styles.signOutText}>تسجيل الخروج</Text></TouchableOpacity></View></View></ScreenContainer>;
+  if (fetching) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingText}>جاري تحميل بيانات المنصة…</Text></ScreenContainer>;
   if (!profile?.is_platform_admin) return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="admin-panel-settings" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>بوابة مدير المنصة</Text><Text style={styles.lockedText}>هذه البوابة مخصصة لمالك منصة Tips فقط. لإدارة العمليات داخل شركتك، استخدم لوحة إدارة الشركة.</Text><PrimaryButton label="الانتقال إلى لوحة الشركة" icon="dashboard" onPress={() => router.replace("/admin" as never)} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={[styles.content, isWide && styles.wideContent]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -140,5 +166,5 @@ const styles = StyleSheet.create({
   wideGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 12 }, wideCard: { flexBasis: "48%", flexGrow: 1 }, requestCard: { backgroundColor: "#FFFFFF", borderRadius: 19, borderWidth: 1, borderColor: "#E8DED0", padding: 15, marginBottom: 10 }, companyCard: { backgroundColor: "#FFFFFF", borderRadius: 19, borderWidth: 1, borderColor: palette.line, padding: 15, marginBottom: 10 }, cardTop: { flexDirection: "row-reverse", gap: 11, alignItems: "flex-start" }, requestIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: "#FFF6E5", alignItems: "center", justifyContent: "center" }, companyIcon: { width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center" }, activeIcon: { backgroundColor: "#E9F8F2" }, inactiveIcon: { backgroundColor: "#FFF6E5" }, cardTitle: { color: palette.ink, fontSize: 15, fontWeight: "900", textAlign: "right" }, cardMeta: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: 3, textAlign: "right" }, phone: { alignSelf: "flex-end", color: palette.primary, fontSize: 11, fontWeight: "800", marginTop: 8 }, notes: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: 9, textAlign: "right", backgroundColor: "#F7FAF8", padding: 9, borderRadius: 10 }, cardActions: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 14 }, rejectButton: { minHeight: 36, borderRadius: 10, paddingHorizontal: 11, justifyContent: "center", borderWidth: 1, borderColor: "#E4B5B5" }, rejectText: { color: palette.error, fontWeight: "900", fontSize: 11 }, approveButton: { minHeight: 36, borderRadius: 10, paddingHorizontal: 11, backgroundColor: palette.primary, flexDirection: "row-reverse", gap: 5, alignItems: "center", justifyContent: "center" }, approveText: { color: "#FFFFFF", fontWeight: "900", fontSize: 11 },
   empty: { padding: 24, borderRadius: 18, alignItems: "center", backgroundColor: "#E9F8F2", borderWidth: 1, borderColor: "#B9DED3" }, emptyTitle: { color: palette.success, fontSize: 15, fontWeight: "900", marginTop: 7 }, emptyText: { color: palette.muted, fontSize: 11, textAlign: "center", marginTop: 4 }, companyFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 13, paddingTop: 10, borderTopColor: "#EDF1EF", borderTopWidth: 1 }, status: { borderRadius: 9, paddingHorizontal: 8, paddingVertical: 5 }, statusActive: { backgroundColor: "#E9F8F2" }, statusMuted: { backgroundColor: "#FFF6E5" }, statusText: { fontSize: 10, fontWeight: "900" }, statusActiveText: { color: palette.success }, statusMutedText: { color: palette.warning }, contact: { color: palette.muted, fontSize: 11, fontWeight: "700" },
   formCard: { marginTop: 18, backgroundColor: "#FFFFFF", borderColor: "#B9DED3", borderWidth: 1, borderRadius: 20, padding: 16 }, formTitle: { color: palette.ink, fontSize: 17, fontWeight: "900", textAlign: "right" }, formHint: { color: palette.muted, fontSize: 11, lineHeight: 17, textAlign: "right", marginTop: 6 }, formField: { marginTop: 11 }, fieldLabel: { color: palette.ink, fontSize: 11, fontWeight: "900", textAlign: "right", marginBottom: 6 }, input: { minHeight: 45, borderRadius: 12, borderWidth: 1, borderColor: "#DCE8E3", paddingHorizontal: 11, color: palette.ink, fontSize: 13 }, subheading: { color: palette.primary, fontSize: 13, fontWeight: "900", textAlign: "right", marginTop: 17 }, planRow: { flexDirection: "row-reverse", gap: 8, marginTop: 13 }, plan: { flex: 1, borderRadius: 11, minHeight: 37, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#DCE8E3" }, planActive: { borderColor: "#77BBAA", backgroundColor: "#E9F8F2" }, planText: { color: palette.muted, fontSize: 11, fontWeight: "900" }, planTextActive: { color: palette.primary }, formActions: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 17 }, cancelButton: { minHeight: 42, borderWidth: 1, borderColor: "#C7DAD3", borderRadius: 12, paddingHorizontal: 16, alignItems: "center", justifyContent: "center" }, cancelText: { color: palette.primary, fontSize: 12, fontWeight: "900" }, submitButton: { minHeight: 42, borderRadius: 12, backgroundColor: palette.primary, paddingHorizontal: 15, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 5 }, submitText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" }, dimmed: { opacity: 0.55 }, reviewCard: { marginTop: 18, backgroundColor: "#FFFFFF", borderColor: "#F2C1C1", borderWidth: 1, borderRadius: 20, padding: 16 }, reviewInput: { minHeight: 92, borderRadius: 12, borderWidth: 1, borderColor: "#F1CDCD", padding: 11, color: palette.ink, marginTop: 13, textAlignVertical: "top", fontSize: 13 }, dangerButton: { minHeight: 42, borderRadius: 12, backgroundColor: palette.error, paddingHorizontal: 15, alignItems: "center", justifyContent: "center" }, dangerText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
-  locked: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 25 }, lockIcon: { width: 68, height: 68, borderRadius: 24, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center", marginBottom: 15 }, lockedTitle: { color: palette.ink, fontWeight: "900", fontSize: 22 }, lockedText: { color: palette.muted, textAlign: "center", lineHeight: 21, marginTop: 8, fontSize: 14 },
+  locked: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 25 }, lockIcon: { width: 68, height: 68, borderRadius: 24, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center", marginBottom: 15 }, lockedTitle: { color: palette.ink, fontWeight: "900", fontSize: 22 }, lockedText: { color: palette.muted, textAlign: "center", lineHeight: 21, marginTop: 8, fontSize: 14 }, retryActions: { flexDirection: "row-reverse", gap: 10, width: "100%", marginTop: 20, alignItems: "center" }, signOutTextButton: { minHeight: 44, paddingHorizontal: 12, justifyContent: "center" }, signOutText: { color: palette.primary, fontWeight: "900", fontSize: 12 },
 });
