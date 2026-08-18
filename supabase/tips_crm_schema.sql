@@ -1,6 +1,8 @@
 CREATE SCHEMA IF NOT EXISTS tips_crm;
-REVOKE ALL ON SCHEMA tips_crm FROM PUBLIC, anon;
-GRANT USAGE ON SCHEMA tips_crm TO authenticated, service_role;
+GRANT USAGE ON SCHEMA tips_crm TO anon, authenticated, service_role, postgres, supabase_admin, supabase_auth_admin;
+GRANT ALL ON ALL TABLES IN SCHEMA tips_crm TO postgres, service_role, supabase_admin, supabase_auth_admin;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA tips_crm TO postgres, service_role, supabase_admin, supabase_auth_admin;
+GRANT ALL ON ALL ROUTINES IN SCHEMA tips_crm TO postgres, service_role, supabase_admin, supabase_auth_admin;
 
 CREATE TABLE tips_crm.roles (
   key text PRIMARY KEY,

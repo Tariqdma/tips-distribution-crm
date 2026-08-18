@@ -1,6 +1,5 @@
-import { AdminDashboard } from "@/app/(tabs)/admin";
-import { AdminWebShell } from "@/components/admin-web-shell";
+import { Redirect } from "expo-router";
 
-export default function AdminPortalIndex() {
-  return <AdminWebShell title="نظرة عامة"><AdminDashboard /></AdminWebShell>;
+export default function AdminIndex() {
+  return <Redirect href="/admin/operations" />;
 }

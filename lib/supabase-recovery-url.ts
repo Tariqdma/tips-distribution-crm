@@ -18,9 +18,5 @@ export function parseSupabaseRecoveryUrl(input: string): RecoveryUrlTokens {
 }
 
 export function hasRecoverySessionTokens(tokens: RecoveryUrlTokens) {
-  return Boolean(
-    tokens.accessToken &&
-      tokens.refreshToken &&
-      (!tokens.type || tokens.type === "recovery"),
-  );
+  return Boolean(tokens.accessToken && tokens.refreshToken && (!tokens.type || tokens.type === "recovery"));
 }

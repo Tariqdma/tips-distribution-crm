@@ -1,23 +1,272 @@
-// @ts-nocheck
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
 import { supabase } from "@/lib/supabase-client";
-import { useSupabaseAuth } from "@/lib/supabase-auth";
 
-const statuses = [{ key: "invited", label: "مدعو", color: "#6B7280" }, { key: "confirmed", label: "أكد الحضور", color: "#2563EB" }, { key: "declined", label: "اعتذر", color: "#B45309" }, { key: "attended", label: "حضر", color: "#0F766E" }, { key: "no_show", label: "لم يحضر", color: "#C2410C" }, { key: "follow_up", label: "يحتاج متابعة", color: "#7C3AED" }];
+type RemoteEvent = {
+  event_id: string;
+  title: string;
+  topic: string;
+  focus_product: string | null;
+  starts_at: string;
+  venue: string;
+  state: string;
+  city: string;
+  notes: string | null;
+  rep_name: string | null;
+  invite_count: number;
+  confirmed_count: number;
+  attended_count: number;
+  follow_up_count: number;
+};
+
+type RemoteInvitation = {
+  id: string;
+  event_id: string;
+  account_id: string;
+  invitation_status: string;
+  notes: string | null;
+  accounts?: { name: string; specialty: string | null } | null;
+};
 
 export default function MedicalEventDetailPage() {
-  const { id } = useLocalSearchParams<{ id: string }>(); const { profile } = useSupabaseAuth(); const [event, setEvent] = useState(null); const [invitations, setInvitations] = useState([]); const [loading, setLoading] = useState(true); const [note, setNote] = useState({});
-  const canManage = Boolean(profile?.permissions.includes("all") || profile?.permissions.includes("view_team_data") || profile?.permissions.includes("export_reports"));
-  const load = async () => { if (!supabase || !id || !canManage) return; setLoading(true); try { const [eventResult, invitationResult] = await Promise.all([supabase.schema("tips_crm").from("medical_events").select("*").eq("id", id).maybeSingle(), supabase.schema("tips_crm").from("medical_event_invitations").select("id, invitation_status, notes, responded_at, accounts(name, specialty, state, city)").eq("event_id", id).order("created_at")]); if (eventResult.error) throw eventResult.error; if (invitationResult.error) throw invitationResult.error; setEvent(eventResult.data); setInvitations(invitationResult.data ?? []); } catch (error) { Alert.alert("تعذر تحميل الفعالية", error instanceof Error ? error.message : "حاول مرة أخرى."); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [id, canManage]);
-  const updateInvitation = async (invitationId, status) => { if (!supabase) return; const { error } = await supabase.rpc("tips_crm_update_medical_event_invitation", { invitation_uuid: invitationId, next_status: status, note: note[invitationId] || null }); if (error) return Alert.alert("تعذر تحديث الدعوة", error.message); void load(); };
-  if (!canManage) return <AdminWebShell title="دعوات الفعالية"><View style={styles.lock}><MaterialIcons name="lock-outline" size={34} color={palette.primary} /><Text style={styles.lockText}>صلاحية الإدارة مطلوبة</Text></View></AdminWebShell>;
-  return <AdminWebShell title="دعوات الفعالية"><ScrollView contentContainerStyle={styles.page}><TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="arrow-forward" size={18} color={palette.primary} /><Text style={styles.backText}>العودة للبرنامج الطبي</Text></TouchableOpacity>{event ? <View style={styles.hero}><MaterialIcons name="event" size={27} color="#FFFFFF" /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroTitle}>{event.title}</Text><Text style={styles.heroCopy}>{event.topic}{event.focus_product ? ` · ${event.focus_product}` : ""}</Text><Text style={styles.heroCopy}>{new Date(event.starts_at).toLocaleString("ar")} · {event.venue} · {event.city}</Text></View></View> : null}<Text style={styles.title}>دعوات الأطباء وحالة الحضور</Text><Text style={styles.copy}>حدّث الحالة بعد الاتصال أو بعد الفعالية. تسجّل كل عملية في سجل التدقيق.</Text>{loading ? <ActivityIndicator color={palette.primary} style={{ marginTop: 28 }} /> : <View style={styles.list}>{invitations.length ? invitations.map((invitation) => { const current = statuses.find((item) => item.key === invitation.invitation_status) ?? statuses[0]; const account = invitation.accounts; return <View key={invitation.id} style={styles.card}><View style={styles.cardHead}><View style={[styles.statusDot, { backgroundColor: current.color }]} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.doctor}>{account?.name ?? "طبيب"}</Text><Text style={styles.meta}>{account?.specialty ?? "تخصص غير محدد"} · {account?.city ?? ""}</Text><Text style={[styles.current, { color: current.color }]}>الحالة الحالية: {current.label}</Text></View></View><View style={styles.statuses}>{statuses.map((status) => <TouchableOpacity key={status.key} onPress={() => void updateInvitation(invitation.id, status.key)} style={[styles.status, invitation.invitation_status === status.key && { borderColor: status.color, backgroundColor: `${status.color}10` }]}><Text style={[styles.statusText, invitation.invitation_status === status.key && { color: status.color }]}>{status.label}</Text></TouchableOpacity>)}</View><TextInput value={note[invitation.id] ?? invitation.notes ?? ""} onChangeText={(value) => setNote((currentNotes) => ({ ...currentNotes, [invitation.id]: value }))} textAlign="right" placeholder="ملاحظة اختيارية: سبب الاعتذار أو خطوة المتابعة" placeholderTextColor="#93A099" style={styles.note} /></View>; }) : <View style={styles.empty}><MaterialIcons name="group-off" size={30} color={palette.primary} /><Text style={styles.emptyText}>لا توجد دعوات مسجلة لهذه الفعالية.</Text></View>}</View>}</ScrollView></AdminWebShell>;
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [event, setEvent] = useState<RemoteEvent | null>(null);
+  const [invitations, setInvitations] = useState<RemoteInvitation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const load = async () => {
+    if (!id || !supabase) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const [eventsResult, invitationsResult] = await Promise.all([
+        supabase.rpc("tips_crm_medical_event_overview"),
+        supabase
+          .schema("tips_crm")
+          .from("medical_event_invitations")
+          .select("id,event_id,account_id,invitation_status,notes,accounts(name,specialty)")
+          .eq("event_id", id),
+      ]);
+
+      if (eventsResult.error) throw eventsResult.error;
+      const allEvents = (eventsResult.data ?? []) as RemoteEvent[];
+      const currentEvent = allEvents.find((item) => item.event_id === id) ?? null;
+      if (!currentEvent) {
+        setError("لم يتم العثور على الفعالية المطلوبة.");
+      } else {
+        setEvent(currentEvent);
+      }
+
+      if (invitationsResult.error) throw invitationsResult.error;
+      const rawInvitations = (invitationsResult.data ?? []) as Array<{
+        id: string;
+        event_id: string;
+        account_id: string;
+        invitation_status: string;
+        notes: string | null;
+        accounts?: { name: string; specialty: string | null } | Array<{ name: string; specialty: string | null }> | null;
+      }>;
+      setInvitations(
+        rawInvitations.map((item) => ({
+          id: item.id,
+          event_id: item.event_id,
+          account_id: item.account_id,
+          invitation_status: item.invitation_status,
+          notes: item.notes,
+          accounts: Array.isArray(item.accounts) ? item.accounts[0] ?? null : item.accounts ?? null,
+        })),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر تحميل بيانات الفعالية.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, [id]);
+
+  const updateStatus = async (invitationId: string, nextStatus: string) => {
+    if (!supabase) return;
+    setUpdatingId(invitationId);
+    try {
+      const { error: updateError } = await supabase.rpc("tips_crm_update_medical_event_invitation", {
+        invitation_uuid: invitationId,
+        next_status: nextStatus,
+        note: null,
+      });
+      if (updateError) throw updateError;
+      setInvitations((current) =>
+        current.map((item) => (item.id === invitationId ? { ...item, invitation_status: nextStatus } : item)),
+      );
+    } catch (err) {
+      Alert.alert("تعذر تحديث الحالة", err instanceof Error ? err.message : "حاول مرة أخرى.");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  return (
+    <AdminWebShell title="تفاصيل الفعالية العلمية">
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.push("/admin/medical-program" as never)} style={styles.backButton}>
+          <MaterialIcons name="arrow-forward" size={18} color={palette.primary} />
+          <Text style={styles.backText}>العودة إلى البرنامج الطبي</Text>
+        </TouchableOpacity>
+
+        {loading ? (
+          <View style={styles.state}>
+            <ActivityIndicator color={palette.primary} size="large" />
+            <Text style={styles.stateText}>جارٍ تحميل تفاصيل الفعالية…</Text>
+          </View>
+        ) : error || !event ? (
+          <View style={styles.errorCard}>
+            <MaterialIcons name="error-outline" size={28} color={palette.error} />
+            <Text style={styles.errorTitle}>{error || "الفعالية غير موجودة"}</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.hero}>
+              <View style={styles.heroIcon}>
+                <MaterialIcons name="event" size={28} color="#FFFFFF" />
+              </View>
+              <View style={styles.heroText}>
+                <Text style={styles.heroTitle}>{event.title}</Text>
+                <Text style={styles.heroMeta}>
+                  {event.topic} {event.focus_product ? `· محور: ${event.focus_product}` : ""}
+                </Text>
+                <Text style={styles.heroMeta}>
+                  {new Date(event.starts_at).toLocaleString("ar")} · {event.venue} ({event.city})
+                </Text>
+              </View>
+              <View style={styles.countsRow}>
+                <CountBadge label="مدعو" value={invitations.length} />
+                <CountBadge
+                  label="مؤكد"
+                  value={invitations.filter((i) => i.invitation_status === "confirmed").length}
+                />
+                <CountBadge
+                  label="حضر"
+                  value={invitations.filter((i) => i.invitation_status === "attended").length}
+                />
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <MaterialIcons name="people" size={20} color={palette.primary} />
+                <Text style={styles.sectionTitle}>قائمة الأطباء المدعوين وحالة الحضور ({invitations.length})</Text>
+              </View>
+
+              {invitations.length ? (
+                <View style={styles.list}>
+                  {invitations.map((invitation) => (
+                    <View key={invitation.id} style={styles.invitationRow}>
+                      <View style={styles.actions}>
+                        {[
+                          { key: "confirmed", label: "مؤكد" },
+                          { key: "attended", label: "حضر" },
+                          { key: "declined", label: "اعتذر" },
+                          { key: "follow_up", label: "متابعة" },
+                        ].map((choice) => {
+                          const isActive = invitation.invitation_status === choice.key;
+                          return (
+                            <TouchableOpacity
+                              key={choice.key}
+                              disabled={updatingId === invitation.id}
+                              onPress={() => void updateStatus(invitation.id, choice.key)}
+                              style={[styles.statusButton, isActive && styles.statusButtonActive]}
+                            >
+                              <Text style={[styles.statusText, isActive && styles.statusTextActive]}>
+                                {choice.label}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      <View style={styles.doctorInfo}>
+                        <Text style={styles.doctorName}>{invitation.accounts?.name ?? "طبيب مدعو"}</Text>
+                        <Text style={styles.doctorSpecialty}>
+                          {invitation.accounts?.specialty ?? "تخصص عام"} · الحالة الحالية:{" "}
+                          <Text style={styles.highlightStatus}>
+                            {invitation.invitation_status === "confirmed"
+                              ? "مؤكد الحضور"
+                              : invitation.invitation_status === "attended"
+                                ? "حضر الفعالية"
+                                : invitation.invitation_status === "declined"
+                                  ? "اعتذر عن الحضور"
+                                  : "بانتظار التأكيد"}
+                          </Text>
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.empty}>
+                  <MaterialIcons name="person-off" size={24} color={palette.muted} />
+                  <Text style={styles.emptyText}>لم يتم تسجيل أطباء مدعوين لهذه الفعالية بعد.</Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </AdminWebShell>
+  );
 }
 
-const styles = StyleSheet.create({ page: { paddingBottom: 35 }, back: { alignSelf: "flex-end", flexDirection: "row", gap: 5, alignItems: "center", marginBottom: 12 }, backText: { color: palette.primary, fontSize: 11, fontWeight: "900" }, hero: { borderRadius: 18, minHeight: 112, padding: 19, backgroundColor: "#246B91", flexDirection: "row", gap: 12, alignItems: "center" }, heroTitle: { color: "#FFFFFF", fontSize: 19, fontWeight: "900", textAlign: "right" }, heroCopy: { color: "#D8EFF9", fontSize: 11, marginTop: 5, textAlign: "right" }, title: { color: palette.ink, fontSize: 16, fontWeight: "900", marginTop: 20, textAlign: "right" }, copy: { color: palette.muted, fontSize: 10, lineHeight: 16, textAlign: "right", marginTop: 4 }, list: { marginTop: 12, gap: 9 }, card: { padding: 14, borderRadius: 15, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#DCEAE5" }, cardHead: { flexDirection: "row", gap: 10, alignItems: "center" }, statusDot: { width: 10, height: 10, borderRadius: 5 }, doctor: { color: palette.ink, fontSize: 13, fontWeight: "900", textAlign: "right" }, meta: { color: palette.muted, fontSize: 10, marginTop: 3, textAlign: "right" }, current: { fontSize: 10, fontWeight: "900", marginTop: 5, textAlign: "right" }, statuses: { marginTop: 11, flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, status: { minHeight: 31, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: "#D1E0DA", backgroundColor: "#F8FBF9", justifyContent: "center" }, statusText: { color: palette.muted, fontSize: 9, fontWeight: "800" }, note: { minHeight: 52, marginTop: 10, borderRadius: 9, borderWidth: 1, borderColor: "#D1E0DA", backgroundColor: "#F9FCFA", padding: 9, color: palette.ink, fontSize: 10 }, empty: { alignItems: "center", paddingVertical: 36, gap: 7, borderRadius: 15, backgroundColor: "#F7FBF9" }, emptyText: { color: palette.muted, fontSize: 11 }, lock: { minHeight: 350, alignItems: "center", justifyContent: "center", gap: 9 }, lockText: { color: palette.ink, fontSize: 16, fontWeight: "900" } });
+function CountBadge({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeValue}>{value}</Text>
+      <Text style={styles.badgeLabel}>{label}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  page: { paddingBottom: 36, gap: 14 },
+  backButton: { flexDirection: "row-reverse", alignItems: "center", gap: 6, marginBottom: 4, alignSelf: "flex-start" },
+  backText: { color: palette.primary, fontSize: 12, fontWeight: "800" },
+  state: { minHeight: 200, alignItems: "center", justifyContent: "center", gap: 10 },
+  stateText: { color: palette.muted, fontSize: 13 },
+  errorCard: { padding: 24, borderRadius: 16, backgroundColor: "#FFF1F1", alignItems: "center", gap: 8 },
+  errorTitle: { color: palette.error, fontSize: 14, fontWeight: "800" },
+  hero: { minHeight: 120, padding: 20, borderRadius: 18, backgroundColor: "#234258", flexDirection: "row-reverse", gap: 14, alignItems: "center" },
+  heroIcon: { width: 50, height: 50, borderRadius: 16, backgroundColor: "#3A7C9E", alignItems: "center", justifyContent: "center" },
+  heroText: { flex: 1, alignItems: "flex-end" },
+  heroTitle: { color: "#FFFFFF", fontSize: 19, fontWeight: "900", textAlign: "right" },
+  heroMeta: { color: "#D4EAF3", fontSize: 11, marginTop: 4, textAlign: "right" },
+  countsRow: { flexDirection: "row-reverse", gap: 6 },
+  badge: { minWidth: 50, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, backgroundColor: "#FFFFFF", alignItems: "center" },
+  badgeValue: { color: palette.primary, fontSize: 15, fontWeight: "900" },
+  badgeLabel: { color: palette.muted, fontSize: 9, fontWeight: "800", marginTop: 2 },
+  section: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "#DFEAE6" },
+  sectionHeader: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#EDF3F0" },
+  sectionTitle: { color: palette.ink, fontSize: 15, fontWeight: "900" },
+  list: { marginTop: 10 },
+  invitationRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#F2F6F4" },
+  doctorInfo: { flex: 1, alignItems: "flex-end", paddingRight: 10 },
+  doctorName: { color: palette.ink, fontSize: 13, fontWeight: "800", textAlign: "right" },
+  doctorSpecialty: { color: palette.muted, fontSize: 11, marginTop: 3, textAlign: "right" },
+  highlightStatus: { color: palette.primary, fontWeight: "800" },
+  actions: { flexDirection: "row-reverse", gap: 6 },
+  statusButton: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#D5E2DD", backgroundColor: "#F7FAF8" },
+  statusButtonActive: { backgroundColor: "#0D8068", borderColor: "#0D8068" },
+  statusText: { color: palette.muted, fontSize: 10, fontWeight: "800" },
+  statusTextActive: { color: "#FFFFFF" },
+  empty: { paddingVertical: 28, alignItems: "center", gap: 6 },
+  emptyText: { color: palette.muted, fontSize: 12 },
+});

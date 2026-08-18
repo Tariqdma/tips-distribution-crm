@@ -8,17 +8,160 @@ import { mapReceiptSearchRecord, type ReceiptSearchRecord, type RemoteReceiptSea
 import { supabase } from "@/lib/supabase-client";
 
 const currency = (value: number) => `${new Intl.NumberFormat("ar").format(value)} ج.س`;
-const formatDateTime = (value: string) => new Intl.DateTimeFormat("ar", { timeZone: "Africa/Khartoum", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
-const priorityLabel: Record<string, string> = { high: "عالية", medium: "متوسطة", low: "منخفضة" };
+const dateText = (value: string) =>
+  new Intl.DateTimeFormat("ar", { timeZone: "Africa/Khartoum", year: "numeric", month: "short", day: "numeric" }).format(
+    new Date(`${value}T12:00:00Z`),
+  );
 
 export default function ReceiptDetailPage() {
-  const { id } = useLocalSearchParams<{ id: string }>(); const [record, setRecord] = useState<ReceiptSearchRecord | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
-  useEffect(() => { let active = true; const load = async () => { if (!id || !supabase) { if (active) { setError("تعذر الوصول إلى بيانات الإيصال."); setLoading(false); } return; } const { data, error: remoteError } = await supabase.rpc("tips_crm_get_receipt_detail", { target_visit_id: id }); if (!active) return; if (remoteError || !(data as unknown[] | null)?.[0]) setError("لم يتم العثور على الإيصال، أو لا تملك صلاحية عرضه."); else setRecord(mapReceiptSearchRecord((data as RemoteReceiptSearchRecord[])[0])); setLoading(false); }; void load(); return () => { active = false; }; }, [id]);
-  return <AdminWebShell title="تفاصيل الإيصال"><ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}><TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="arrow-forward" size={19} color={palette.primary} /><Text style={styles.backText}>العودة إلى نتائج البحث</Text></TouchableOpacity>{loading ? <View style={styles.loading}><ActivityIndicator color={palette.primary} /><Text style={styles.loadingText}>يجري تحميل بيانات الإيصال…</Text></View> : error || !record ? <View style={styles.errorBox}><MaterialIcons name="receipt-long" size={32} color={palette.error} /><Text style={styles.errorText}>{error ?? "تعذر تحميل الإيصال."}</Text></View> : <><View style={styles.hero}><View style={styles.heroMark}><MaterialIcons name="verified" size={27} color="#FFFFFF" /></View><View style={styles.heroText}><Text style={styles.heroLabel}>رقم الإيصال أو الفاتورة</Text><Text style={styles.heroTitle}>{record.receiptReference}</Text><Text style={styles.heroCopy}>موثّق ضمن زيارة مكتملة في {formatDateTime(record.checkedInAt)}.</Text></View><View style={styles.amountBlock}><Text style={styles.amountLabel}>قيمة التحصيل</Text><Text style={styles.amount}>{currency(record.collectionAmount)}</Text></View></View><View style={styles.grid}><InfoCard icon="person" label="المندوب" value={record.repName} detail={record.repEmail} /><InfoCard icon="storefront" label="الجهة" value={record.accountName} detail={`${record.accountType} · ${record.accountPhone ?? "لا يوجد هاتف"}`} /><InfoCard icon="location-on" label="الموقع" value={`${record.city}${record.area ? ` · ${record.area}` : ""}`} detail={record.address ?? record.state} /><InfoCard icon="payments" label="قيمة البيع/الفاتورة" value={currency(record.revenueAmount)} detail={record.territoryName ? `منطقة التغطية: ${record.territoryName}` : "لم تحدد منطقة تغطية"} /></View><View style={styles.detailCard}><Section title="بيانات الزيارة" icon="fact-check" /><DataRow label="نتيجة الزيارة" value={record.outcome ?? "غير محددة"} /><DataRow label="وقت التوثيق" value={formatDateTime(record.checkedInAt)} /><DataRow label="أولوية التقرير" value={priorityLabel[record.visitPriority ?? ""] ?? "متوسطة"} /><DataRow label="موقع الحضور" value={record.checkInLatitude != null && record.checkInLongitude != null ? `${record.checkInLatitude.toFixed(5)}, ${record.checkInLongitude.toFixed(5)}${record.locationAccuracyMeters ? ` · دقة ${record.locationAccuracyMeters} م` : ""}` : "لم تسجل إحداثيات"} /><Text style={styles.notesLabel}>ملخص الزيارة</Text><Text style={styles.notes}>{record.notes ?? "لا توجد ملاحظات مضافة."}</Text></View>{record.followUpAction || record.followUpOn ? <View style={styles.followUp}><MaterialIcons name="event" size={20} color={palette.success} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.followUpTitle}>متابعة مرتبطة بالزيارة</Text><Text style={styles.followUpText}>{record.followUpAction ?? "لم تحدد خطوة متابعة"}{record.followUpOn ? ` · ${record.followUpOn}` : ""}</Text></View></View> : null}<View style={styles.audit}><MaterialIcons name="security" size={18} color="#285A8E" /><Text style={styles.auditText}>تُعرض هذه البيانات من سجل التحصيل المشترك للمراجعة المالية. أي تعديل جديد يجب أن يتم من تقرير الزيارة الميداني، حفاظاً على أثر التدقيق.</Text></View></>}</ScrollView></AdminWebShell>;
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [record, setRecord] = useState<ReceiptSearchRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      if (!id || !supabase) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error: queryError } = await supabase.rpc("tips_crm_search_receipt_records", {
+          search_query: id,
+          date_from: null,
+          date_to: null,
+          result_limit: 10,
+        });
+        if (queryError) throw queryError;
+        const list = ((data ?? []) as RemoteReceiptSearchRecord[]).map(mapReceiptSearchRecord);
+        const match = list.find((item) => item.visitId === id) ?? list[0] ?? null;
+        if (!match) {
+          setError("لم يتم العثور على سجل الإيصال المطلوب.");
+        } else {
+          setRecord(match);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "تعذر تحميل بيانات الإيصال.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
+  }, [id]);
+
+  return (
+    <AdminWebShell title="تفاصيل الإيصال">
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity onPress={() => router.push("/admin/receipt-search" as never)} style={styles.backButton}>
+          <MaterialIcons name="arrow-forward" size={18} color={palette.primary} />
+          <Text style={styles.backText}>العودة إلى بحث الإيصالات</Text>
+        </TouchableOpacity>
+
+        {loading ? (
+          <View style={styles.state}>
+            <ActivityIndicator color={palette.primary} size="large" />
+            <Text style={styles.stateText}>جارٍ تحميل تفاصيل الإيصال…</Text>
+          </View>
+        ) : error || !record ? (
+          <View style={styles.errorCard}>
+            <MaterialIcons name="error-outline" size={28} color={palette.error} />
+            <Text style={styles.errorTitle}>{error || "السجل غير موجود"}</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.hero}>
+              <View style={styles.heroBadge}>
+                <MaterialIcons name="receipt-long" size={26} color="#FFFFFF" />
+              </View>
+              <View style={styles.heroText}>
+                <Text style={styles.heroTitle}>إيصال رقم: {record.receiptReference}</Text>
+                <Text style={styles.heroMeta}>
+                  {record.accountName} · {dateText(record.reportDate)}
+                </Text>
+              </View>
+              <View style={styles.amountPill}>
+                <Text style={styles.amountLabel}>المبلغ المحصل</Text>
+                <Text style={styles.amountValue}>{currency(record.collectionAmount)}</Text>
+              </View>
+            </View>
+
+            <View style={styles.grid}>
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <MaterialIcons name="storefront" size={20} color={palette.primary} />
+                  <Text style={styles.cardTitle}>بيانات الجهة / العميل</Text>
+                </View>
+                <DetailRow label="اسم الجهة" value={record.accountName} />
+                <DetailRow label="نوع النشاط" value={record.accountType} />
+                <DetailRow label="المنطقة والمدينة" value={`${record.city} · ${record.area || record.state}`} />
+                {record.address ? <DetailRow label="العنوان" value={record.address} /> : null}
+                {record.accountPhone ? <DetailRow label="رقم الهاتف" value={record.accountPhone} /> : null}
+              </View>
+
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <MaterialIcons name="person" size={20} color={palette.primary} />
+                  <Text style={styles.cardTitle}>بيانات المندوب والزيارة</Text>
+                </View>
+                <DetailRow label="المندوب المسجل" value={record.repName} />
+                {record.repEmail ? <DetailRow label="البريد الإلكتروني" value={record.repEmail} /> : null}
+                {record.territoryName ? <DetailRow label="منطقة التغطية" value={record.territoryName} /> : null}
+                <DetailRow label="وقت التوثيق" value={record.checkedInAt || "—"} />
+                {record.outcome ? <DetailRow label="نتيجة الزيارة" value={record.outcome} /> : null}
+              </View>
+
+              <View style={[styles.card, styles.fullWidth]}>
+                <View style={styles.cardHeader}>
+                  <MaterialIcons name="fact-check" size={20} color={palette.primary} />
+                  <Text style={styles.cardTitle}>البيانات المالية والملاحظات</Text>
+                </View>
+                <DetailRow label="رقم الإيصال / الفاتورة" value={record.receiptReference} />
+                <DetailRow label="مبلغ التحصيل" value={currency(record.collectionAmount)} />
+                {record.revenueAmount ? <DetailRow label="مبلغ المبيعات" value={currency(record.revenueAmount)} /> : null}
+                {record.notes ? <DetailRow label="ملاحظات الميدان" value={record.notes} /> : null}
+                {record.followUpAction ? <DetailRow label="خطوة المتابعة" value={`${record.followUpAction} (${record.followUpOn || "غير محدد"})`} /> : null}
+              </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </AdminWebShell>
+  );
 }
 
-function Section({ icon, title }: { icon: keyof typeof MaterialIcons.glyphMap; title: string }) { return <View style={styles.section}><MaterialIcons name={icon} size={19} color={palette.primary} /><Text style={styles.sectionTitle}>{title}</Text></View>; }
-function InfoCard({ icon, label, value, detail }: { icon: keyof typeof MaterialIcons.glyphMap; label: string; value: string; detail?: string }) { return <View style={styles.infoCard}><View style={styles.infoIcon}><MaterialIcons name={icon} size={20} color={palette.primary} /></View><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue} numberOfLines={1}>{value}</Text><Text style={styles.infoDetail} numberOfLines={2}>{detail ?? "—"}</Text></View>; }
-function DataRow({ label, value }: { label: string; value: string }) { return <View style={styles.dataRow}><Text style={styles.dataValue}>{value}</Text><Text style={styles.dataLabel}>{label}</Text></View>; }
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailValue}>{value}</Text>
+      <Text style={styles.detailLabel}>{label}</Text>
+    </View>
+  );
+}
 
-const styles = StyleSheet.create({ page: { paddingBottom: 34 }, back: { alignSelf: "flex-start", minHeight: 38, paddingHorizontal: 11, borderRadius: 10, backgroundColor: "#EAF7F2", flexDirection: "row-reverse", alignItems: "center", gap: 5 }, backText: { color: palette.primary, fontSize: 11, fontWeight: "900" }, loading: { minHeight: 340, alignItems: "center", justifyContent: "center", gap: 10 }, loadingText: { color: palette.muted, fontSize: 12 }, errorBox: { minHeight: 300, borderRadius: 18, backgroundColor: "#FFF5F5", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 14 }, errorText: { color: palette.error, fontSize: 12, fontWeight: "800" }, hero: { marginTop: 13, padding: 22, minHeight: 145, borderRadius: 20, backgroundColor: "#143D35", flexDirection: "row-reverse", alignItems: "center", gap: 15 }, heroMark: { width: 54, height: 54, borderRadius: 17, backgroundColor: "#0B8067", alignItems: "center", justifyContent: "center" }, heroText: { flex: 1, alignItems: "flex-end" }, heroLabel: { color: "#B5DDD3", fontSize: 11, fontWeight: "800" }, heroTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "900", textAlign: "right", marginTop: 4 }, heroCopy: { color: "#CBEDE6", fontSize: 10, marginTop: 6, textAlign: "right" }, amountBlock: { alignItems: "flex-start", padding: 12, borderRadius: 13, backgroundColor: "#0D5144" }, amountLabel: { color: "#B5DDD3", fontSize: 10 }, amount: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginTop: 3 }, grid: { marginTop: 14, flexDirection: "row-reverse", gap: 10 }, infoCard: { flex: 1, minHeight: 132, padding: 13, borderRadius: 16, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E0EBE6", alignItems: "flex-end" }, infoIcon: { width: 33, height: 33, borderRadius: 11, backgroundColor: "#EAF7F2", alignItems: "center", justifyContent: "center" }, infoLabel: { color: palette.muted, fontSize: 10, marginTop: 8 }, infoValue: { color: palette.ink, fontSize: 12, fontWeight: "900", marginTop: 3, maxWidth: "100%" }, infoDetail: { color: palette.muted, fontSize: 9, lineHeight: 14, textAlign: "right", marginTop: 4 }, detailCard: { marginTop: 14, padding: 17, borderRadius: 18, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E0EBE6" }, section: { flexDirection: "row-reverse", alignItems: "center", gap: 7, paddingBottom: 9, borderBottomWidth: 1, borderBottomColor: "#EDF2F0" }, sectionTitle: { color: palette.ink, fontSize: 14, fontWeight: "900" }, dataRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", minHeight: 43, borderBottomWidth: 1, borderBottomColor: "#F0F4F2" }, dataLabel: { color: palette.muted, fontSize: 10, fontWeight: "800" }, dataValue: { color: palette.ink, fontSize: 11, textAlign: "left", maxWidth: "70%" }, notesLabel: { color: palette.primary, fontSize: 11, fontWeight: "900", textAlign: "right", marginTop: 15 }, notes: { color: palette.ink, fontSize: 12, lineHeight: 20, textAlign: "right", marginTop: 6 }, followUp: { marginTop: 14, padding: 14, borderRadius: 16, backgroundColor: "#EAF8F2", flexDirection: "row-reverse", gap: 9, alignItems: "center" }, followUpTitle: { color: palette.success, fontSize: 12, fontWeight: "900", textAlign: "right" }, followUpText: { color: "#17674F", fontSize: 11, textAlign: "right", marginTop: 4 }, audit: { marginTop: 14, padding: 13, borderRadius: 14, backgroundColor: "#EFF6FF", flexDirection: "row-reverse", gap: 8, alignItems: "flex-start" }, auditText: { flex: 1, color: "#285A8E", fontSize: 11, lineHeight: 17, textAlign: "right" } });
+const styles = StyleSheet.create({
+  page: { paddingBottom: 34 },
+  backButton: { flexDirection: "row-reverse", alignItems: "center", gap: 6, marginBottom: 14, alignSelf: "flex-start" },
+  backText: { color: palette.primary, fontSize: 12, fontWeight: "800" },
+  state: { minHeight: 200, alignItems: "center", justifyContent: "center", gap: 10 },
+  stateText: { color: palette.muted, fontSize: 13 },
+  errorCard: { padding: 24, borderRadius: 16, backgroundColor: "#FFF1F1", alignItems: "center", gap: 8 },
+  errorTitle: { color: palette.error, fontSize: 14, fontWeight: "800" },
+  hero: { minHeight: 110, padding: 20, borderRadius: 18, backgroundColor: "#143D35", flexDirection: "row-reverse", gap: 14, alignItems: "center" },
+  heroBadge: { width: 48, height: 48, borderRadius: 15, backgroundColor: "#0B8067", alignItems: "center", justifyContent: "center" },
+  heroText: { flex: 1, alignItems: "flex-end" },
+  heroTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
+  heroMeta: { color: "#CBEDE6", fontSize: 12, marginTop: 4, textAlign: "right" },
+  amountPill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, backgroundColor: "#FFFFFF", alignItems: "center" },
+  amountLabel: { color: palette.muted, fontSize: 10, fontWeight: "700" },
+  amountValue: { color: palette.success, fontSize: 15, fontWeight: "900", marginTop: 2 },
+  grid: { marginTop: 18, flexDirection: "row-reverse", flexWrap: "wrap", gap: 14 },
+  card: { flex: 1, minWidth: 320, padding: 18, borderRadius: 16, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#E2ECE7" },
+  fullWidth: { flexBasis: "100%" },
+  cardHeader: { flexDirection: "row-reverse", alignItems: "center", gap: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "#EDF3F0", marginBottom: 8 },
+  cardTitle: { color: palette.ink, fontSize: 14, fontWeight: "800" },
+  detailRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: "#F4F7F5" },
+  detailLabel: { color: palette.muted, fontSize: 11, fontWeight: "700" },
+  detailValue: { color: palette.ink, fontSize: 12, fontWeight: "800", maxWidth: "60%", textAlign: "left" },
+});

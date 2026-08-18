@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
+import fs from "fs";
 import net from "net";
 import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -35,10 +36,16 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  const webDistDirectory = path.join(process.cwd(), "web-dist");
+  const webDistDirectory = path.resolve(process.cwd(), "web-dist");
+  const indexHtmlPath = path.join(webDistDirectory, "index.html");
+  const hasWebDist = fs.existsSync(indexHtmlPath);
   const sendWebApplication = (_req: express.Request, res: express.Response) => {
+    if (!hasWebDist) {
+      res.status(503).type("text/plain").send("واجهة Tips CRM قيد التجهيز. أعد المحاولة بعد لحظات.");
+      return;
+    }
     res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.sendFile(path.join(webDistDirectory, "index.html"));
+    res.sendFile(indexHtmlPath);
   };
 
   // Enable CORS for all routes - reflect the request origin to support credentials
@@ -68,18 +75,22 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  // The public domain must serve the real Expo Web application—not the old
-  // server-side recovery landing page. Static assets are cached by filename;
-  // the HTML shell is deliberately not cached so published fixes take effect.
-  app.use(express.static(webDistDirectory, { index: false, maxAge: "1h", immutable: true }));
+  // The public domain must serve the real Expo Web application. The old
+  // server-side landing page is intentionally not used as a fallback.
+  if (hasWebDist) {
+    app.use(express.static(webDistDirectory, { index: false, maxAge: 0 }));
+  }
 
   app.get("/", sendWebApplication);
 
   app.get("/vendor/supabase.js", (_req, res) => {
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.type("application/javascript").sendFile(
-      path.join(process.cwd(), "node_modules", "@supabase", "supabase-js", "dist", "umd", "supabase.js"),
-    );
+    const localVendor = path.join(process.cwd(), "node_modules", "@supabase", "supabase-js", "dist", "umd", "supabase.js");
+    if (fs.existsSync(localVendor)) {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.type("application/javascript").sendFile(localVendor);
+    } else {
+      res.redirect("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js");
+    }
   });
 
   app.get("/reset-password", sendWebApplication);

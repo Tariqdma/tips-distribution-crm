@@ -36,9 +36,9 @@ const env = {
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
-  publicAppUrl: "https://tipscrm-vevc4ncu.manus.space",
-  supabaseUrl: process.env.VITE_SUPABASE_URL ?? "",
-  supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY ?? "",
+  publicAppUrl: process.env.EXPO_PUBLIC_APP_URL ?? process.env.TIPS_CRM_PUBLIC_URL ?? "https://tipscrm-vevc4ncu.manus.space",
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "https://luqrrjhvaremronfcvaf.supabase.co",
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cXJyamh2YXJlbXJvbmZjdmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MzM2MzgsImV4cCI6MjA3NjMwOTYzOH0.8g_QSxyxra1uVVJFboe45Dilq3X1CCdgHoZTY3UPESk",
 };
 
 const config: ExpoConfig = {
