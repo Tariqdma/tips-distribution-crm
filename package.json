@@ -9,7 +9,7 @@
     "dev:metro": "cross-env CI=0 EXPO_USE_METRO_WORKSPACE_ROOT=1 npx expo start --web --max-workers 2 --port ${EXPO_PORT:-8081}",
     "dev:static": "pnpm export:web && tsx server/static-preview.ts",
     "export:web": "cross-env NODE_ENV=production EXPO_NO_METRO_WORKSPACE_ROOT=1 npx expo export --platform web --max-workers 1 --output-dir dist/web",
-    "build": "pnpm export:web && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "pnpm export:web && node scripts/embed-web-assets.mjs && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "pnpm export:web && NODE_ENV=production node dist/index.js",
     "check": "tsc --noEmit",
     "lint": "expo lint",

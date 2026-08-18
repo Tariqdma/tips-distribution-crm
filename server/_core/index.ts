@@ -13,6 +13,7 @@ import { ENV } from "./env";
 import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
+import { embeddedWebAssets } from "../generated-web-assets";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -39,12 +40,21 @@ async function startServer() {
   const webDistDirectory = path.resolve(process.cwd(), "dist", "web");
   const indexHtmlPath = path.join(webDistDirectory, "index.html");
   const sendWebApplication = (_req: express.Request, res: express.Response) => {
+    const embeddedIndex = embeddedWebAssets["/index.html"];
+    if (fs.existsSync(indexHtmlPath)) {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.sendFile(indexHtmlPath);
+      return;
+    }
+    if (embeddedIndex) {
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.type(embeddedIndex.contentType).send(Buffer.from(embeddedIndex.body, "base64"));
+      return;
+    }
     if (!fs.existsSync(indexHtmlPath)) {
       res.status(503).type("text/plain").send("واجهة Tips CRM قيد التجهيز. أعد المحاولة بعد لحظات.");
       return;
     }
-    res.setHeader("Cache-Control", "no-store, max-age=0");
-    res.sendFile(indexHtmlPath);
   };
 
   // Enable CORS for all routes - reflect the request origin to support credentials
@@ -77,6 +87,15 @@ async function startServer() {
   // The public domain must serve the real Expo Web application. The old
   // server-side landing page is intentionally not used as a fallback.
   app.use(express.static(webDistDirectory, { index: false, maxAge: 0 }));
+  app.use((req, res, next) => {
+    const asset = embeddedWebAssets[req.path];
+    if (!asset) {
+      next();
+      return;
+    }
+    res.setHeader("Cache-Control", req.path === "/index.html" ? "no-store, max-age=0" : "public, max-age=31536000, immutable");
+    res.type(asset.contentType).send(Buffer.from(asset.body, "base64"));
+  });
 
   app.get("/", sendWebApplication);
 
