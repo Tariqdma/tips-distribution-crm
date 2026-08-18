@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Redirect, router, usePathname } from "expo-router";
-import { type ReactNode, useState } from "react";
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { type ReactNode } from "react";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { palette } from "@/components/crm-ui";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -9,14 +9,12 @@ const navigation = [{ label: "نظرة عامة", icon: "dashboard" as const, hr
 
 export function AdminWebShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = usePathname();
-  const { session, loading, profile, claimFirstSystemAdmin } = useSupabaseAuth();
-  const [claimingFirstAdmin, setClaimingFirstAdmin] = useState(false);
-  const claimFirstAdmin = async () => { setClaimingFirstAdmin(true); const success = await claimFirstSystemAdmin(); setClaimingFirstAdmin(false); if (success) Alert.alert("تمت التهيئة", "أصبح هذا الحساب مدير النظام الأول. يمكنك الآن متابعة بوابة الإدارة."); else Alert.alert("لا يمكن التهيئة", "يوجد مدير نظام بالفعل أو لم يتم التعرف على هذا الحساب. اطلب من مدير النظام تعيين دورك."); };
+  const { session, loading, profile } = useSupabaseAuth();
   if (Platform.OS !== "web") return <Redirect href={"/company" as never} />;
   if (loading) return <View style={styles.mobileNotice}><Text style={styles.mobileCopy}>يجري التحقق من الجلسة…</Text></View>;
   if (!session) return <View style={styles.mobileNotice}><MaterialIcons name="lock-outline" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>تسجيل الدخول مطلوب</Text><Text style={styles.mobileCopy}>تحتاج إلى حساب معتمد للوصول إلى بوابة الإدارة.</Text><TouchableOpacity onPress={() => router.replace("/login" as never)} style={[styles.navItem, styles.navItemActive]}><Text style={styles.navTextActive}>تسجيل الدخول</Text></TouchableOpacity></View>;
   if (profile?.is_platform_admin) return <Redirect href={"/platform" as never} />;
-  if (!profile?.permissions.includes("all") && !profile?.permissions.includes("view_team_data")) return <View style={styles.mobileNotice}><MaterialIcons name="admin-panel-settings" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>بانتظار صلاحية الإدارة</Text><Text style={styles.mobileCopy}>{profile ? "يمكن لمدير النظام تعيين دور إداري لحسابك من بوابة الفريق." : "لا يوجد ملف وظيفي لهذا الحساب بعد. إذا كنت المسؤول الذي بدأ النظام، يمكنك تهيئة حسابك كمدير النظام الأول."}</Text>{!profile ? <TouchableOpacity disabled={claimingFirstAdmin} onPress={() => void claimFirstAdmin()} style={[styles.bootstrapButton, claimingFirstAdmin && { opacity: .6 }]}>{claimingFirstAdmin ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.bootstrapText}>تهيئة حسابي كمدير النظام الأول</Text>}</TouchableOpacity> : null}</View>;
+  if (!profile?.permissions.includes("all") && !profile?.permissions.includes("view_team_data")) return <View style={styles.mobileNotice}><MaterialIcons name="admin-panel-settings" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>وصول إداري غير متاح</Text><Text style={styles.mobileCopy}>{profile ? "هذا الحساب لا يملك صلاحية بوابة الشركة. اطلب من مدير شركتك تعيين الدور المناسب." : "تعذر تحميل الملف الوظيفي لهذا الحساب. سجّل الخروج ثم ادخل بالحساب الذي وصلك من مدير المنصة أو مدير الشركة."}</Text></View>;
   const fullName = profile?.full_name ?? "موظف Tips";
   const initials = fullName.split(" ").slice(0, 2).map((part) => part[0]).join(" ");
   return <View style={styles.root}><View style={styles.sidebar}><View style={styles.brand}><View style={styles.brandMark}><Text style={styles.brandMarkText}>T</Text></View><View><Text style={styles.brandName}>Tips CRM</Text><Text style={styles.brandKicker}>بوابة الإدارة</Text></View></View><View style={styles.nav}>{navigation.map((item) => { const isActive = pathname === item.href; return <TouchableOpacity key={item.href} onPress={() => router.replace(item.href as never)} style={[styles.navItem, isActive && styles.navItemActive]}><MaterialIcons name={item.icon} size={20} color={isActive ? "#FFFFFF" : "#9CB8B0"} /><Text style={[styles.navText, isActive && styles.navTextActive]}>{item.label}</Text></TouchableOpacity>; })}</View><View style={styles.sidebarFoot}><View style={styles.onlineDot} /><Text style={styles.sidebarFootText}>النظام متصل</Text></View></View><View style={styles.main}><View style={styles.topbar}><View style={styles.topbarLeft}><View style={styles.avatar}><Text style={styles.avatarText}>{initials}</Text></View><View><Text style={styles.adminName}>{fullName}</Text><Text style={styles.adminRole}>{profile?.role_name ?? "بانتظار التعيين"}</Text></View></View><Text style={styles.pageTitle}>{title}</Text></View><View style={styles.content}>{children}</View></View></View>;
