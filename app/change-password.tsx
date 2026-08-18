@@ -6,6 +6,7 @@ import { palette } from "@/components/crm-ui";
 import { validateNewPassword } from "@/lib/password-policy";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { getPostLoginRoute } from "@/lib/post-login-route";
 
 export default function ChangePasswordScreen() {
   const { profile, refreshProfile, signOut } = useSupabaseAuth();
@@ -13,7 +14,7 @@ export default function ChangePasswordScreen() {
   const save = async () => {
     const validation = validateNewPassword(password, confirmation); if (validation) { Alert.alert("تحقق من كلمة المرور", validation); return; }
     if (!supabase) return; setSaving(true);
-    try { const { error } = await supabase.auth.updateUser({ password }); if (error) throw error; const { error: profileError } = await supabase.rpc("tips_crm_mark_password_changed"); if (profileError) throw profileError; const updated = await refreshProfile(); Alert.alert("تم الحفظ", "تم تغيير كلمة المرور بنجاح."); router.replace(updated?.role_key === "system_admin" || updated?.role_key === "sales_manager" ? "/admin" as never : "/(tabs)" as never); }
+    try { const { error } = await supabase.auth.updateUser({ password }); if (error) throw error; const { error: profileError } = await supabase.rpc("tips_crm_mark_password_changed"); if (profileError) throw profileError; const updated = await refreshProfile(); Alert.alert("تم الحفظ", "تم تغيير كلمة المرور بنجاح."); router.replace(getPostLoginRoute({ roleKey: updated?.role_key, isPlatformAdmin: Boolean(updated?.is_platform_admin), isWeb: false }) as never); }
     catch (error) { Alert.alert("تعذر الحفظ", error instanceof Error ? error.message : "حاول مرة أخرى."); }
     finally { setSaving(false); }
   };
