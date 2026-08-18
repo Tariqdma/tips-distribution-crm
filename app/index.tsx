@@ -8,6 +8,12 @@ export default function IndexRedirect() {
   const { session, loading } = useSupabaseAuth();
   useEffect(() => {
     if (loading) return;
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const isRecovery = url.includes("type=recovery") || url.includes("access_token=") || url.includes("code=");
+    if (isRecovery) {
+      router.replace("/reset-password" as never);
+      return;
+    }
     if (session) {
       router.replace("/(tabs)" as never);
     } else {

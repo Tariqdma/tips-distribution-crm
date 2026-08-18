@@ -1,7 +1,8 @@
 export const DEFAULT_PUBLIC_APP_URL = "https://tipscrm-vevc4ncu.manus.space";
 
 export function buildPasswordRecoveryRedirect(baseUrl: string) {
-  return `${baseUrl.replace(/\/+$/, "")}/reset-password`;
+  const base = typeof window !== "undefined" && window.location?.origin ? window.location.origin : baseUrl;
+  return `${base.replace(/\/+$/, "")}/reset-password`;
 }
 
 export function getPasswordRecoveryRedirect() {
