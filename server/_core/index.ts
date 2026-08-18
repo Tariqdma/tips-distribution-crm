@@ -13,6 +13,7 @@ import { ENV } from "./env";
 import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
+import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -111,6 +112,17 @@ async function startServer() {
       res.json(await sendPlanSubmissionEmail(req.body));
     } catch (error) {
       res.status(400).json({ message: error instanceof Error ? error.message : "تعذر إرسال تنبيه الخطة." });
+    }
+  });
+
+  app.post("/api/auth/password-recovery", async (req, res) => {
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email : "";
+      await sendManagedPasswordRecoveryEmail(email);
+      res.status(202).json({ sent: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إرسال رسالة الاستعادة.";
+      res.status(400).json({ message });
     }
   });
 

@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { createClient } from "@supabase/supabase-js";
-import { buildPasswordRecoveryRequest } from "./password-recovery-request";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 const DEFAULT_SUPABASE_URL = "https://luqrrjhvaremronfcvaf.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY =
@@ -42,14 +42,13 @@ export const supabase = isSupabaseConfigured
  * The recovery endpoint intentionally omits a code challenge so Supabase sends
  * a short-lived recovery token in the redirect fragment instead.
  */
-export async function sendPasswordRecoveryEmail(email: string, redirectTo: string) {
-  const request = buildPasswordRecoveryRequest({
-    supabaseUrl: supabaseUrl ?? "",
-    supabaseAnonKey: supabaseAnonKey ?? "",
-    email,
-    redirectTo,
+export async function sendPasswordRecoveryEmail(email: string, _redirectTo: string) {
+  const apiBaseUrl = getApiBaseUrl();
+  const response = await fetch(`${apiBaseUrl}/api/auth/password-recovery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
   });
-  const response = await fetch(request.url, request.options);
   if (response.ok) return;
   const body = (await response.json().catch(() => ({}))) as { message?: string; error_description?: string };
   throw new Error(body.message || body.error_description || "تعذر إرسال رابط الاستعادة.");

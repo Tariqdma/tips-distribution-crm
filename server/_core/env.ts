@@ -12,6 +12,5 @@ export const ENV = {
   supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "",
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "",
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-  crmPublicUrl: (process.env.TIPS_CRM_PUBLIC_URL ?? process.env.PUBLIC_APP_URL ?? "https://crm.tips-sd.com").replace(/\/+$/, ""),
+  crmPublicUrl: (process.env.TIPS_CRM_PUBLIC_URL ?? process.env.PUBLIC_APP_URL ?? "https://tipscrm-vevc4ncu.manus.space").replace(/\/+$/, ""),
 };
-

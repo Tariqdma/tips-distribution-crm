@@ -19,7 +19,27 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   };
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
-    void supabase.auth.getSession().then(async ({ data }) => { setSession(data.session); if (data.session) await refreshProfile(); setLoading(false); });
+    void (async () => {
+      const recoveryUrl = typeof window !== "undefined" ? new URL(window.location.href) : null;
+      const tokenHash = recoveryUrl?.searchParams.get("token_hash");
+      const recoveryType = recoveryUrl?.searchParams.get("type");
+      if (tokenHash && recoveryType === "recovery") {
+        const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+        if (!error && data.session) {
+          setSession(data.session);
+          await refreshProfile();
+          recoveryUrl?.searchParams.delete("token_hash");
+          recoveryUrl?.searchParams.delete("type");
+          window.history.replaceState({}, "", `${recoveryUrl?.pathname ?? "/reset-password"}${recoveryUrl?.search ?? ""}`);
+          setLoading(false);
+          return;
+        }
+      }
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+      if (data.session) await refreshProfile();
+      setLoading(false);
+    })();
     const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, nextSession) => { setSession(nextSession); if (nextSession) await refreshProfile(); else setProfile(null); setLoading(false); });
     return () => subscription.subscription.unsubscribe();
   }, []);
