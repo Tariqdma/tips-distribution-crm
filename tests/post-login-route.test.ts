@@ -7,6 +7,11 @@ describe("post-login routing", () => {
     expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: true })).toBe("/admin");
   });
 
+  it("sends mobile managers to the mobile administration dashboard", () => {
+    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: false })).toBe("/(tabs)/admin");
+    expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: false })).toBe("/(tabs)/admin");
+  });
+
   it("sends field representatives to their employee tabs on web and mobile", () => {
     expect(getPostLoginRoute({ roleKey: "sales_rep", isWeb: true })).toBe("/");
     expect(getPostLoginRoute({ roleKey: "medical_rep", isWeb: false })).toBe("/");
