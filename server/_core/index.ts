@@ -14,6 +14,7 @@ import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePass
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
 import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
+import { approveCompanyRequest, createCompanyDirect, reviewCompanyRequest } from "../platform-company";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -123,6 +124,36 @@ async function startServer() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إرسال رسالة الاستعادة.";
       res.status(400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/company-requests/:requestId/approve", async (req, res) => {
+    try {
+      const company = await approveCompanyRequest({ ...req.body, requestId: req.params.requestId }, req.header("authorization"));
+      res.status(201).json({ company });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر اعتماد طلب الشركة.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/company-requests/:requestId/review", async (req, res) => {
+    try {
+      await reviewCompanyRequest({ requestId: req.params.requestId, status: req.body?.status, reviewNote: req.body?.reviewNote }, req.header("authorization"));
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر مراجعة طلب الشركة.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/platform/companies", async (req, res) => {
+    try {
+      const company = await createCompanyDirect(req.body, req.header("authorization"));
+      res.status(201).json({ company });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إنشاء الشركة.";
+      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });
 

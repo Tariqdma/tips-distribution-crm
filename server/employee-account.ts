@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { ENV } from "./_core/env";
 
-export const EMPLOYEE_ROLE_KEYS = ["sales_manager", "sales_rep", "medical_rep"] as const;
+export const EMPLOYEE_ROLE_KEYS = ["sales_manager", "company_manager", "sales_supervisor", "medical_supervisor", "accountant", "sales_rep", "medical_rep"] as const;
 export type EmployeeRoleKey = (typeof EMPLOYEE_ROLE_KEYS)[number];
 
 export type TemporaryEmployeeInput = {
@@ -36,7 +36,7 @@ export function validateTemporaryEmployeeInput(input: TemporaryEmployeeInput) {
   if (input.password.length < 8) return "كلمة المرور المؤقتة يجب أن تتكون من 8 أحرف على الأقل.";
   if (!EMPLOYEE_ROLE_KEYS.includes(input.roleKey)) return "الدور المحدد غير متاح لإنشاء حساب موظف.";
   const territoryIds = input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : []);
-  if (input.roleKey !== "sales_manager" && territoryIds.length === 0) return "اختر منطقة عمل واحدة على الأقل للمندوب.";
+  if ((input.roleKey === "sales_rep" || input.roleKey === "medical_rep") && territoryIds.length === 0) return "اختر منطقة عمل واحدة على الأقل للمندوب.";
   return null;
 }
 

@@ -21,6 +21,12 @@ describe("temporary employee account validation", () => {
     expect(validateTemporaryEmployeeInput({ ...validInput, territoryIds: ["t1", "t2", "t3"] })).toBeNull();
   });
 
+  it("allows company supervisors and accountants without a representative territory", () => {
+    expect(validateTemporaryEmployeeInput({ ...validInput, roleKey: "sales_supervisor", territoryIds: [] })).toBeNull();
+    expect(validateTemporaryEmployeeInput({ ...validInput, roleKey: "medical_supervisor", territoryIds: [] })).toBeNull();
+    expect(validateTemporaryEmployeeInput({ ...validInput, roleKey: "accountant", territoryIds: [] })).toBeNull();
+  });
+
   it("resolves selected territory client keys from the secure shared catalog", () => {
     const result = resolveEmployeeTerritories(["t1", "t2"], ["العمارات والرياض", "بحري"], [
       { client_key: "t1", name: "العمارات والرياض" },

@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { router, usePathname } from "expo-router";
+import { Redirect, router, usePathname } from "expo-router";
 import { type ReactNode, useState } from "react";
 import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { palette } from "@/components/crm-ui";
@@ -15,6 +15,7 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
   if (Platform.OS !== "web") return <View style={styles.mobileNotice}><MaterialIcons name="laptop-mac" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>بوابة الإدارة للويب</Text><Text style={styles.mobileCopy}>استخدم لوحة الإدارة من متصفح جهاز مكتبي أو لوحي للحصول على مساحة عمل كاملة.</Text></View>;
   if (loading) return <View style={styles.mobileNotice}><Text style={styles.mobileCopy}>يجري التحقق من الجلسة…</Text></View>;
   if (!session) return <View style={styles.mobileNotice}><MaterialIcons name="lock-outline" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>تسجيل الدخول مطلوب</Text><Text style={styles.mobileCopy}>تحتاج إلى حساب معتمد للوصول إلى بوابة الإدارة.</Text><TouchableOpacity onPress={() => router.replace("/login" as never)} style={[styles.navItem, styles.navItemActive]}><Text style={styles.navTextActive}>تسجيل الدخول</Text></TouchableOpacity></View>;
+  if (profile?.is_platform_admin) return <Redirect href={"/platform" as never} />;
   if (!profile?.permissions.includes("all") && !profile?.permissions.includes("view_team_data")) return <View style={styles.mobileNotice}><MaterialIcons name="admin-panel-settings" size={34} color={palette.primary} /><Text style={styles.mobileTitle}>بانتظار صلاحية الإدارة</Text><Text style={styles.mobileCopy}>{profile ? "يمكن لمدير النظام تعيين دور إداري لحسابك من بوابة الفريق." : "لا يوجد ملف وظيفي لهذا الحساب بعد. إذا كنت المسؤول الذي بدأ النظام، يمكنك تهيئة حسابك كمدير النظام الأول."}</Text>{!profile ? <TouchableOpacity disabled={claimingFirstAdmin} onPress={() => void claimFirstAdmin()} style={[styles.bootstrapButton, claimingFirstAdmin && { opacity: .6 }]}>{claimingFirstAdmin ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.bootstrapText}>تهيئة حسابي كمدير النظام الأول</Text>}</TouchableOpacity> : null}</View>;
   const fullName = profile?.full_name ?? "موظف Tips";
   const initials = fullName.split(" ").slice(0, 2).map((part) => part[0]).join(" ");

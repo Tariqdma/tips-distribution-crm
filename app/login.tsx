@@ -46,8 +46,8 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const routeToAccount = (roleKey?: string, mustChangePassword?: boolean) => {
-    const destination = getPostLoginRoute({ roleKey, mustChangePassword, isWeb: Platform.OS === "web" });
+  const routeToAccount = (roleKey?: string, mustChangePassword?: boolean, isPlatformAdmin?: boolean) => {
+    const destination = getPostLoginRoute({ roleKey, mustChangePassword, isPlatformAdmin, isWeb: Platform.OS === "web" });
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.location.href = destination;
       return;
@@ -58,7 +58,7 @@ export default function LoginScreen() {
   // Auto-redirect if already logged in
   useEffect(() => {
     if (session && !loading && profile) {
-      routeToAccount(profile.role_key, profile.must_change_password);
+      routeToAccount(profile.role_key, profile.must_change_password, profile.is_platform_admin);
     }
   }, [session, profile, loading]);
 
@@ -120,7 +120,7 @@ export default function LoginScreen() {
       }
 
       const updatedProfile = await refreshProfile();
-      routeToAccount(updatedProfile?.role_key, updatedProfile?.must_change_password);
+      routeToAccount(updatedProfile?.role_key, updatedProfile?.must_change_password, updatedProfile?.is_platform_admin);
     } catch (error) {
       console.error("[LoginScreen] Catch block error:", error);
       const arabicMsg = translateAuthError(error);
@@ -198,7 +198,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           ) : null}
 
-          <TouchableOpacity onPress={() => routeToAccount(profile?.role_key, profile?.must_change_password)} style={styles.button}>
+          <TouchableOpacity onPress={() => routeToAccount(profile?.role_key, profile?.must_change_password, profile?.is_platform_admin)} style={styles.button}>
             <Text style={styles.buttonText}>
               {profile?.must_change_password ? "تغيير كلمة المرور الآن" : "الانتقال إلى لوحة التحكم"}
             </Text>
@@ -291,7 +291,11 @@ export default function LoginScreen() {
           <Text style={styles.recoveryText}>{resetting ? "جارٍ إرسال الرابط…" : "نسيت كلمة المرور؟"}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.support}>ليس لديك حساب؟ تواصل مع مسؤول النظام ليُنشئ لك بيانات الدخول.</Text>
+        <TouchableOpacity onPress={() => router.push("/company-request" as never)} style={styles.companyRequest}>
+          <MaterialIcons name="business" size={17} color={palette.primary} />
+          <Text style={styles.companyRequestText}>شركتك جديدة؟ قدّم طلب انضمام</Text>
+        </TouchableOpacity>
+        <Text style={styles.support}>الحسابات الفردية ينشئها مدير الشركة أو المشرف المسؤول.</Text>
       </View>
     </ScreenContainer>
   );
@@ -315,6 +319,8 @@ const styles = StyleSheet.create({
   buttonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
   recovery: { alignItems: "center", paddingTop: 14 },
   recoveryText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
+  companyRequest: { flexDirection: "row-reverse", alignSelf: "center", alignItems: "center", gap: 6, marginTop: 17, paddingVertical: 7, paddingHorizontal: 10 },
+  companyRequestText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
   claim: { marginTop: 16, padding: 11, borderRadius: 12, backgroundColor: "#FFF6E5" },
   claimText: { color: palette.warning, fontSize: 11, fontWeight: "900", textAlign: "center" },
   support: { color: palette.muted, fontSize: 11, textAlign: "center", lineHeight: 17, marginTop: 16 },

@@ -20,7 +20,10 @@ export default function TabLayout() {
   if (loading) return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.tint} /></View>;
   if (!session) return <Redirect href="/login" />;
   if (profile?.must_change_password) return <Redirect href={"/change-password" as never} />;
-  if (shouldRedirectManagerFromFieldHome(profile?.role_key, pathname)) return <Redirect href={"/(tabs)/admin" as never} />;
+  if (shouldRedirectManagerFromFieldHome(profile?.role_key, pathname, Boolean(profile?.is_platform_admin))) {
+    const destination = profile?.is_platform_admin ? "/platform" : profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor" ? "/supervisor" : "/(tabs)/admin";
+    return <Redirect href={destination as never} />;
+  }
   return (
     <Tabs
       screenOptions={{

@@ -1,11 +1,14 @@
-export function getPostLoginRoute(input: { roleKey?: string | null; mustChangePassword?: boolean; isWeb: boolean }) {
+export function getPostLoginRoute(input: { roleKey?: string | null; mustChangePassword?: boolean; isPlatformAdmin?: boolean; isWeb: boolean }) {
   if (input.mustChangePassword) return "/change-password";
-  const isManager = input.roleKey === "system_admin" || input.roleKey === "sales_manager" || input.roleKey === "company_manager";
-  if (!isManager) return "/";
+  if (input.isPlatformAdmin) return "/platform";
+  const isCompanyManager = input.roleKey === "system_admin" || input.roleKey === "sales_manager" || input.roleKey === "company_manager";
+  const isSupervisor = input.roleKey === "sales_supervisor" || input.roleKey === "medical_supervisor";
+  if (isSupervisor) return "/supervisor";
+  if (!isCompanyManager) return "/";
   return input.isWeb ? "/admin" : "/(tabs)/admin";
 }
 
-export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string) {
-  const isManager = roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager";
+export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string, isPlatformAdmin = false) {
+  const isManager = isPlatformAdmin || roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager" || roleKey === "sales_supervisor" || roleKey === "medical_supervisor";
   return isManager && (pathname === "/" || pathname === "/index" || pathname === "/(tabs)" || pathname === "/(tabs)/index");
 }
