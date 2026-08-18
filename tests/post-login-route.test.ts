@@ -26,6 +26,7 @@ describe("post-login routing", () => {
     expect(shouldRedirectManagerFromFieldHome("system_admin", "/")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("sales_manager", "/(tabs)")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("company_manager", "/")).toBe(true);
+    expect(shouldRedirectManagerFromFieldHome("company_manager", "/(tabs)/index")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("sales_rep", "/")).toBe(false);
     expect(shouldRedirectManagerFromFieldHome("system_admin", "/plans")).toBe(false);
   });
