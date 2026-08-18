@@ -36,11 +36,10 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  const webDistDirectory = path.resolve(process.cwd(), "web-dist");
+  const webDistDirectory = path.resolve(process.cwd(), "dist", "web");
   const indexHtmlPath = path.join(webDistDirectory, "index.html");
-  const hasWebDist = fs.existsSync(indexHtmlPath);
   const sendWebApplication = (_req: express.Request, res: express.Response) => {
-    if (!hasWebDist) {
+    if (!fs.existsSync(indexHtmlPath)) {
       res.status(503).type("text/plain").send("واجهة Tips CRM قيد التجهيز. أعد المحاولة بعد لحظات.");
       return;
     }
@@ -77,9 +76,7 @@ async function startServer() {
 
   // The public domain must serve the real Expo Web application. The old
   // server-side landing page is intentionally not used as a fallback.
-  if (hasWebDist) {
-    app.use(express.static(webDistDirectory, { index: false, maxAge: 0 }));
-  }
+  app.use(express.static(webDistDirectory, { index: false, maxAge: 0 }));
 
   app.get("/", sendWebApplication);
 

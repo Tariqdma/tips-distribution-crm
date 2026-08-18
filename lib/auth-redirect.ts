@@ -1,16 +1,11 @@
-import { Platform } from "react-native";
-import Constants from "expo-constants";
-
 export function getPublicAppUrl(): string {
-  if (Platform.OS === "web" && typeof window !== "undefined" && window.location?.origin) {
+  if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin;
   }
-  const extra = Constants.expoConfig?.extra as { publicAppUrl?: string } | undefined;
   return (
     process.env.EXPO_PUBLIC_APP_URL ??
     process.env.TIPS_CRM_PUBLIC_URL ??
-    extra?.publicAppUrl ??
-    "https://crm.tips-sd.com"
+    "https://tipscrm-vevc4ncu.manus.space"
   ).replace(/\/+$/, "");
 }
 
