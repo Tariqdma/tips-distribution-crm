@@ -3,7 +3,7 @@ import path from "node:path";
 
 const app = express();
 const port = Number(process.env.EXPO_PORT ?? 8081);
-const webBuildDirectory = path.resolve(process.cwd(), "dist", "web");
+const webBuildDirectory = path.resolve(process.cwd(), "public-web");
 
 app.disable("x-powered-by");
 app.use(express.static(webBuildDirectory, { extensions: ["html"], maxAge: 0 }));
