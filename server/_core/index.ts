@@ -16,6 +16,7 @@ import { sendPlanSubmissionEmail } from "../plan-submission-email";
 import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
 import { addRequestNote, approveCompanyRequest, cancelManagerInvitation, createCompanyDirect, createPublicCompanyRequest, getPublicCompanyRequestStatus, requestMoreInfo, resendManagerInvitation, reviewCompanyRequest } from "../platform-company";
 import { getCompanyOperationalSetup, saveCompanyOperationalSetup } from "../company-setup";
+import { getCompanyTeamSetup } from "../company-team-setup";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -143,6 +144,16 @@ async function startServer() {
       res.json({ setup: await saveCompanyOperationalSetup(req.body ?? {}, req.header("authorization")) });
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر حفظ إعدادات الشركة.";
+      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.get("/api/company/team-setup", async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ setup: await getCompanyTeamSetup(req.header("authorization")) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر تحميل إعدادات فريق الشركة.";
       res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });

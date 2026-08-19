@@ -9,6 +9,7 @@ export type TemporaryEmployeeInput = {
   email: string;
   password: string;
   roleKey: EmployeeRoleKey;
+  reportsToProfileId?: string;
   territoryLabel?: string;
   territoryLabels?: string[];
   territoryId?: string;
@@ -70,12 +71,13 @@ async function requireUserManager(authorization?: string) {
   });
   const { data: profileRows, error: profileError } = await actorClient.rpc("tips_crm_my_profile");
   if (profileError) throw new Error("تعذر التحقق من صلاحية الإدارة.");
-  const actorProfile = (profileRows as Array<{ id: string; permissions: string[] }> | null)?.[0];
+  const actorProfile = (profileRows as Array<{ id: string; permissions: string[]; active_company_id: string | null }> | null)?.[0];
   if (!actorProfile?.permissions?.some((permission) => permission === "all" || permission === "manage_users")) {
     throw new Error("لا تملك صلاحية إدارة حسابات الموظفين.");
   }
+  if (!actorProfile.active_company_id) throw new Error("اختر الشركة النشطة قبل إدارة الحسابات.");
   const adminClient = createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  return { actorClient, actorProfile, adminClient };
+  return { actorClient, actorProfile, adminClient, activeCompanyId: actorProfile.active_company_id };
 }
 
 export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInput, authorization?: string) {
@@ -103,14 +105,15 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
     throw new Error(detail);
   }
 
-  const { error: finalizeError } = await actorClient.rpc("tips_crm_finalize_employee_account", {
+  const finalizeParameters = {
     target_profile_id: created.user.id,
     employee_full_name: input.fullName.trim(),
     employee_email: normalizedEmail,
     employee_role_key: input.roleKey,
     employee_territory_keys: resolvedTerritories.keys,
     employee_force_password_change: input.forcePasswordChange,
-  });
+  };
+  const { error: finalizeError } = await actorClient.rpc("tips_crm_finalize_employee_account", input.reportsToProfileId ? { ...finalizeParameters, employee_reports_to_profile_id: input.reportsToProfileId } : finalizeParameters);
   if (finalizeError) {
     await adminClient.auth.admin.deleteUser(created.user.id);
     throw new Error("تعذر تعيين صلاحيات الموظف ومناطق عمله؛ لم يُحتفظ بالحساب.");
@@ -120,9 +123,13 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
 }
 
 export async function listEmployeeAccounts(authorization?: string): Promise<EmployeeDirectoryEntry[]> {
-  const { adminClient } = await requireUserManager(authorization);
+  const { adminClient, activeCompanyId } = await requireUserManager(authorization);
+  const { data: membershipRows, error: membershipsError } = await adminClient.schema("tips_crm").from("company_memberships").select("profile_id").eq("company_id", activeCompanyId).eq("is_active", true);
+  if (membershipsError) throw new Error("تعذر التحقق من عضويات الشركة.");
+  const profileIds = (membershipRows ?? []).map((membership) => membership.profile_id);
+  if (!profileIds.length) return [];
   const [profilesResponse, usersResponse] = await Promise.all([
-    adminClient.schema("tips_crm").from("profiles").select("id,full_name,email,role_key,must_change_password,temporary_password_issued_at").order("full_name", { ascending: true }),
+    adminClient.schema("tips_crm").from("profiles").select("id,full_name,email,role_key,must_change_password,temporary_password_issued_at").in("id", profileIds).order("full_name", { ascending: true }),
     adminClient.auth.admin.listUsers({ page: 1, perPage: 200 }),
   ]);
   if (profilesResponse.error || usersResponse.error) throw new Error("تعذر تحميل دليل حسابات الموظفين.");
@@ -145,7 +152,9 @@ export async function listEmployeeAccounts(authorization?: string): Promise<Empl
 export async function resetEmployeePassword(employeeId: string, input: ResetEmployeePasswordInput, authorization?: string) {
   const validationError = validateResetEmployeePasswordInput(input);
   if (validationError) throw new Error(validationError);
-  const { actorProfile, adminClient } = await requireUserManager(authorization);
+  const { actorProfile, adminClient, activeCompanyId } = await requireUserManager(authorization);
+  const { data: membership, error: membershipError } = await adminClient.schema("tips_crm").from("company_memberships").select("profile_id").eq("company_id", activeCompanyId).eq("profile_id", employeeId).eq("is_active", true).maybeSingle();
+  if (membershipError || !membership) throw new Error("حساب الموظف غير موجود ضمن الشركة النشطة.");
   const { data: targetProfile, error: profileError } = await adminClient.schema("tips_crm").from("profiles").select("id,email,full_name").eq("id", employeeId).maybeSingle();
   if (profileError || !targetProfile) throw new Error("حساب الموظف غير موجود.");
   const { error: updateError } = await adminClient.auth.admin.updateUserById(employeeId, { password: input.password, email_confirm: true });
