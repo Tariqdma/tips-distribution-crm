@@ -1,0 +1,47 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { router } from "expo-router";
+import { useState } from "react";
+import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AppHeader, palette } from "@/components/crm-ui";
+import { ScreenContainer } from "@/components/screen-container";
+import { useCrm } from "@/lib/crm-store";
+import type { OfflineVisitDraft } from "@/lib/offline-visit-drafts";
+
+const formatDraftDate = (value: string) => new Date(value).toLocaleString("ar-SD", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+export default function OfflineDraftsScreen() {
+  const { data, accountById, isOnline, offlineVisitDrafts, syncOfflineVisitDrafts, discardOfflineVisitDraft } = useCrm();
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const retrySync = async () => {
+    if (!isOnline) { Alert.alert("لا يوجد اتصال", "أعد المحاولة عند عودة الإنترنت؛ ستتم المزامنة تلقائياً أيضاً."); return; }
+    setIsSyncing(true);
+    try { await syncOfflineVisitDrafts(); Alert.alert("اكتملت محاولة المزامنة", "أُرسلت التقارير الجاهزة، وأي تقرير يحتاج متابعة سيبقى ظاهراً هنا مع السبب."); }
+    finally { setIsSyncing(false); }
+  };
+
+  const confirmDelete = (draft: OfflineVisitDraft) => Alert.alert("حذف التقرير المحفوظ؟", "سيُحذف هذا التقرير من الهاتف ولن يُرسل للإدارة. لا يمكن التراجع بعد الحذف.", [{ text: "إلغاء", style: "cancel" }, { text: "حذف التقرير", style: "destructive", onPress: () => void discardOfflineVisitDraft(draft.id) }]);
+
+  return <ScreenContainer className="px-5" containerClassName="bg-background">
+    <FlatList
+      data={offlineVisitDrafts}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={[styles.content, !offlineVisitDrafts.length && styles.emptyContent]}
+      ListHeaderComponent={<><AppHeader eyebrow="تقارير محفوظة محلياً على هذا الهاتف" title="مسودات دون إنترنت" right={<TouchableOpacity onPress={() => router.back()} style={styles.back}><MaterialIcons name="close" size={21} color={palette.primary} /></TouchableOpacity>} />
+        <View style={[styles.connectionCard, isOnline ? styles.connectionOnline : styles.connectionOffline]}><MaterialIcons name={isOnline ? "cloud-done" : "cloud-off"} size={21} color={isOnline ? palette.success : "#9A5B00"} /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={[styles.connectionTitle, isOnline ? styles.connectionOnlineTitle : styles.connectionOfflineTitle]}>{isOnline ? "الاتصال متاح" : "أنت دون اتصال"}</Text><Text style={styles.connectionCopy}>{isOnline ? "ستتم محاولة إرسال التقارير تلقائياً. يمكنك أيضاً إعادة المحاولة الآن." : "يمكنك مراجعة التقارير؛ سترسل تلقائياً عندما يعود اتصال الإنترنت."}</Text></View></View>
+        {offlineVisitDrafts.length ? <TouchableOpacity onPress={() => void retrySync()} disabled={!isOnline || isSyncing} style={[styles.retryButton, (!isOnline || isSyncing) && styles.disabledButton]}><MaterialIcons name={isSyncing ? "sync" : "refresh"} size={19} color="#FFFFFF" /><Text style={styles.retryText}>{isSyncing ? "جارٍ محاولة الإرسال..." : "إعادة محاولة إرسال التقارير"}</Text></TouchableOpacity> : null}
+        {offlineVisitDrafts.length ? <Text style={styles.listTitle}>التقارير غير المرسلة</Text> : null}
+      </>}
+      renderItem={({ item }) => {
+        const account = accountById(item.accountId);
+        const failed = item.status === "failed";
+        return <View style={[styles.draftCard, failed && styles.failedCard]}><View style={styles.draftHead}><View style={[styles.statusBadge, failed ? styles.failedBadge : styles.pendingBadge]}><MaterialIcons name={failed ? "error-outline" : "schedule"} size={14} color={failed ? palette.error : "#9A5B00"} /><Text style={[styles.statusText, failed ? styles.failedText : styles.pendingText]}>{failed ? "تحتاج إعادة محاولة" : "بانتظار الإرسال"}</Text></View><Text style={styles.draftDate}>{formatDraftDate(item.createdAt)}</Text></View><Text style={styles.accountName}>{account?.name ?? "جهة مرتبطة بزيارة"}</Text><Text style={styles.accountMeta}>{account ? `${account.type} · ${account.city}` : "تعذر تحميل تفاصيل الجهة"}</Text><Text numberOfLines={2} style={styles.note}>{item.payload.note}</Text><View style={styles.details}><Text style={styles.detailText}>النتيجة: {item.payload.result}</Text><Text style={styles.detailText}>{item.attempts ? `محاولات الإرسال: ${item.attempts}` : "لم تُرسل بعد"}</Text></View>{item.lastError ? <View style={styles.errorBox}><MaterialIcons name="info-outline" size={15} color={palette.error} /><Text style={styles.errorText}>{item.lastError}</Text></View> : null}{failed ? <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.deleteButton}><MaterialIcons name="delete-outline" size={17} color={palette.error} /><Text style={styles.deleteText}>حذف هذا التقرير المحفوظ</Text></TouchableOpacity> : null}</View>;
+      }}
+      ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+      ListEmptyComponent={<View style={styles.empty}><View style={styles.emptyIcon}><MaterialIcons name="cloud-done" size={33} color={palette.success} /></View><Text style={styles.emptyTitle}>لا توجد تقارير معلّقة</Text><Text style={styles.emptyCopy}>أي تقرير يحفظ دون إنترنت سيظهر هنا إلى أن يُرسل بنجاح إلى الإدارة.</Text><TouchableOpacity onPress={() => router.replace("/(tabs)" as never)} style={styles.returnButton}><Text style={styles.returnText}>العودة لجدولي</Text><MaterialIcons name="arrow-forward" size={17} color="#FFFFFF" /></TouchableOpacity></View>}
+      showsVerticalScrollIndicator={false}
+    />
+  </ScreenContainer>;
+}
+
+const styles = StyleSheet.create({ content: { paddingTop: 10, paddingBottom: 30 }, emptyContent: { flexGrow: 1 }, back: { width: 40, height: 40, borderRadius: 14, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, connectionCard: { marginTop: 5, padding: 13, borderRadius: 16, borderWidth: 1, flexDirection: "row-reverse", alignItems: "center", gap: 10 }, connectionOnline: { backgroundColor: "#EFF8F4", borderColor: "#C7E6D9" }, connectionOffline: { backgroundColor: "#FFF7E8", borderColor: "#F2D39D" }, connectionTitle: { fontSize: 12, fontWeight: "900", textAlign: "right" }, connectionOnlineTitle: { color: palette.success }, connectionOfflineTitle: { color: "#8A5100" }, connectionCopy: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 3, textAlign: "right" }, retryButton: { marginTop: 10, minHeight: 47, borderRadius: 14, backgroundColor: "#246B91", flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 7 }, disabledButton: { opacity: 0.55 }, retryText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" }, listTitle: { color: palette.ink, fontSize: 14, fontWeight: "900", textAlign: "right", marginTop: 22, marginBottom: 9 }, draftCard: { backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: palette.line, borderRadius: 18, padding: 13 }, failedCard: { borderColor: "#F2C4C4", backgroundColor: "#FFFDFD" }, draftHead: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 8 }, statusBadge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, flexDirection: "row-reverse", alignItems: "center", gap: 4 }, pendingBadge: { backgroundColor: "#FFF2D8" }, failedBadge: { backgroundColor: "#FDEAEA" }, statusText: { fontSize: 10, fontWeight: "900" }, pendingText: { color: "#8A5100" }, failedText: { color: palette.error }, draftDate: { color: palette.muted, fontSize: 10 }, accountName: { color: palette.ink, fontSize: 15, fontWeight: "900", textAlign: "right", marginTop: 11 }, accountMeta: { color: palette.muted, fontSize: 10, textAlign: "right", marginTop: 3 }, note: { color: "#45534E", fontSize: 11, lineHeight: 17, textAlign: "right", marginTop: 10 }, details: { marginTop: 11, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#EDF1EF", flexDirection: "row-reverse", justifyContent: "space-between", gap: 7 }, detailText: { color: palette.primary, fontSize: 10, fontWeight: "800", textAlign: "right", flex: 1 }, errorBox: { marginTop: 10, borderRadius: 11, padding: 9, backgroundColor: "#FDEAEA", flexDirection: "row-reverse", gap: 6, alignItems: "flex-start" }, errorText: { color: "#A13A3A", flex: 1, fontSize: 10, lineHeight: 15, textAlign: "right" }, deleteButton: { marginTop: 11, borderRadius: 11, minHeight: 38, borderWidth: 1, borderColor: "#F3C8C8", backgroundColor: "#FFF7F7", flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 6 }, deleteText: { color: palette.error, fontSize: 11, fontWeight: "900" }, empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 26, paddingBottom: 80 }, emptyIcon: { width: 70, height: 70, borderRadius: 25, backgroundColor: "#EAF8F2", alignItems: "center", justifyContent: "center" }, emptyTitle: { color: palette.ink, fontSize: 18, fontWeight: "900", textAlign: "center", marginTop: 15 }, emptyCopy: { color: palette.muted, fontSize: 12, lineHeight: 19, textAlign: "center", marginTop: 7 }, returnButton: { marginTop: 21, minHeight: 45, paddingHorizontal: 18, borderRadius: 14, backgroundColor: palette.primary, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 7 }, returnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "900" } });

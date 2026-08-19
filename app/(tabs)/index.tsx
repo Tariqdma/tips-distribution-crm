@@ -17,7 +17,7 @@ const isoToday = () => new Date().toISOString().slice(0, 10);
 
 export default function TodayScreen() {
   const [notificationPermission, setNotificationPermission] = useState<string>("unknown");
-  const { data, accountById, unreadNotificationCount, recordDutyPoint } = useCrm();
+  const { data, accountById, unreadNotificationCount, recordDutyPoint, isOnline, offlineVisitDrafts } = useCrm();
   const { profile } = useSupabaseAuth();
   const scope = getFieldDataScope(data, profile);
 
@@ -124,6 +124,9 @@ export default function TodayScreen() {
             <MaterialIcons name="chevron-left" size={20} color={palette.primary} />
           </TouchableOpacity>
         ) : null}
+
+        {!isOnline ? <View style={styles.offlineStatus}><MaterialIcons name="cloud-off" size={19} color="#9A5B00" /><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.offlineStatusTitle}>وضع دون إنترنت</Text><Text style={styles.offlineStatusCopy}>يمكنك إنهاء الزيارات؛ سيُحفظ التقرير على الهاتف ثم يُرسل تلقائياً.</Text></View></View> : null}
+        {offlineVisitDrafts.length ? <TouchableOpacity onPress={() => router.push("/offline-drafts" as never)} style={styles.offlineDraftsCard}><View style={styles.offlineDraftsIcon}><MaterialIcons name="cloud-upload" size={20} color="#FFFFFF" /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.offlineDraftsTitle}>تقارير محفوظة على هذا الهاتف</Text><Text style={styles.offlineDraftsCopy}>{offlineVisitDrafts.length} {offlineVisitDrafts.length === 1 ? "تقرير بانتظار الإرسال" : "تقارير بانتظار الإرسال"}{isOnline ? " · اضغط لمراجعتها أو إعادة المحاولة" : " · ستُرسل تلقائياً عند عودة الإنترنت"}</Text></View><View style={styles.offlineDraftsCount}><Text style={styles.offlineDraftsCountText}>{offlineVisitDrafts.length}</Text></View><MaterialIcons name="chevron-left" size={22} color="#246B91" /></TouchableOpacity> : null}
 
         {/* Next Best Visit Card */}
         {nextVisit ? (
@@ -276,6 +279,15 @@ const styles = StyleSheet.create({
   promptIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: "#E4F5EE", alignItems: "center", justifyContent: "center" },
   notificationPromptTitle: { color: palette.ink, fontWeight: "900", textAlign: "right", fontSize: 12 },
   notificationPromptBody: { color: palette.muted, textAlign: "right", marginTop: 3, fontSize: 10 },
+  offlineStatus: { marginTop: 12, minHeight: 61, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: "#F2D39D", backgroundColor: "#FFF7E8", flexDirection: "row-reverse", alignItems: "center", gap: 10 },
+  offlineStatusTitle: { color: "#8A5100", fontWeight: "900", textAlign: "right", fontSize: 12 },
+  offlineStatusCopy: { color: "#9A6B20", textAlign: "right", marginTop: 3, fontSize: 10, lineHeight: 15 },
+  offlineDraftsCard: { marginTop: 12, minHeight: 70, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: "#CDE3EF", backgroundColor: "#F1F8FC", flexDirection: "row-reverse", alignItems: "center", gap: 9 },
+  offlineDraftsIcon: { width: 38, height: 38, borderRadius: 13, backgroundColor: "#246B91", alignItems: "center", justifyContent: "center" },
+  offlineDraftsTitle: { color: "#174B65", fontSize: 12, fontWeight: "900", textAlign: "right" },
+  offlineDraftsCopy: { color: "#4C7183", fontSize: 10, marginTop: 3, lineHeight: 15, textAlign: "right" },
+  offlineDraftsCount: { minWidth: 23, height: 23, paddingHorizontal: 6, borderRadius: 12, backgroundColor: "#D9EDF7", alignItems: "center", justifyContent: "center" },
+  offlineDraftsCountText: { color: "#246B91", fontWeight: "900", fontSize: 11 },
   nextCard: { marginTop: 15, minHeight: 76, padding: 13, backgroundColor: "#EAF8F2", borderWidth: 1, borderColor: "#B9DECF", borderRadius: 17, flexDirection: "row-reverse", alignItems: "center", gap: 10 },
   nextIcon: { width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: palette.primary },
   nextEyebrow: { color: palette.success, fontSize: 10, fontWeight: "800", textAlign: "right" },

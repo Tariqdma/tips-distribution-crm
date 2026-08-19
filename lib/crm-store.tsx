@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import * as Network from "expo-network";
 import { sendOperationalNotification } from "@/lib/notifications";
 import { stateForCity } from "@/lib/sudan-locations";
 import { appendDutyPoint, isInsideTerritory } from "@/lib/duty-logic";
@@ -10,6 +11,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { uploadVisitAttachments, type VisitAttachment } from "@/lib/visit-attachments";
 import { scheduleFollowUpReminder } from "@/lib/mobile-notifications";
 import { buildInviteAcceptUrl } from "@/lib/auth-redirect";
+import { createOfflineVisitDraft, listOfflineVisitDrafts, markOfflineVisitDraftFailed, removeOfflineVisitDraft, saveOfflineVisitDraft, type OfflineVisitDraft, type OfflineVisitPayload } from "@/lib/offline-visit-drafts";
 
 export type AccountType = "طبيب" | "صيدلية" | "مستشفى" | "موزع";
 export type VisitStatus = "مجدولة" | "مكتملة" | "تحتاج مراجعة";
@@ -45,12 +47,12 @@ type VisitCompletion = { result: VisitResult; note: string; followUpAction?: str
 type PlannedVisitInput = Pick<Visit, "id" | "accountId" | "date" | "time"> & { scheduledFor?: string };
 type NewPlanInput = { title: string; period: string; kind: Plan["kind"]; visitIds: string[]; schedule?: PlanScheduleDay[]; plannedVisits?: PlannedVisitInput[]; startsOn?: string; endsOn?: string };
 type CrmContextValue = {
-  data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number;
+  data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number; isOnline: boolean; offlineVisitDrafts: OfflineVisitDraft[]; syncOfflineVisitDrafts: () => Promise<void>; discardOfflineVisitDraft: (draftId: string) => Promise<void>;
   setRole: (role: AppRole) => void; selectTeamMember: (id: string) => void; updateTeamMemberRole: (id: string, role: AppRole) => void;
   createRole: (input: Omit<RoleDefinition, "id" | "isSystem" | "isActive">) => void; updateRoleDefinition: (id: string, input: Pick<RoleDefinition, "name" | "description" | "permissions">) => void; toggleRoleDefinition: (id: string) => void; removeRoleDefinition: (id: string) => void;
   accountById: (id: string) => Account | undefined; visitsForAccount: (accountId: string) => Visit[];
   addAccount: (account: Omit<Account, "id" | "lastVisit" | "initials" | "accent">) => { accepted: boolean; duplicate?: Account };
-  completeVisit: (visitId: string, completion: VisitCompletion) => void; submitPlan: (input: NewPlanInput) => void; approvePlan: (planId: string) => Promise<boolean>; returnPlan: (planId: string, note: string) => Promise<boolean>; updatePlanSchedule: (planId: string, visits: PlanVisitDetail[], managerNote: string) => Promise<boolean>;
+  completeVisit: (visitId: string, completion: VisitCompletion) => Promise<{ delivery: "synced" | "queued" }>; submitPlan: (input: NewPlanInput) => void; approvePlan: (planId: string) => Promise<boolean>; returnPlan: (planId: string, note: string) => Promise<boolean>; updatePlanSchedule: (planId: string, visits: PlanVisitDetail[], managerNote: string) => Promise<boolean>;
   addVisitResult: (label: string) => void; createInvite: (input: Omit<TeamInvite, "id" | "status" | "sentAt" | "expiresAt" | "acceptUrl">) => Promise<TeamInvite | null>; resendInvite: (invite: TeamInvite) => Promise<TeamInvite | null>; revokeInvite: (inviteId: string) => Promise<boolean>; updateBoundary: (boundary: TerritoryBoundary) => void;
   createCentralNotification: (input: Pick<CrmNotification, "title" | "body" | "kind">) => void; refreshSharedCatalog: () => Promise<void>; setTeamMemberTerritories: (memberId: string, territoryIds: string[]) => Promise<boolean>; setMonthlyTarget: (input: Omit<MonthlyTarget, "id" | "updatedAt">) => Promise<boolean>; recordDutyPoint: (point: DutyTrackPoint) => void; markAllNotificationsRead: () => void;
 };
@@ -125,6 +127,8 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<CrmData>(initialData);
   const [isReady, setIsReady] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState("u1");
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineVisitDrafts, setOfflineVisitDrafts] = useState<OfflineVisitDraft[]>([]);
   const { user, profile, session } = useSupabaseAuth();
   const remoteAccountIds = useRef<Record<string, string>>({});
   useEffect(() => {
@@ -141,7 +145,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     });
   }, [profile?.id, profile?.full_name, profile?.role_key, profile?.role_name, profile?.territory_key, profile?.territory_label, profile?.territory_keys, profile?.territory_labels]);
   useEffect(() => { AsyncStorage.getItem(STORAGE_KEY).then((raw) => { if (!raw) return; const saved = JSON.parse(raw) as Partial<CrmData>; setData({ ...initialData, ...saved, accounts: (saved.accounts ?? initialData.accounts).map((account) => ({ ...account, state: account.state || stateForCity(account.city) })), dutyStatuses: saved.dutyStatuses ?? initialData.dutyStatuses }); }).catch(() => undefined).finally(() => setIsReady(true)); }, []);
-  const commit = (updater: (current: CrmData) => CrmData) => setData((current) => { const next = updater(current); void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)); return next; });
+  const commit = useCallback((updater: (current: CrmData) => CrmData) => setData((current) => { const next = updater(current); void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next)); return next; }), []);
   useEffect(() => {
     if (!isReady) return;
     setData((current) => {
@@ -250,16 +254,74 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   }, [isReady, user]);
   useEffect(() => { void refreshSharedCatalog(); }, [refreshSharedCatalog]);
   const send = (title: string, body: string) => void sendOperationalNotification(title, body);
-  const syncAccount = async (account: Account) => {
+  const syncAccount = useCallback(async (account: Account) => {
     if (!supabase || !user) return null;
     if (remoteAccountIds.current[account.id]) return remoteAccountIds.current[account.id];
     const { data: remoteId, error } = await supabase.rpc("tips_crm_sync_account", { local_ref_input: account.id, account_type: accountTypeToRemote[account.type], account_name: account.name, account_specialty: account.specialty ?? "", account_state: account.state, account_city: account.city, account_area: account.area, account_address: account.address, account_phone: account.contact });
     if (error || !remoteId) return null;
     remoteAccountIds.current[account.id] = remoteId as string;
     return remoteId as string;
-  };
+  }, [user]);
+  const profileId = profile?.id ?? user?.id;
+  const syncSingleOfflineVisitDraft = useCallback(async (draft: OfflineVisitDraft) => {
+    if (!supabase || !user) throw new Error("جلسة المستخدم غير متاحة للمزامنة.");
+    const account = data.accounts.find((item) => item.id === draft.accountId);
+    if (!account) throw new Error("تعذر العثور على الجهة المرتبطة بالمسودة.");
+    const remoteAccountId = await syncAccount(account);
+    if (!remoteAccountId) throw new Error("تعذر مزامنة الجهة قبل إرسال التقرير.");
+    const payload = draft.payload;
+    const { data: remoteVisitId, error } = await supabase.rpc("tips_crm_save_visit_report", { account_uuid: remoteAccountId, visit_status: payload.isInsideTerritory ? "completed" : "needs_review", visit_outcome: payload.result, visit_notes: payload.note, follow_up_action_input: payload.followUpAction?.trim() || null, follow_up_on_input: payload.followUpDate || null, visit_priority_input: payload.reportPriority === "عالية" ? "high" : payload.reportPriority === "منخفضة" ? "low" : "medium", latitude: payload.location?.latitude ?? null, longitude: payload.location?.longitude ?? null, accuracy: payload.location?.accuracy ?? null, collection_amount_input: payload.collectionAmount ?? 0, revenue_amount_input: payload.revenueAmount ?? 0, receipt_reference_input: payload.receiptReference?.trim() || null, medical_interaction_type_input: payload.medicalInteractionType ? medicalInteractionToRemote[payload.medicalInteractionType] : null, medical_visit_goal_input: payload.medicalVisitGoal ? medicalGoalToRemote[payload.medicalVisitGoal] : null, promoted_product_input: payload.promotedProduct?.trim() || null, scientific_message_input: payload.scientificMessage?.trim() || null, doctor_interest_input: payload.doctorInterest ? doctorInterestToRemote[payload.doctorInterest] : null, medical_feedback_input: payload.medicalFeedback?.trim() || null, offline_client_ref_input: draft.id });
+    if (error || !remoteVisitId) throw new Error(error?.message || "تعذر إرسال تقرير الزيارة.");
+    const uploaded = payload.attachments?.length ? await uploadVisitAttachments({ visitId: remoteVisitId as string, profileId: user.id, attachments: payload.attachments }) : [];
+    if (uploaded.some((item) => item.localUri && !item.remotePath)) throw new Error("تم حفظ التقرير لكن بعض المرفقات ستعاد محاولتها عند توفر اتصال ثابت.");
+    return { remoteVisitId: remoteVisitId as string, attachments: uploaded };
+  }, [data.accounts, syncAccount, user]);
+  const syncOfflineVisitDrafts = useCallback(async () => {
+    if (!profileId || !isOnline) return;
+    const pending = await listOfflineVisitDrafts(profileId);
+    setOfflineVisitDrafts(pending);
+    for (const draft of pending) {
+      try {
+        const synced = await syncSingleOfflineVisitDraft(draft);
+        await removeOfflineVisitDraft(profileId, draft.id);
+        if (synced.attachments.length) commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === draft.visitId ? { ...visit, attachments: synced.attachments } : visit) }));
+      } catch (error) {
+        await markOfflineVisitDraftFailed(profileId, draft.id, error instanceof Error ? error.message : "تعذر الاتصال بخدمة المزامنة.");
+      }
+    }
+    const remaining = await listOfflineVisitDrafts(profileId);
+    setOfflineVisitDrafts(remaining);
+  }, [commit, isOnline, profileId, syncSingleOfflineVisitDraft]);
+  const discardOfflineVisitDraft = useCallback(async (draftId: string) => {
+    if (!profileId) return;
+    setOfflineVisitDrafts(await removeOfflineVisitDraft(profileId, draftId));
+  }, [profileId]);
+  const queueOrSyncVisit = useCallback(async (visitId: string, accountId: string, payload: OfflineVisitPayload) => {
+    if (!profileId) return "queued" as const;
+    const draft = createOfflineVisitDraft({ id: `offline-visit-${visitId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, visitId, accountId, profileId, payload });
+    if (!isOnline) {
+      setOfflineVisitDrafts(await saveOfflineVisitDraft(draft));
+      return "queued" as const;
+    }
+    try {
+      const synced = await syncSingleOfflineVisitDraft(draft);
+      if (synced.attachments.length) commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, attachments: synced.attachments } : visit) }));
+      return "synced" as const;
+    } catch (error) {
+      setOfflineVisitDrafts(await saveOfflineVisitDraft(draft));
+      return "queued" as const;
+    }
+  }, [commit, isOnline, profileId, syncSingleOfflineVisitDraft]);
+  useEffect(() => {
+    const updateNetwork = (state: Network.NetworkState) => setIsOnline(state.isInternetReachable !== false && state.isConnected !== false);
+    void Network.getNetworkStateAsync().then(updateNetwork).catch(() => setIsOnline(true));
+    const subscription = Network.addNetworkStateListener(updateNetwork);
+    return () => subscription.remove();
+  }, []);
+  useEffect(() => { if (!profileId) { setOfflineVisitDrafts([]); return; } void listOfflineVisitDrafts(profileId).then(setOfflineVisitDrafts).catch(() => setOfflineVisitDrafts([])); }, [profileId]);
+  useEffect(() => { if (isOnline && offlineVisitDrafts.length) void syncOfflineVisitDrafts(); }, [isOnline, offlineVisitDrafts.length, syncOfflineVisitDrafts]);
   const value = useMemo<CrmContextValue>(() => ({
-    data, isReady, role, activeMemberId, unreadNotificationCount: data.notifications.filter((item) => !item.readAt).length,
+    data, isReady, role, activeMemberId, isOnline, offlineVisitDrafts, syncOfflineVisitDrafts, discardOfflineVisitDraft, unreadNotificationCount: data.notifications.filter((item) => !item.readAt).length,
     setRole: (nextRole) => commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === activeMemberId ? { ...member, role: nextRole } : member) })),
     selectTeamMember: setActiveMemberId,
     updateTeamMemberRole: (id, nextRole) => commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === id ? { ...member, role: nextRole } : member) })),
@@ -280,11 +342,15 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       void syncAccount(created).then(() => refreshSharedCatalog());
       return { accepted: true };
     },
-    completeVisit: (visitId, completion) => {
+    completeVisit: async (visitId, completion) => {
       const currentVisit = data.visits.find((visit) => visit.id === visitId); const account = currentVisit ? data.accounts.find((item) => item.id === currentVisit.accountId) : undefined;
-      commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, status: completion.isInsideTerritory ? "مكتملة" : "تحتاج مراجعة", result: completion.result, note: completion.note, followUpAction: completion.followUpAction?.trim() || undefined, followUpDate: completion.followUpDate || undefined, reportPriority: completion.reportPriority ?? "متوسطة", attachments: completion.attachments, location: completion.location, isInsideTerritory: completion.isInsideTerritory, collectionAmount: completion.collectionAmount ?? 0, revenueAmount: completion.revenueAmount ?? 0, receiptReference: completion.receiptReference?.trim() || undefined, medicalInteractionType: completion.medicalInteractionType, medicalVisitGoal: completion.medicalVisitGoal, promotedProduct: completion.promotedProduct?.trim() || undefined, scientificMessage: completion.scientificMessage?.trim() || undefined, doctorInterest: completion.doctorInterest, medicalFeedback: completion.medicalFeedback?.trim() || undefined, checkedInAt: new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }), completedAt: new Date().toISOString() } : visit), notifications: [notify("تم توثيق زيارة", `${completion.result}${completion.attachments?.length ? ` · ${completion.attachments.length} مرفقات` : ""}`, "زيارة"), ...(completion.followUpDate ? [notify("متابعة مجدولة", `${account?.name ?? "الجهة"}: ${completion.followUpAction?.trim() || "راجع الخطوة التالية"} في ${completion.followUpDate}.`, "تنبيه")] : []), ...current.notifications] }));
+      if (!currentVisit || !account) return { delivery: "queued" as const };
+      const payload: OfflineVisitPayload = { result: completion.result, note: completion.note, followUpAction: completion.followUpAction?.trim() || undefined, followUpDate: completion.followUpDate, reportPriority: completion.reportPriority ?? "متوسطة", attachments: completion.attachments, location: completion.location, isInsideTerritory: completion.isInsideTerritory, collectionAmount: completion.collectionAmount ?? 0, revenueAmount: completion.revenueAmount ?? 0, receiptReference: completion.receiptReference?.trim() || undefined, medicalInteractionType: completion.medicalInteractionType, medicalVisitGoal: completion.medicalVisitGoal, promotedProduct: completion.promotedProduct?.trim() || undefined, scientificMessage: completion.scientificMessage?.trim() || undefined, doctorInterest: completion.doctorInterest, medicalFeedback: completion.medicalFeedback?.trim() || undefined };
+      commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, status: completion.isInsideTerritory ? "مكتملة" : "تحتاج مراجعة", result: completion.result, note: completion.note, followUpAction: payload.followUpAction, followUpDate: payload.followUpDate, reportPriority: payload.reportPriority, attachments: payload.attachments, location: payload.location, isInsideTerritory: payload.isInsideTerritory, collectionAmount: payload.collectionAmount, revenueAmount: payload.revenueAmount, receiptReference: payload.receiptReference, medicalInteractionType: payload.medicalInteractionType, medicalVisitGoal: payload.medicalVisitGoal, promotedProduct: payload.promotedProduct, scientificMessage: payload.scientificMessage, doctorInterest: payload.doctorInterest, medicalFeedback: payload.medicalFeedback, checkedInAt: new Date().toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }), completedAt: new Date().toISOString() } : visit), notifications: [...(completion.followUpDate ? [notify("متابعة مجدولة", `${account.name}: ${completion.followUpAction?.trim() || "راجع الخطوة التالية"} في ${completion.followUpDate}.`, "تنبيه")] : []), ...current.notifications] }));
       if (completion.followUpDate && account) void scheduleFollowUpReminder({ accountName: account.name, action: completion.followUpAction?.trim() || "راجع الخطوة التالية", dueDate: completion.followUpDate });
-      if (account && supabase && user) void (async () => { const remoteAccountId = await syncAccount(account); if (!remoteAccountId) return; const { data: remoteVisitId } = await supabase.rpc("tips_crm_save_visit_report", { account_uuid: remoteAccountId, visit_status: completion.isInsideTerritory ? "completed" : "needs_review", visit_outcome: completion.result, visit_notes: completion.note, follow_up_action_input: completion.followUpAction?.trim() || null, follow_up_on_input: completion.followUpDate || null, visit_priority_input: completion.reportPriority === "عالية" ? "high" : completion.reportPriority === "منخفضة" ? "low" : "medium", latitude: completion.location?.latitude ?? null, longitude: completion.location?.longitude ?? null, accuracy: completion.location?.accuracy ?? null, collection_amount_input: completion.collectionAmount ?? 0, revenue_amount_input: completion.revenueAmount ?? 0, receipt_reference_input: completion.receiptReference?.trim() || null, medical_interaction_type_input: completion.medicalInteractionType ? medicalInteractionToRemote[completion.medicalInteractionType] : null, medical_visit_goal_input: completion.medicalVisitGoal ? medicalGoalToRemote[completion.medicalVisitGoal] : null, promoted_product_input: completion.promotedProduct?.trim() || null, scientific_message_input: completion.scientificMessage?.trim() || null, doctor_interest_input: completion.doctorInterest ? doctorInterestToRemote[completion.doctorInterest] : null, medical_feedback_input: completion.medicalFeedback?.trim() || null }); if (remoteVisitId && completion.attachments?.length) { const uploaded = await uploadVisitAttachments({ visitId: remoteVisitId as string, profileId: user.id, attachments: completion.attachments }); if (uploaded.length) commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === visitId ? { ...visit, attachments: uploaded } : visit) })); } })();
+      const delivery = await queueOrSyncVisit(visitId, account.id, payload);
+      commit((current) => ({ ...current, notifications: [notify(delivery === "synced" ? "تم توثيق ومزامنة الزيارة" : "حُفظت الزيارة دون إنترنت", delivery === "synced" ? `${completion.result} تم إرساله للإدارة.` : "سيُرسل التقرير تلقائياً عند عودة اتصال الإنترنت.", "زيارة"), ...current.notifications] }));
+      return { delivery };
     },
     submitPlan: (input) => { const plan: Plan = { id: `p-${Date.now()}`, title: input.title, period: input.period, kind: input.kind, status: "بانتظار الاعتماد", repName: data.teamMembers.find((member) => member.id === activeMemberId)?.name ?? "مندوب", visitIds: input.visitIds, schedule: input.schedule, submittedAt: "الآن" }; commit((current) => { const plannedVisits = (input.plannedVisits ?? []).filter((visit) => !current.visits.some((existing) => existing.id === visit.id)).map((visit) => ({ ...visit, status: "مجدولة" as const })); return { ...current, visits: [...plannedVisits, ...current.visits], plans: [plan, ...current.plans], notifications: [notify("خطة جديدة بانتظار الاعتماد", `${plan.repName} أرسل ${plan.title}.`, "خطة"), ...current.notifications] }; }); send("خطة جديدة بانتظار الاعتماد", plan.title); if (supabase && user) void (async () => { const startsOn = input.startsOn ?? new Date().toISOString().slice(0, 10); const fallbackEnd = new Date(`${startsOn}T12:00:00`); fallbackEnd.setDate(fallbackEnd.getDate() + (input.kind === "أسبوعية" ? 6 : 30)); const { data: remoteId } = await supabase.rpc("tips_crm_create_plan", { plan_title: input.title, plan_type: input.kind === "أسبوعية" ? "weekly" : "monthly", starts_on: startsOn, ends_on: input.endsOn ?? fallbackEnd.toISOString().slice(0, 10) }); if (!remoteId) return; commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === plan.id ? { ...item, remoteId: remoteId as string } : item) })); const entries = (await Promise.all((input.plannedVisits ?? []).map(async (visit) => { const account = data.accounts.find((item) => item.id === visit.accountId); const accountId = account ? await syncAccount(account) : null; return accountId && visit.scheduledFor ? { account_id: accountId, scheduled_for: `${visit.scheduledFor}T09:00:00+00:00` } : null; }))).filter((item): item is { account_id: string; scheduled_for: string } => Boolean(item)); if (entries.length) await supabase.rpc("tips_crm_save_plan_visits", { target_plan_id: remoteId as string, planned_visits: entries }); if (session?.access_token) void fetch(`${getApiBaseUrl()}/api/plan-submission-email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ planId: remoteId as string, supabaseAccessToken: session.access_token }) }); await refreshSharedCatalog(); })(); },
     approvePlan: async (planId) => { const plan = data.plans.find((item) => item.id === planId); if (!plan) return false; if (plan.remoteId && supabase && user) { const { data: approved, error } = await supabase.rpc("tips_crm_review_plan", { target_plan_id: plan.remoteId, next_status: "approved", note: null }); if (error || !approved) return false; await refreshSharedCatalog(); return true; } commit((current) => ({ ...current, plans: current.plans.map((item) => item.id === planId ? { ...item, status: "معتمدة", managerNote: undefined } : item), notifications: [notify("تم اعتماد الخطة", `${plan.title} أصبحت جاهزة للتنفيذ.`, "خطة"), ...current.notifications] })); return true; },
@@ -342,7 +408,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       }
     },
     markAllNotificationsRead: () => commit((current) => ({ ...current, notifications: current.notifications.map((item) => ({ ...item, readAt: item.readAt ?? "الآن" })) })),
-  }), [data, isReady, role, activeMemberId, user, refreshSharedCatalog]);
+  }), [data, isReady, role, activeMemberId, user, refreshSharedCatalog, isOnline, offlineVisitDrafts, syncOfflineVisitDrafts, discardOfflineVisitDraft, queueOrSyncVisit]);
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }
 
