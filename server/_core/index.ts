@@ -15,6 +15,7 @@ import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-c
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
 import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
 import { addRequestNote, approveCompanyRequest, cancelManagerInvitation, createCompanyDirect, createPublicCompanyRequest, getPublicCompanyRequestStatus, requestMoreInfo, resendManagerInvitation, reviewCompanyRequest } from "../platform-company";
+import { getCompanyOperationalSetup, saveCompanyOperationalSetup } from "../company-setup";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -124,6 +125,25 @@ async function startServer() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إرسال رسالة الاستعادة.";
       res.status(400).json({ message });
+    }
+  });
+
+  app.get("/api/company/setup", async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ setup: await getCompanyOperationalSetup(req.header("authorization")) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر تحميل إعدادات الشركة.";
+      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.put("/api/company/setup", async (req, res) => {
+    try {
+      res.json({ setup: await saveCompanyOperationalSetup(req.body ?? {}, req.header("authorization")) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر حفظ إعدادات الشركة.";
+      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });
 

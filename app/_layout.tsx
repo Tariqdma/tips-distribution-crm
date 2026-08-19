@@ -97,6 +97,7 @@ export default function RootLayout() {
             <Stack.Screen name="company-request" />
             <Stack.Screen name="request-status" />
             <Stack.Screen name="company" />
+            <Stack.Screen name="company-setup" />
             <Stack.Screen name="platform" />
             <Stack.Screen name="supervisor" />
             <Stack.Screen name="change-password" />
