@@ -18,6 +18,7 @@ import { addRequestNote, approveCompanyRequest, cancelManagerInvitation, createC
 import { getCompanyOperationalSetup, saveCompanyOperationalSetup } from "../company-setup";
 import { getCompanyTeamSetup } from "../company-team-setup";
 import { getCompanyTerritorySetup, saveCompanyTerritory } from "../company-territory-setup";
+import { getCompanyAccountSetup, importCompanyAccounts } from "../company-account-import";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -175,6 +176,25 @@ async function startServer() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر حفظ منطقة العمل.";
       res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.get("/api/company/account-setup", async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ setup: await getCompanyAccountSetup(req.header("authorization")) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر تحميل جهات الشركة.";
+      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    }
+  });
+
+  app.post("/api/company/account-setup/import", async (req, res) => {
+    try {
+      res.json(await importCompanyAccounts(req.body ?? {}, req.header("authorization")));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر استيراد الجهات.";
+      res.status(message.includes("مدير الشركة") || message.includes("جلسة") || message.includes("صلاحية") ? 403 : 400).json({ message });
     }
   });
 
