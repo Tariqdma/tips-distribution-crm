@@ -5,10 +5,10 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform } from "react-native";
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
-import { CrmProvider } from "@/lib/crm-store";
+import { CrmProvider, useCrm } from "@/lib/crm-store";
 import { SupabaseAuthProvider } from "@/lib/supabase-auth";
 import "@/lib/duty-tracker";
 import {
@@ -28,6 +28,20 @@ const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
 export const unstable_settings = {
   anchor: "(tabs)",
 };
+
+function OfflineVisitSyncToast() {
+  const { offlineVisitSyncNotice, clearOfflineVisitSyncNotice } = useCrm();
+
+  useEffect(() => {
+    if (!offlineVisitSyncNotice) return;
+    const timer = setTimeout(clearOfflineVisitSyncNotice, 7000);
+    return () => clearTimeout(timer);
+  }, [clearOfflineVisitSyncNotice, offlineVisitSyncNotice]);
+
+  if (!offlineVisitSyncNotice) return null;
+  const message = offlineVisitSyncNotice.count === 1 ? "تم إرسال تقرير الزيارة المؤجل بنجاح." : `تم إرسال ${offlineVisitSyncNotice.count} تقارير زيارة مؤجلة بنجاح.`;
+  return <View style={toastStyles.container} accessibilityLiveRegion="polite"><View style={toastStyles.icon}><Text style={toastStyles.iconText}>✓</Text></View><View style={toastStyles.copy}><Text style={toastStyles.title}>اكتملت مزامنة التقارير</Text><Text style={toastStyles.body}>{message}</Text></View><TouchableOpacity onPress={clearOfflineVisitSyncNotice} style={toastStyles.close} accessibilityLabel="إغلاق التنبيه"><Text style={toastStyles.closeText}>×</Text></TouchableOpacity></View>;
+}
 
 export default function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
@@ -107,6 +121,7 @@ export default function RootLayout() {
             <Stack.Screen name="change-password" />
             <Stack.Screen name="reset-password" />
           </Stack>
+          <OfflineVisitSyncToast />
           <StatusBar style="dark" />
           </CrmProvider>
           </SupabaseAuthProvider>
@@ -137,3 +152,5 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const toastStyles = StyleSheet.create({ container: { position: "absolute", top: Platform.OS === "web" ? 18 : 58, left: 18, right: 18, zIndex: 1000, minHeight: 66, borderRadius: 16, padding: 11, backgroundColor: "#0F766E", borderWidth: 1, borderColor: "#0A5F58", flexDirection: "row-reverse", alignItems: "center", gap: 9, shadowColor: "#063F3A", shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8 }, icon: { width: 31, height: 31, borderRadius: 11, backgroundColor: "#DDF8EE", alignItems: "center", justifyContent: "center" }, iconText: { color: "#0F766E", fontSize: 18, fontWeight: "900", lineHeight: 21 }, copy: { flex: 1, alignItems: "flex-end" }, title: { color: "#FFFFFF", fontSize: 12, fontWeight: "900", textAlign: "right" }, body: { color: "#DDF8EE", fontSize: 10, lineHeight: 15, textAlign: "right", marginTop: 2 }, close: { width: 28, height: 28, alignItems: "center", justifyContent: "center" }, closeText: { color: "#DDF8EE", fontSize: 23, fontWeight: "400", lineHeight: 25 } });

@@ -16,16 +16,19 @@ export function isMobileNotificationsAvailable() {
   return Platform.OS !== "web";
 }
 
+async function ensureOperationalNotificationChannel() {
+  if (Platform.OS !== "android") return;
+  await Notifications.setNotificationChannelAsync(channelId, {
+    name: "تنبيهات Tips CRM",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 180, 100, 180],
+    lightColor: "#075E54",
+  });
+}
+
 export async function enableMobileNotifications() {
   if (!isMobileNotificationsAvailable()) return false;
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync(channelId, {
-      name: "متابعات Tips CRM",
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 180, 100, 180],
-      lightColor: "#075E54",
-    });
-  }
+  await ensureOperationalNotificationChannel();
   const existing = await Notifications.getPermissionsAsync();
   const permission = existing.status === "granted" ? existing : await Notifications.requestPermissionsAsync();
   return permission.status === "granted";
@@ -58,5 +61,22 @@ export async function scheduleFollowUpReminder({ action, dueDate, accountName }:
       sound: true,
     },
     trigger,
+  });
+}
+
+export async function notifyOfflineVisitSyncSuccess(syncedCount: number) {
+  if (!isMobileNotificationsAvailable() || syncedCount < 1) return null;
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== "granted") return null;
+  await ensureOperationalNotificationChannel();
+  const body = syncedCount === 1 ? "تم إرسال تقرير زيارة مؤجل بنجاح." : `تم إرسال ${syncedCount} تقارير زيارة مؤجلة بنجاح.`;
+  return Notifications.scheduleNotificationAsync({
+    content: {
+      title: "اكتملت مزامنة التقارير",
+      body,
+      data: { type: "offline_visit_sync_success", syncedCount },
+      sound: true,
+    },
+    trigger: null,
   });
 }
