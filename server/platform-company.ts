@@ -330,32 +330,35 @@ export async function getPublicCompanyRequestStatus(referenceId: string) {
 
 export async function createPublicCompanyRequest(input: PublicCompanyRequestInput) {
   requireConfig();
-  if (input.companyName.trim().length < 2) throw new Error("اكتب اسم الشركة.");
-  if (input.contactName.trim().length < 2) throw new Error("اكتب اسم مسؤول التواصل.");
-  if (!/^\S+@\S+\.\S+$/.test(input.contactEmail.trim())) throw new Error("اكتب بريداً إلكترونياً صحيحاً.");
+  const companyName = input.companyName.trim();
+  const contactName = input.contactName.trim();
+  const contactEmail = input.contactEmail.trim().toLowerCase();
+  if (companyName.length < 2) throw new Error("اكتب اسم الشركة.");
+  if (contactName.length < 2) throw new Error("اكتب اسم مسؤول التواصل.");
+  if (!/^\S+@\S+\.\S+$/.test(contactEmail)) throw new Error("اكتب بريداً إلكترونياً صحيحاً.");
   const expectedUserCount = input.expectedUserCount && input.expectedUserCount > 0 ? input.expectedUserCount : null;
   const publicClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data, error } = await publicClient.rpc("tips_crm_create_company_request", {
-    request_company_name: input.companyName.trim(),
-    request_contact_name: input.contactName.trim(),
-    request_contact_email: input.contactEmail.trim().toLowerCase(),
+    request_company_name: companyName,
+    request_contact_name: contactName,
+    request_contact_email: contactEmail,
     request_contact_phone: input.contactPhone?.trim() || null,
     request_expected_user_count: expectedUserCount,
     request_notes: input.notes?.trim() || null,
     request_activity_type: input.activityType?.trim() || null,
   });
   if (error || !data) throw new Error("تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى.");
-  const request = await getPlatformRequest(createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } }), String(data));
+  const requestId = String(data);
   try {
     await sendRequestReceivedEmail({
-      requestId: request.id,
-      recipientEmail: request.contact_email,
-      recipientName: request.contact_name,
-      companyName: request.company_name,
-      referenceNumber: referenceNumber(request.id),
+      requestId,
+      recipientEmail: contactEmail,
+      recipientName: contactName,
+      companyName,
+      referenceNumber: referenceNumber(requestId),
     });
   } catch (reason) {
     console.warn("[company-onboarding] request-received email was not delivered", reason);
   }
-  return { requestId: request.id, referenceNumber: referenceNumber(request.id) };
+  return { requestId, referenceNumber: referenceNumber(requestId) };
 }
