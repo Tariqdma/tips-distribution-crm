@@ -11,7 +11,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { uploadVisitAttachments, type VisitAttachment } from "@/lib/visit-attachments";
 import { notifyOfflineVisitSyncSuccess, scheduleFollowUpReminder } from "@/lib/mobile-notifications";
 import { buildInviteAcceptUrl } from "@/lib/auth-redirect";
-import { createOfflineVisitDraft, listOfflineVisitDrafts, markOfflineVisitDraftFailed, removeOfflineVisitDraft, saveOfflineVisitDraft, type OfflineVisitDraft, type OfflineVisitPayload } from "@/lib/offline-visit-drafts";
+import { createOfflineVisitDraft, listOfflineVisitDrafts, listVisitSyncHistory, markOfflineVisitDraftFailed, recordVisitSyncHistory, removeOfflineVisitDraft, saveOfflineVisitDraft, type OfflineVisitDraft, type OfflineVisitPayload, type VisitSyncHistoryEntry } from "@/lib/offline-visit-drafts";
 
 export type AccountType = "طبيب" | "صيدلية" | "مستشفى" | "موزع";
 export type VisitStatus = "مجدولة" | "مكتملة" | "تحتاج مراجعة";
@@ -48,7 +48,7 @@ type VisitCompletion = { result: VisitResult; note: string; followUpAction?: str
 type PlannedVisitInput = Pick<Visit, "id" | "accountId" | "date" | "time"> & { scheduledFor?: string };
 type NewPlanInput = { title: string; period: string; kind: Plan["kind"]; visitIds: string[]; schedule?: PlanScheduleDay[]; plannedVisits?: PlannedVisitInput[]; startsOn?: string; endsOn?: string };
 type CrmContextValue = {
-  data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number; isOnline: boolean; offlineVisitDrafts: OfflineVisitDraft[]; offlineVisitSyncNotice: OfflineVisitSyncNotice | null; syncOfflineVisitDrafts: () => Promise<void>; discardOfflineVisitDraft: (draftId: string) => Promise<void>; clearOfflineVisitSyncNotice: () => void;
+  data: CrmData; isReady: boolean; role: AppRole; activeMemberId: string; unreadNotificationCount: number; isOnline: boolean; offlineVisitDrafts: OfflineVisitDraft[]; offlineVisitSyncHistory: VisitSyncHistoryEntry[]; offlineVisitSyncNotice: OfflineVisitSyncNotice | null; syncOfflineVisitDrafts: () => Promise<void>; discardOfflineVisitDraft: (draftId: string) => Promise<void>; clearOfflineVisitSyncNotice: () => void;
   setRole: (role: AppRole) => void; selectTeamMember: (id: string) => void; updateTeamMemberRole: (id: string, role: AppRole) => void;
   createRole: (input: Omit<RoleDefinition, "id" | "isSystem" | "isActive">) => void; updateRoleDefinition: (id: string, input: Pick<RoleDefinition, "name" | "description" | "permissions">) => void; toggleRoleDefinition: (id: string) => void; removeRoleDefinition: (id: string) => void;
   accountById: (id: string) => Account | undefined; visitsForAccount: (accountId: string) => Visit[];
@@ -130,6 +130,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const [activeMemberId, setActiveMemberId] = useState("u1");
   const [isOnline, setIsOnline] = useState(true);
   const [offlineVisitDrafts, setOfflineVisitDrafts] = useState<OfflineVisitDraft[]>([]);
+  const [offlineVisitSyncHistory, setOfflineVisitSyncHistory] = useState<VisitSyncHistoryEntry[]>([]);
   const [offlineVisitSyncNotice, setOfflineVisitSyncNotice] = useState<OfflineVisitSyncNotice | null>(null);
   const { user, profile, session } = useSupabaseAuth();
   const remoteAccountIds = useRef<Record<string, string>>({});
@@ -288,13 +289,19 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         const synced = await syncSingleOfflineVisitDraft(draft);
         await removeOfflineVisitDraft(profileId, draft.id);
         syncedCount += 1;
+        const history = await recordVisitSyncHistory({ profileId, draft, status: "synced", attempt: draft.attempts + 1, message: "تم إرسال تقرير الزيارة إلى الإدارة بنجاح." }).catch(() => null);
+        if (history) setOfflineVisitSyncHistory(history);
         if (synced.attachments.length) commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === draft.visitId ? { ...visit, attachments: synced.attachments } : visit) }));
       } catch (error) {
-        await markOfflineVisitDraftFailed(profileId, draft.id, error instanceof Error ? error.message : "تعذر الاتصال بخدمة المزامنة.");
+        const message = error instanceof Error ? error.message : "تعذر الاتصال بخدمة المزامنة.";
+        await markOfflineVisitDraftFailed(profileId, draft.id, message);
+        const history = await recordVisitSyncHistory({ profileId, draft, status: "failed", attempt: draft.attempts + 1, message }).catch(() => null);
+        if (history) setOfflineVisitSyncHistory(history);
       }
     }
     const remaining = await listOfflineVisitDrafts(profileId);
     setOfflineVisitDrafts(remaining);
+    void listVisitSyncHistory(profileId).then(setOfflineVisitSyncHistory).catch(() => undefined);
     if (syncedCount) {
       const notice = { count: syncedCount, syncedAt: new Date().toISOString() };
       setOfflineVisitSyncNotice(notice);
@@ -329,10 +336,10 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const subscription = Network.addNetworkStateListener(updateNetwork);
     return () => subscription.remove();
   }, []);
-  useEffect(() => { if (!profileId) { setOfflineVisitDrafts([]); return; } void listOfflineVisitDrafts(profileId).then(setOfflineVisitDrafts).catch(() => setOfflineVisitDrafts([])); }, [profileId]);
+  useEffect(() => { if (!profileId) { setOfflineVisitDrafts([]); setOfflineVisitSyncHistory([]); return; } void Promise.all([listOfflineVisitDrafts(profileId), listVisitSyncHistory(profileId)]).then(([drafts, history]) => { setOfflineVisitDrafts(drafts); setOfflineVisitSyncHistory(history); }).catch(() => { setOfflineVisitDrafts([]); setOfflineVisitSyncHistory([]); }); }, [profileId]);
   useEffect(() => { if (isOnline && offlineVisitDrafts.length) void syncOfflineVisitDrafts(); }, [isOnline, offlineVisitDrafts.length, syncOfflineVisitDrafts]);
   const value = useMemo<CrmContextValue>(() => ({
-    data, isReady, role, activeMemberId, isOnline, offlineVisitDrafts, offlineVisitSyncNotice, syncOfflineVisitDrafts, discardOfflineVisitDraft, clearOfflineVisitSyncNotice, unreadNotificationCount: data.notifications.filter((item) => !item.readAt).length,
+    data, isReady, role, activeMemberId, isOnline, offlineVisitDrafts, offlineVisitSyncHistory, offlineVisitSyncNotice, syncOfflineVisitDrafts, discardOfflineVisitDraft, clearOfflineVisitSyncNotice, unreadNotificationCount: data.notifications.filter((item) => !item.readAt).length,
     setRole: (nextRole) => commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === activeMemberId ? { ...member, role: nextRole } : member) })),
     selectTeamMember: setActiveMemberId,
     updateTeamMemberRole: (id, nextRole) => commit((current) => ({ ...current, teamMembers: current.teamMembers.map((member) => member.id === id ? { ...member, role: nextRole } : member) })),
@@ -419,7 +426,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       }
     },
     markAllNotificationsRead: () => commit((current) => ({ ...current, notifications: current.notifications.map((item) => ({ ...item, readAt: item.readAt ?? "الآن" })) })),
-  }), [data, isReady, role, activeMemberId, user, refreshSharedCatalog, isOnline, offlineVisitDrafts, offlineVisitSyncNotice, syncOfflineVisitDrafts, discardOfflineVisitDraft, clearOfflineVisitSyncNotice, queueOrSyncVisit]);
+  }), [data, isReady, role, activeMemberId, user, refreshSharedCatalog, isOnline, offlineVisitDrafts, offlineVisitSyncHistory, offlineVisitSyncNotice, syncOfflineVisitDrafts, discardOfflineVisitDraft, clearOfflineVisitSyncNotice, queueOrSyncVisit]);
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }
 

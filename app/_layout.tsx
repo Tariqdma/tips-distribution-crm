@@ -1,6 +1,6 @@
 import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -40,7 +40,7 @@ function OfflineVisitSyncToast() {
 
   if (!offlineVisitSyncNotice) return null;
   const message = offlineVisitSyncNotice.count === 1 ? "تم إرسال تقرير الزيارة المؤجل بنجاح." : `تم إرسال ${offlineVisitSyncNotice.count} تقارير زيارة مؤجلة بنجاح.`;
-  return <View style={toastStyles.container} accessibilityLiveRegion="polite"><View style={toastStyles.icon}><Text style={toastStyles.iconText}>✓</Text></View><View style={toastStyles.copy}><Text style={toastStyles.title}>اكتملت مزامنة التقارير</Text><Text style={toastStyles.body}>{message}</Text></View><TouchableOpacity onPress={clearOfflineVisitSyncNotice} style={toastStyles.close} accessibilityLabel="إغلاق التنبيه"><Text style={toastStyles.closeText}>×</Text></TouchableOpacity></View>;
+  return <View style={toastStyles.container} accessibilityLiveRegion="polite"><View style={toastStyles.icon}><Text style={toastStyles.iconText}>✓</Text></View><TouchableOpacity onPress={() => router.push("/visit-sync-history" as never)} style={toastStyles.copy} accessibilityLabel="فتح سجل المزامنات"><Text style={toastStyles.title}>اكتملت مزامنة التقارير</Text><Text style={toastStyles.body}>{message} · عرض السجل</Text></TouchableOpacity><TouchableOpacity onPress={clearOfflineVisitSyncNotice} style={toastStyles.close} accessibilityLabel="إغلاق التنبيه"><Text style={toastStyles.closeText}>×</Text></TouchableOpacity></View>;
 }
 
 export default function RootLayout() {
@@ -116,6 +116,7 @@ export default function RootLayout() {
             <Stack.Screen name="company-territory-setup" />
             <Stack.Screen name="company-account-setup" />
             <Stack.Screen name="offline-drafts" />
+            <Stack.Screen name="visit-sync-history" />
             <Stack.Screen name="platform" />
             <Stack.Screen name="supervisor" />
             <Stack.Screen name="change-password" />
