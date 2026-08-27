@@ -9,7 +9,11 @@ CREATE TABLE IF NOT EXISTS tips_crm.mail_settings (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO tips_crm.mail_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.mail_settings WHERE id = 1) THEN
+    INSERT INTO tips_crm.mail_settings (id) VALUES (1);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS tips_crm.invite_email_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

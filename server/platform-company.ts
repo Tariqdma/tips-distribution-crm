@@ -362,3 +362,27 @@ export async function createPublicCompanyRequest(input: PublicCompanyRequestInpu
   }
   return { requestId, referenceNumber: referenceNumber(requestId) };
 }
+
+export type UpdateCompanySubscriptionInput = {
+  companyId: string;
+  paymentTierKey: string;
+  maxUserLimit: number;
+};
+
+export async function updateCompanySubscription(input: UpdateCompanySubscriptionInput, authorization?: string) {
+  if (!input.companyId?.trim()) throw new Error("معرّف الشركة غير موجود.");
+  if (input.maxUserLimit < 1) throw new Error("حد الموظفين يجب أن يكون 1 على الأقل.");
+  const { adminClient } = await requirePlatformAdmin(authorization);
+  const { error } = await adminClient
+    .schema("tips_crm")
+    .from("companies")
+    .update({
+      payment_tier_key: input.paymentTierKey.trim(),
+      max_user_limit: input.maxUserLimit,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.companyId);
+  if (error) throw new Error("تعذر تحديث باقة وسعة الشركة.");
+  return { companyId: input.companyId, paymentTierKey: input.paymentTierKey, maxUserLimit: input.maxUserLimit };
+}
+

@@ -8,9 +8,12 @@ CREATE TABLE IF NOT EXISTS tips_crm.visit_outcomes (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO tips_crm.visit_outcomes (label, sort_order)
-VALUES ('متابعة', 10), ('تم إنشاء فاتورة', 20), ('تم تحصيل', 30), ('لا يوجد قرار', 40)
-ON CONFLICT (label) DO NOTHING;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.visit_outcomes LIMIT 1) THEN
+    INSERT INTO tips_crm.visit_outcomes (label, sort_order)
+    VALUES ('متابعة', 10), ('تم إنشاء فاتورة', 20), ('تم تحصيل', 30), ('لا يوجد قرار', 40);
+  END IF;
+END $$;
 
 ALTER TABLE tips_crm.visit_outcomes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY visit_outcomes_read ON tips_crm.visit_outcomes FOR SELECT TO authenticated USING (is_active OR tips_crm.has_permission('manage_outcomes'));

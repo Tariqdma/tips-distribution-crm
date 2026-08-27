@@ -34,13 +34,13 @@ export default function CompanyPortalGateway() {
   if (!session) return <Redirect href="/login" />;
   if (profile?.must_change_password) return <Redirect href="/change-password" />;
   if (profile?.is_platform_admin) {
-    if (Platform.OS === "web") return <Redirect href="/platform" />;
-    return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.center}><View style={styles.icon}><MaterialIcons name="laptop-mac" size={34} color={palette.primary} /></View><Text style={styles.title}>بوابة المنصة للويب فقط</Text><Text style={styles.copy}>هذا الحساب يدير منصة Tips كاملة، لذلك لا يستخدم تطبيق الموظفين. افتح بوابة المنصة من المتصفح لإدارة الشركات والطلبات.</Text><TouchableOpacity onPress={() => void Linking.openURL("https://tipscrm-vevc4ncu.manus.space/platform")} style={styles.primary}><MaterialIcons name="open-in-new" size={18} color="#FFFFFF" /><Text style={styles.primaryText}>فتح بوابة المنصة</Text></TouchableOpacity><TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.secondary}><Text style={styles.secondaryText}>تسجيل الخروج</Text></TouchableOpacity></View></ScreenContainer>;
+    if (Platform.OS === "web") return <Redirect href={"/platform/login" as never} />;
+    return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.center}><View style={styles.icon}><MaterialIcons name="laptop-mac" size={34} color={palette.primary} /></View><Text style={styles.title}>بوابة المنصة للويب فقط</Text><Text style={styles.copy}>هذا الحساب يدير منصة Tips كاملة، لذلك لا يستخدم تطبيق الموظفين. افتح بوابة المنصة من المتصفح لإدارة الشركات والطلبات.</Text><TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={styles.primary}><MaterialIcons name="open-in-new" size={18} color="#FFFFFF" /><Text style={styles.primaryText}>فتح بوابة المنصة</Text></TouchableOpacity><TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.secondary}><Text style={styles.secondaryText}>تسجيل الخروج</Text></TouchableOpacity></View></ScreenContainer>;
   }
-  if (!isCompanyManager) return <Redirect href={profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor" ? "/supervisor" : "/"} />;
+  if (!isCompanyManager) return <Redirect href={(profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor" ? "/supervisor" : "/") as never} />;
   if (setupStatus === "loading") return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingCopy}>جاري التحقق من إعدادات الشركة…</Text></ScreenContainer>;
-  if (setupStatus === "incomplete") return <Redirect href="/company-setup" />;
-  if (shouldUseDesktopPortal) return <Redirect href="/admin" />;
+  if (setupStatus === "incomplete") return <Redirect href={"/company-setup" as never} />;
+  if (shouldUseDesktopPortal) return <Redirect href={"/admin" as never} />;
   return <AdminDashboard />;
 }
 

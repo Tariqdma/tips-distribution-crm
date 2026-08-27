@@ -81,8 +81,8 @@ export default function CompanyTeamSetupScreen() {
     finally { setSaving(false); }
   };
 
-  if (!session) return <Redirect href="/login" />;
-  if (!isManager) return <Redirect href="/company" />;
+  if (!session) return <Redirect href={"/login" as never} />;
+  if (!isManager) return <Redirect href={"/company" as never} />;
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loading}>جاري تحميل هيكل الفريق…</Text></ScreenContainer>;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

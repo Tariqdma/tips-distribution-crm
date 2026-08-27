@@ -38,8 +38,8 @@ export default function CompanySetupScreen() {
   const toggleDay = (day: string) => setSetup((current) => ({ ...current, workingDays: current.workingDays.includes(day) ? current.workingDays.filter((item) => item !== day) : [...current.workingDays, day] }));
   const save = async () => { try { setSaving(true); setError(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر حفظ الإعدادات."); } finally { setSaving(false); } };
 
-  if (!session) return <Redirect href="/login" />;
-  if (!isManager) return <Redirect href="/company" />;
+  if (!session) return <Redirect href={"/login" as never} />;
+  if (!isManager) return <Redirect href={"/company" as never} />;
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loading}>جاري تجهيز ملف الشركة…</Text></ScreenContainer>;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

@@ -1,12 +1,7 @@
--- ==========================================================
--- TIPS CRM COMPLETE DATABASE SETUP SCRIPT (100% IDEMPOTENT & SAFE)
--- ==========================================================
-
 CREATE SCHEMA IF NOT EXISTS tips_crm;
 REVOKE ALL ON SCHEMA tips_crm FROM PUBLIC, anon;
 GRANT USAGE ON SCHEMA tips_crm TO authenticated, service_role;
 
--- Safely drop all existing tips_crm functions across all overloaded signatures
 DO $$
 DECLARE
     r RECORD;
@@ -22,10 +17,6 @@ BEGIN
 END $$;
 
 
-
--- ==========================================
--- MODULE: tips_crm_schema.sql
--- ==========================================
 
 CREATE SCHEMA IF NOT EXISTS tips_crm;
 GRANT USAGE ON SCHEMA tips_crm TO anon, authenticated, service_role, postgres, supabase_admin, supabase_auth_admin;
@@ -44,6 +35,41 @@ CREATE TABLE IF NOT EXISTS tips_crm.roles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS tips_crm.companies (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  slug text NOT NULL UNIQUE,
+  status text NOT NULL DEFAULT 'active',
+  plan_key text NOT NULL DEFAULT 'standard',
+  payment_tier_key text DEFAULT 'standard',
+  max_user_limit integer NOT NULL DEFAULT 20,
+  primary_contact_name text,
+  primary_contact_email text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.company_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_name text NOT NULL,
+  requested_slug text,
+  contact_name text NOT NULL,
+  contact_email text NOT NULL,
+  contact_phone text,
+  expected_user_count integer,
+  activity_type text,
+  notes text,
+  review_note text,
+  status text NOT NULL DEFAULT 'submitted',
+  approved_company_id uuid REFERENCES tips_crm.companies(id) ON DELETE SET NULL,
+  manager_profile_id uuid,
+  invitation_sent_at timestamptz,
+  invitation_activated_at timestamptz,
+  invitation_cancelled_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS tips_crm.profiles (
   id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name text NOT NULL,
@@ -51,8 +77,40 @@ CREATE TABLE IF NOT EXISTS tips_crm.profiles (
   phone text,
   role_key text NOT NULL REFERENCES tips_crm.roles(key),
   is_active boolean NOT NULL DEFAULT true,
+  is_platform_admin boolean NOT NULL DEFAULT false,
+  active_company_id uuid REFERENCES tips_crm.companies(id) ON DELETE SET NULL,
+  must_change_password boolean NOT NULL DEFAULT false,
+  temporary_password_issued_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.company_memberships (
+  company_id uuid NOT NULL REFERENCES tips_crm.companies(id) ON DELETE CASCADE,
+  profile_id uuid NOT NULL REFERENCES tips_crm.profiles(id) ON DELETE CASCADE,
+  role_key text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (company_id, profile_id)
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.company_request_notes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL REFERENCES tips_crm.company_requests(id) ON DELETE CASCADE,
+  note_text text NOT NULL,
+  is_internal boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id uuid REFERENCES auth.users(id),
+  action text NOT NULL,
+  entity_type text,
+  entity_id text,
+  details jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS tips_crm.team_invites (
@@ -295,10 +353,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA tips_crm REVOKE ALL ON TABL
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA tips_crm GRANT ALL ON TABLES TO service_role;
 
 
--- ==========================================
--- MODULE: tips_crm_auth.sql
--- ==========================================
-
 -- Grant permissions to Supabase internal auth admin roles
 GRANT USAGE ON SCHEMA tips_crm TO postgres, anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA tips_crm TO postgres, service_role;
@@ -369,10 +423,6 @@ REVOKE ALL ON FUNCTION public.tips_crm_my_profile() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tips_crm_my_profile() TO authenticated, service_role;
 
 
--- ==========================================
--- MODULE: tips_crm_first_admin_bootstrap.sql
--- ==========================================
-
 DROP FUNCTION IF EXISTS public.tips_crm_claim_first_system_admin CASCADE;
 DROP FUNCTION IF EXISTS public.tips_crm_claim_first_system_admin() CASCADE;
 CREATE OR REPLACE FUNCTION public.tips_crm_claim_first_system_admin() RETURNS boolean
@@ -403,10 +453,6 @@ $$;
 REVOKE ALL ON FUNCTION public.tips_crm_claim_first_system_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tips_crm_claim_first_system_admin() TO authenticated;
 
-
--- ==========================================
--- MODULE: tips_crm_roles_rpc.sql
--- ==========================================
 
 DROP FUNCTION IF EXISTS public.tips_crm_claim_first_system_admin CASCADE;
 DROP FUNCTION IF EXISTS public.tips_crm_claim_first_system_admin() CASCADE;
@@ -490,10 +536,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_save_role(text, text, text, text[], bo
 GRANT EXECUTE ON FUNCTION public.tips_crm_deactivate_role(text) TO authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_catalog_and_invites.sql
--- ==========================================
-
 CREATE TABLE IF NOT EXISTS tips_crm.visit_outcomes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   label text NOT NULL UNIQUE,
@@ -504,9 +546,12 @@ CREATE TABLE IF NOT EXISTS tips_crm.visit_outcomes (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO tips_crm.visit_outcomes (label, sort_order)
-VALUES ('متابعة', 10), ('تم إنشاء فاتورة', 20), ('تم تحصيل', 30), ('لا يوجد قرار', 40)
-ON CONFLICT (label) DO NOTHING;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.visit_outcomes LIMIT 1) THEN
+    INSERT INTO tips_crm.visit_outcomes (label, sort_order)
+    VALUES ('متابعة', 10), ('تم إنشاء فاتورة', 20), ('تم تحصيل', 30), ('لا يوجد قرار', 40);
+  END IF;
+END $$;
 
 ALTER TABLE tips_crm.visit_outcomes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "visit_outcomes_read" ON tips_crm.visit_outcomes;
@@ -607,10 +652,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_list_visit_outcomes() TO authenticated
 GRANT EXECUTE ON FUNCTION public.tips_crm_save_visit_outcome(text, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.tips_crm_export_report_feed() TO authenticated;
 
-
--- ==========================================
--- MODULE: tips_crm_operations.sql
--- ==========================================
 
 CREATE TABLE IF NOT EXISTS tips_crm.audit_log (
   id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
@@ -789,10 +830,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_my_workspace() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.tips_crm_audit_feed() TO authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_plan_approval_enhancements.sql
--- ==========================================
-
 DROP FUNCTION IF EXISTS public.tips_crm_list_plans();
 
 DROP FUNCTION IF EXISTS public.tips_crm_list_plans CASCADE;
@@ -960,10 +997,6 @@ REVOKE ALL ON FUNCTION public.tips_crm_prepare_plan_submission_email(uuid) FROM 
 GRANT EXECUTE ON FUNCTION public.tips_crm_prepare_plan_submission_email(uuid) TO authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_plan_review.sql
--- ==========================================
-
 DROP FUNCTION IF EXISTS public.tips_crm_review_plan CASCADE;
 DROP FUNCTION IF EXISTS public.tips_crm_review_plan() CASCADE;
 CREATE OR REPLACE FUNCTION public.tips_crm_review_plan(target_plan_id uuid, next_status text, note text DEFAULT NULL) RETURNS boolean
@@ -994,10 +1027,6 @@ $$;
 REVOKE ALL ON FUNCTION public.tips_crm_review_plan(uuid, text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tips_crm_review_plan(uuid, text, text) TO authenticated;
 
-
--- ==========================================
--- MODULE: tips_crm_plan_review_reminders.sql
--- ==========================================
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
@@ -1068,10 +1097,6 @@ END;
 $$;
 
 
--- ==========================================
--- MODULE: tips_crm_plan_review_reminders_rls.sql
--- ==========================================
-
 ALTER TABLE tips_crm.plan_review_reminders ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS plan_review_reminders_manager_read ON tips_crm.plan_review_reminders;
@@ -1089,10 +1114,6 @@ USING (
 REVOKE INSERT, UPDATE, DELETE ON tips_crm.plan_review_reminders FROM authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_mail_settings_and_exports.sql
--- ==========================================
-
 CREATE TABLE IF NOT EXISTS tips_crm.mail_settings (
   id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   sender_name text NOT NULL DEFAULT 'Tips CRM',
@@ -1104,7 +1125,11 @@ CREATE TABLE IF NOT EXISTS tips_crm.mail_settings (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO tips_crm.mail_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.mail_settings WHERE id = 1) THEN
+    INSERT INTO tips_crm.mail_settings (id) VALUES (1);
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS tips_crm.invite_email_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1267,10 +1292,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_save_mail_settings(text, text, text, t
 GRANT EXECUTE ON FUNCTION public.tips_crm_export_report_feed(date, date, uuid, text) TO authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_outcomes_and_export_filters.sql
--- ==========================================
-
 DROP FUNCTION IF EXISTS public.tips_crm_export_report_feed();
 
 DROP FUNCTION IF EXISTS public.tips_crm_set_visit_outcome_active CASCADE;
@@ -1366,10 +1387,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_set_visit_outcome_active(uuid, boolean
 GRANT EXECUTE ON FUNCTION public.tips_crm_export_report_feed(date, date, uuid) TO authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_sync_refinement.sql
--- ==========================================
-
 ALTER TABLE tips_crm.accounts ADD COLUMN IF NOT EXISTS local_ref text;
 CREATE UNIQUE INDEX IF NOT EXISTS accounts_created_by_local_ref_idx ON tips_crm.accounts(created_by, local_ref) WHERE local_ref IS NOT NULL;
 
@@ -1424,10 +1441,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_sync_account(text, text, text, text, t
 GRANT EXECUTE ON FUNCTION public.tips_crm_list_accounts() TO authenticated;
 
 
--- ==========================================
--- MODULE: tips_crm_temporary_employee_accounts.sql
--- ==========================================
-
 ALTER TABLE tips_crm.profiles
   ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS temporary_password_issued_at timestamptz;
@@ -1479,10 +1492,6 @@ GRANT EXECUTE ON FUNCTION public.tips_crm_my_profile() TO authenticated;
 REVOKE ALL ON FUNCTION public.tips_crm_mark_password_changed() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tips_crm_mark_password_changed() TO authenticated;
 
-
--- ==========================================
--- MODULE: tips_crm_finalize_employee_account.sql
--- ==========================================
 
 -- يكمل ملف الموظف ومناطق عمله بعد إنشاء مستخدم Auth من الخادم.
 -- تعمل الدالة بهوية المدير الطالب وتتحقق من صلاحية إدارة المستخدمين.
@@ -1571,3 +1580,111 @@ $$;
 
 REVOKE ALL ON FUNCTION public.tips_crm_finalize_employee_account(uuid, text, text, text, text[], boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.tips_crm_finalize_employee_account(uuid, text, text, text, text[], boolean) TO authenticated;
+
+
+-- إضافة جدول باقات الدفع المالي والحدود المخصصة للموظفين
+CREATE TABLE IF NOT EXISTS tips_crm.payment_tiers (
+  key text PRIMARY KEY,
+  name text NOT NULL,
+  price_monthly numeric(10,2) NOT NULL DEFAULT 0,
+  default_user_limit integer NOT NULL DEFAULT 20,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO tips_crm.payment_tiers (key, name, price_monthly, default_user_limit) VALUES
+  ('free_trial', 'تجربة مجانية', 0.00, 5),
+  ('starter', 'باقة البداية', 49.00, 10),
+  ('standard', 'الباقة القياسية', 99.00, 20),
+  ('pro', 'الباقة الاحترافية', 199.00, 50),
+  ('enterprise', 'باقة المؤسسات', 499.00, 200),
+  ('custom', 'باقة مخصصة', 0.00, 1000)
+ON CONFLICT (key) DO UPDATE SET
+  name = EXCLUDED.name,
+  default_user_limit = EXCLUDED.default_user_limit;
+
+ALTER TABLE tips_crm.companies
+  ADD COLUMN IF NOT EXISTS payment_tier_key text REFERENCES tips_crm.payment_tiers(key) DEFAULT 'standard',
+  ADD COLUMN IF NOT EXISTS max_user_limit integer NOT NULL DEFAULT 20;
+
+-- دالة فحص حد الموظفين في الشركة النشطة
+DROP FUNCTION IF EXISTS public.tips_crm_check_company_user_limit CASCADE;
+DROP FUNCTION IF EXISTS public.tips_crm_check_company_user_limit() CASCADE;
+CREATE OR REPLACE FUNCTION public.tips_crm_check_company_user_limit(target_company_id uuid) RETURNS TABLE (
+  active_user_count bigint,
+  max_user_limit integer,
+  can_add boolean,
+  payment_tier_key text
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = tips_crm, auth, public
+AS $$
+DECLARE
+  v_max_limit integer;
+  v_tier text;
+  v_active_count bigint;
+BEGIN
+  SELECT c.max_user_limit, c.payment_tier_key
+  INTO v_max_limit, v_tier
+  FROM tips_crm.companies c
+  WHERE c.id = target_company_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Company not found';
+  END IF;
+
+  SELECT count(*)
+  INTO v_active_count
+  FROM tips_crm.company_memberships m
+  WHERE m.company_id = target_company_id AND m.is_active = true;
+
+  RETURN QUERY
+  SELECT 
+    v_active_count,
+    v_max_limit,
+    (v_active_count < v_max_limit),
+    v_tier;
+END;
+$$;
+
+-- دالة تحديث باقة الدفع والحد المخصص بواسطة مدير المنصة
+DROP FUNCTION IF EXISTS public.tips_crm_update_company_subscription CASCADE;
+DROP FUNCTION IF EXISTS public.tips_crm_update_company_subscription() CASCADE;
+CREATE OR REPLACE FUNCTION public.tips_crm_update_company_subscription(
+  target_company_id uuid,
+  new_payment_tier_key text,
+  new_max_user_limit integer
+) RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = tips_crm, auth, public
+AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.profiles WHERE id = auth.uid() AND is_platform_admin = true) THEN
+    RAISE EXCEPTION 'Platform Admin permission required';
+  END IF;
+
+  IF new_max_user_limit < 1 THEN
+    RAISE EXCEPTION 'User limit must be at least 1';
+  END IF;
+
+  UPDATE tips_crm.companies
+  SET payment_tier_key = new_payment_tier_key,
+      max_user_limit = new_max_user_limit,
+      updated_at = now()
+  WHERE id = target_company_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Target company not found';
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.tips_crm_check_company_user_limit(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.tips_crm_update_company_subscription(uuid, text, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.tips_crm_check_company_user_limit(uuid) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.tips_crm_update_company_subscription(uuid, text, integer) TO authenticated, service_role;

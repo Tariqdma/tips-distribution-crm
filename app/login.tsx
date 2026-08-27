@@ -175,6 +175,26 @@ export default function LoginScreen() {
   };
 
   if (session) {
+    if (profile?.is_platform_admin) {
+      return (
+        <ScreenContainer className="items-center justify-center px-6">
+          <View style={styles.card}>
+            <View style={styles.mark}>
+              <Text style={styles.markText}>T</Text>
+            </View>
+            <Text style={styles.title}>حساب مدير المنصة</Text>
+            <Text style={styles.copy}>
+              حساب مدير المنصة يُدار من بوابة المنصة عبر الويب.
+            </Text>
+
+            <TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={styles.button}>
+              <Text style={styles.buttonText}>فتح بوابة المنصة</Text>
+            </TouchableOpacity>
+          </View>
+        </ScreenContainer>
+      );
+    }
+
     return (
       <ScreenContainer className="items-center justify-center px-6">
         <View style={styles.card}>
@@ -185,12 +205,6 @@ export default function LoginScreen() {
           <Text style={styles.copy}>
             {profile ? `مرحباً بك، ${profile.full_name} (${profile.role_name || profile.role_key}).` : "مرحباً بك في نظام Tips CRM."}
           </Text>
-
-          {profile?.role_key === "sales_rep" ? (
-            <TouchableOpacity onPress={claimAdmin} style={styles.claim}>
-              <Text style={styles.claimText}>تهيئة هذا الحساب كمدير النظام الأول (System Admin)</Text>
-            </TouchableOpacity>
-          ) : null}
 
           {token ? (
             <TouchableOpacity onPress={() => router.replace(`/invite?token=${token}` as never)} style={styles.claim}>
@@ -295,6 +309,11 @@ export default function LoginScreen() {
           <MaterialIcons name="business" size={17} color={palette.primary} />
           <Text style={styles.companyRequestText}>شركتك جديدة؟ قدّم طلب انضمام</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={{ alignSelf: "center", marginTop: 12, padding: 6 }}>
+          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>مدير المنصة؟ ادخل من بوابة المنصة</Text>
+        </TouchableOpacity>
+
         <Text style={styles.support}>الحسابات الفردية ينشئها مدير الشركة أو المشرف المسؤول.</Text>
       </View>
     </ScreenContainer>

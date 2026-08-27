@@ -19,6 +19,9 @@ import { getCompanyOperationalSetup, saveCompanyOperationalSetup } from "../comp
 import { getCompanyTeamSetup } from "../company-team-setup";
 import { getCompanyTerritorySetup, saveCompanyTerritory } from "../company-territory-setup";
 import { getCompanyAccountSetup, importCompanyAccounts } from "../company-account-import";
+import { platformRouter } from "../routes/platform-router";
+import { companyRouter } from "../routes/company-router";
+import { repRouter } from "../routes/rep-router";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -131,73 +134,18 @@ async function startServer() {
     }
   });
 
-  app.get("/api/company/setup", async (req, res) => {
-    try {
-      res.setHeader("Cache-Control", "no-store");
-      res.json({ setup: await getCompanyOperationalSetup(req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر تحميل إعدادات الشركة.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
+  // Register 3 isolated API domain routers
+  app.use("/api/platform", platformRouter);
+  app.use("/api/company", companyRouter);
+  app.use("/api", repRouter);
 
-  app.put("/api/company/setup", async (req, res) => {
-    try {
-      res.json({ setup: await saveCompanyOperationalSetup(req.body ?? {}, req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر حفظ إعدادات الشركة.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
+  // Backwards compatibility aliases for existing endpoints
+  app.post("/api/employee-accounts", (req, res, next) => {
+    companyRouter(req, res, next);
   });
-
-  app.get("/api/company/team-setup", async (req, res) => {
-    try {
-      res.setHeader("Cache-Control", "no-store");
-      res.json({ setup: await getCompanyTeamSetup(req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر تحميل إعدادات فريق الشركة.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
+  app.get("/api/employee-accounts", (req, res, next) => {
+    companyRouter(req, res, next);
   });
-
-  app.get("/api/company/territory-setup", async (req, res) => {
-    try {
-      res.setHeader("Cache-Control", "no-store");
-      res.json({ setup: await getCompanyTerritorySetup(req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر تحميل إعدادات مناطق الشركة.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/company/territory-setup", async (req, res) => {
-    try {
-      res.status(201).json({ territory: await saveCompanyTerritory(req.body ?? {}, req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر حفظ منطقة العمل.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.get("/api/company/account-setup", async (req, res) => {
-    try {
-      res.setHeader("Cache-Control", "no-store");
-      res.json({ setup: await getCompanyAccountSetup(req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر تحميل جهات الشركة.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/company/account-setup/import", async (req, res) => {
-    try {
-      res.json(await importCompanyAccounts(req.body ?? {}, req.header("authorization")));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر استيراد الجهات.";
-      res.status(message.includes("مدير الشركة") || message.includes("جلسة") || message.includes("صلاحية") ? 403 : 400).json({ message });
-    }
-  });
-
   app.post("/api/company-requests", async (req, res) => {
     try {
       const request = await createPublicCompanyRequest(req.body ?? {});
@@ -207,77 +155,6 @@ async function startServer() {
       res.status(400).json({ message });
     }
   });
-
-  app.post("/api/platform/company-requests/:requestId/approve", async (req, res) => {
-    try {
-      const company = await approveCompanyRequest({ ...req.body, requestId: req.params.requestId }, req.header("authorization"));
-      res.status(201).json({ company });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر اعتماد طلب الشركة.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/platform/company-requests/:requestId/review", async (req, res) => {
-    try {
-      const review = await reviewCompanyRequest({ requestId: req.params.requestId, status: req.body?.status, reviewNote: req.body?.reviewNote }, req.header("authorization"));
-      res.json({ ok: true, review });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر مراجعة طلب الشركة.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/platform/company-requests/:requestId/notes", async (req, res) => {
-    try {
-      const note = await addRequestNote({ requestId: req.params.requestId, noteText: String(req.body?.noteText ?? "") }, req.header("authorization"));
-      res.status(201).json({ note });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر حفظ ملاحظة الطلب.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/platform/company-requests/:requestId/request-info", async (req, res) => {
-    try {
-      const result = await requestMoreInfo({ requestId: req.params.requestId, informationNeeded: String(req.body?.informationNeeded ?? "") }, req.header("authorization"));
-      res.json({ ok: true, ...result });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر طلب المعلومات من الشركة.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/platform/company-requests/:requestId/cancel-invitation", async (req, res) => {
-    try {
-      const result = await cancelManagerInvitation(req.params.requestId, req.header("authorization"));
-      res.json({ ok: true, result });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر إلغاء دعوة مدير الشركة.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/platform/companies", async (req, res) => {
-    try {
-      const company = await createCompanyDirect(req.body, req.header("authorization"));
-      res.status(201).json({ company });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر إنشاء الشركة.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/platform/companies/:companyId/resend-invitation", async (req, res) => {
-    try {
-      const result = await resendManagerInvitation(req.params.companyId, req.header("authorization"));
-      res.json({ ok: true, result });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر إعادة إرسال دعوة مدير الشركة.";
-      res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
   app.get("/api/company-requests/:referenceId/status", async (req, res) => {
     try {
       const request = await getPublicCompanyRequestStatus(req.params.referenceId);
@@ -286,47 +163,6 @@ async function startServer() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر التحقق من حالة الطلب.";
       res.status(400).json({ message });
-    }
-  });
-
-  app.get("/api/employee-accounts", async (req, res) => {
-    try {
-      const accounts = await listEmployeeAccounts(req.header("authorization"));
-      res.json({ accounts });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر تحميل حسابات الموظفين.";
-      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/employee-accounts/:employeeId/reset-password", async (req, res) => {
-    try {
-      const account = await resetEmployeePassword(req.params.employeeId, req.body, req.header("authorization"));
-      res.json({ account });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر إعادة تعيين كلمة مرور الموظف.";
-      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.get("/api/financial-control", async (req, res) => {
-    try {
-      res.setHeader("Cache-Control", "no-store");
-      res.json({ snapshot: await readFinancialSnapshot(req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر قراءة بيانات التحكم المالي.";
-      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
-    }
-  });
-
-  app.post("/api/financial-control/customer-mappings", async (req, res) => {
-    try {
-      const accountId = typeof req.body?.accountId === "string" ? req.body.accountId : "";
-      const customerCode = typeof req.body?.customerCode === "string" ? req.body.customerCode : "";
-      res.json({ mapping: await assignFinanceCustomerCode({ accountId, customerCode }, req.header("authorization")) });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر حفظ مطابقة العميل.";
-      res.status(message.includes("صلاحية") || message.includes("جلسة") ? 403 : 400).json({ message });
     }
   });
 

@@ -84,7 +84,21 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
   const validationError = validateTemporaryEmployeeInput(input);
   if (validationError) throw new Error(validationError);
 
-  const { actorClient, adminClient } = await requireUserManager(authorization);
+  const { actorClient, adminClient, activeCompanyId } = await requireUserManager(authorization);
+
+  // Check company user limit before creating account
+  const [companyRes, membershipCountRes] = await Promise.all([
+    adminClient.schema("tips_crm").from("companies").select("max_user_limit, payment_tier_key").eq("id", activeCompanyId).maybeSingle(),
+    adminClient.schema("tips_crm").from("company_memberships").select("id", { count: "exact", head: true }).eq("company_id", activeCompanyId).eq("is_active", true),
+  ]);
+
+  const maxLimit = companyRes.data?.max_user_limit ?? 20;
+  const currentCount = membershipCountRes.count ?? 0;
+
+  if (currentCount >= maxLimit) {
+    throw new Error(`تجاوزت الشركة الحد الأقصى المسموح به من الموظفين في باقتها الحالية (الحد المسموح: ${maxLimit} موظف / المسجل حالياً: ${currentCount}). تواصل مع مدير المنصة لترقية الباقة أو زيادة السعة.`);
+  }
+
   const normalizedEmail = input.email.trim().toLowerCase();
   const territoryKeys = Array.from(new Set(input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : [])));
   const submittedLabels = input.territoryLabels?.map((label) => label.trim()).filter(Boolean) ?? [];

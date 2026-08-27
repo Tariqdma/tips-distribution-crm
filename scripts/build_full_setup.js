@@ -16,18 +16,14 @@ const files = [
   'tips_crm_outcomes_and_export_filters.sql',
   'tips_crm_sync_refinement.sql',
   'tips_crm_temporary_employee_accounts.sql',
-  'tips_crm_finalize_employee_account.sql'
+  'tips_crm_finalize_employee_account.sql',
+  'tips_crm_payment_tiers_and_user_limits.sql'
 ];
 
-let combined = `-- ==========================================================
--- TIPS CRM COMPLETE DATABASE SETUP SCRIPT (100% IDEMPOTENT & SAFE)
--- ==========================================================
-
-CREATE SCHEMA IF NOT EXISTS tips_crm;
+let combined = `CREATE SCHEMA IF NOT EXISTS tips_crm;
 REVOKE ALL ON SCHEMA tips_crm FROM PUBLIC, anon;
 GRANT USAGE ON SCHEMA tips_crm TO authenticated, service_role;
 
--- Safely drop all existing tips_crm functions across all overloaded signatures
 DO $$
 DECLARE
     r RECORD;
@@ -49,6 +45,9 @@ for (const file of files) {
   if (!fs.existsSync(filePath)) continue;
 
   let content = fs.readFileSync(filePath, 'utf8');
+
+  // Strip all divider/header comment lines
+  content = content.replace(/^--\s*[-=]{2,}.*$/gm, '');
 
   // 1. Tables: CREATE TABLE -> CREATE TABLE IF NOT EXISTS
   content = content.replace(/CREATE\s+TABLE\s+(?!IF\s+NOT\s+EXISTS)/gi, 'CREATE TABLE IF NOT EXISTS ');
@@ -86,10 +85,7 @@ for (const file of files) {
     return match;
   });
 
-  combined += `\n\n-- ==========================================\n`;
-  combined += `-- MODULE: ${file}\n`;
-  combined += `-- ==========================================\n\n`;
-  combined += content;
+  combined += `\n\n` + content;
 }
 
 fs.writeFileSync(path.join('supabase', '00_full_setup.sql'), combined);

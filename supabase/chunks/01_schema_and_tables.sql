@@ -1,4 +1,6 @@
 CREATE SCHEMA IF NOT EXISTS tips_crm;
+REVOKE ALL ON SCHEMA tips_crm FROM PUBLIC, anon;
+GRANT USAGE ON SCHEMA tips_crm TO authenticated, service_role;
 GRANT USAGE ON SCHEMA tips_crm TO anon, authenticated, service_role, postgres, supabase_admin, supabase_auth_admin;
 GRANT ALL ON ALL TABLES IN SCHEMA tips_crm TO postgres, service_role, supabase_admin, supabase_auth_admin;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA tips_crm TO postgres, service_role, supabase_admin, supabase_auth_admin;
@@ -141,6 +143,7 @@ CREATE TABLE IF NOT EXISTS tips_crm.accounts (
   phone text,
   latitude numeric(9,6),
   longitude numeric(9,6),
+  local_ref text,
   created_by uuid NOT NULL REFERENCES auth.users(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -220,10 +223,62 @@ CREATE TABLE IF NOT EXISTS tips_crm.notifications (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX duty_location_points_profile_time_idx ON tips_crm.duty_location_points(profile_id, captured_at DESC);
-CREATE INDEX visits_rep_time_idx ON tips_crm.visits(rep_id, checked_in_at DESC);
-CREATE INDEX plans_owner_dates_idx ON tips_crm.plans(owner_id, starts_on, ends_on);
-CREATE INDEX notifications_recipient_time_idx ON tips_crm.notifications(recipient_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS tips_crm.visit_outcomes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  label text NOT NULL UNIQUE,
+  is_active boolean NOT NULL DEFAULT true,
+  sort_order integer NOT NULL DEFAULT 0,
+  created_by uuid REFERENCES tips_crm.profiles(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.mail_settings (
+  id smallint PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  sender_name text NOT NULL DEFAULT 'Tips CRM',
+  reply_to text,
+  invite_subject text NOT NULL DEFAULT 'دعوة للانضمام إلى Tips CRM',
+  invite_intro text NOT NULL DEFAULT 'تمت دعوتك للانضمام إلى النظام. اضغط الزر لتسجيل الدخول أو إنشاء حسابك، وسيتم تعيين دورك تلقائياً بعد قبول الدعوة.',
+  invite_action_label text NOT NULL DEFAULT 'قبول الدعوة',
+  updated_by uuid REFERENCES tips_crm.profiles(id),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.invite_email_deliveries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  invite_id uuid NOT NULL REFERENCES tips_crm.team_invites(id) ON DELETE CASCADE,
+  recipient_email text NOT NULL,
+  status text NOT NULL CHECK (status IN ('accepted_by_provider', 'failed')),
+  provider_message_id text,
+  failure_reason text,
+  created_by uuid REFERENCES tips_crm.profiles(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.plan_review_reminders (
+  plan_id uuid NOT NULL REFERENCES tips_crm.plans(id) ON DELETE CASCADE,
+  manager_id uuid NOT NULL REFERENCES tips_crm.profiles(id) ON DELETE CASCADE,
+  sent_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (plan_id, manager_id)
+);
+
+CREATE TABLE IF NOT EXISTS tips_crm.payment_tiers (
+  key text PRIMARY KEY,
+  name text NOT NULL,
+  price_monthly numeric(10,2) NOT NULL DEFAULT 0,
+  default_user_limit integer NOT NULL DEFAULT 20,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS duty_location_points_profile_time_idx ON tips_crm.duty_location_points(profile_id, captured_at DESC);
+CREATE INDEX IF NOT EXISTS visits_rep_time_idx ON tips_crm.visits(rep_id, checked_in_at DESC);
+CREATE INDEX IF NOT EXISTS plans_owner_dates_idx ON tips_crm.plans(owner_id, starts_on, ends_on);
+CREATE INDEX IF NOT EXISTS notifications_recipient_time_idx ON tips_crm.notifications(recipient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS invite_email_deliveries_invite_time_idx ON tips_crm.invite_email_deliveries(invite_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON tips_crm.audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS audit_log_actor_idx ON tips_crm.audit_log(actor_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS accounts_created_by_local_ref_idx ON tips_crm.accounts(created_by, local_ref) WHERE local_ref IS NOT NULL;
 
 INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_system) VALUES
   ('system_admin', 'مدير النظام', 'إدارة الأدوار والمستخدمين وكامل إعدادات الشركة.', ARRAY['all'], true),
@@ -232,76 +287,40 @@ INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_syst
   ('medical_rep', 'مندوب طبي', 'إدارة خطة وزيارات الأطباء والعيادات الخاصة به.', ARRAY['write_own_plans', 'write_own_visits', 'track_duty'], true)
 ON CONFLICT (key) DO NOTHING;
 
-CREATE OR REPLACE FUNCTION tips_crm.has_permission(required_permission text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = tips_crm, auth, public
-AS $$
-  SELECT COALESCE((
-    SELECT p.is_active AND r.is_active AND ('all' = ANY(r.permissions) OR required_permission = ANY(r.permissions))
-    FROM tips_crm.profiles p
-    JOIN tips_crm.roles r ON r.key = p.role_key
-    WHERE p.id = auth.uid()
-  ), false);
-$$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'visit_outcomes_label_key' AND conrelid = 'tips_crm.visit_outcomes'::regclass) THEN
+    ALTER TABLE tips_crm.visit_outcomes ADD CONSTRAINT visit_outcomes_label_key UNIQUE (label);
+  END IF;
+END $$;
 
-CREATE OR REPLACE FUNCTION tips_crm.in_assigned_territory(required_territory uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = tips_crm, auth, public
-AS $$
-  SELECT tips_crm.has_permission('view_team_data') OR EXISTS (
-    SELECT 1 FROM tips_crm.territory_assignments a
-    WHERE a.territory_id = required_territory AND a.profile_id = auth.uid()
-  );
-$$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.visit_outcomes LIMIT 1) THEN
+    INSERT INTO tips_crm.visit_outcomes (label, sort_order)
+    VALUES ('متابعة', 10), ('تم إنشاء فاتورة', 20), ('تم تحصيل', 30), ('لا يوجد قرار', 40);
+  END IF;
+END $$;
 
-REVOKE ALL ON ALL TABLES IN SCHEMA tips_crm FROM PUBLIC, anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA tips_crm TO authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA tips_crm TO service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA tips_crm TO authenticated, service_role;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM tips_crm.mail_settings WHERE id = 1) THEN
+    INSERT INTO tips_crm.mail_settings (id) VALUES (1);
+  END IF;
+END $$;
 
-ALTER TABLE tips_crm.roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.team_invites ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.territories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.territory_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.accounts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.plans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.plan_visits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.visits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.duty_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.duty_location_points ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.notifications ENABLE ROW LEVEL SECURITY;
+INSERT INTO tips_crm.payment_tiers (key, name, price_monthly, default_user_limit) VALUES
+  ('free_trial', 'تجربة مجانية', 0.00, 5),
+  ('starter', 'باقة البداية', 49.00, 10),
+  ('standard', 'الباقة القياسية', 99.00, 20),
+  ('pro', 'الباقة الاحترافية', 199.00, 50),
+  ('enterprise', 'باقة المؤسسات', 499.00, 200),
+  ('custom', 'باقة مخصصة', 0.00, 1000)
+ON CONFLICT (key) DO UPDATE SET
+  name = EXCLUDED.name,
+  default_user_limit = EXCLUDED.default_user_limit;
 
-CREATE POLICY roles_read ON tips_crm.roles FOR SELECT TO authenticated USING (is_active OR tips_crm.has_permission('manage_roles'));
-CREATE POLICY roles_manage ON tips_crm.roles FOR ALL TO authenticated USING (tips_crm.has_permission('manage_roles')) WITH CHECK (tips_crm.has_permission('manage_roles'));
-CREATE POLICY profiles_read ON tips_crm.profiles FOR SELECT TO authenticated USING (id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY profiles_manage ON tips_crm.profiles FOR ALL TO authenticated USING (tips_crm.has_permission('manage_users')) WITH CHECK (tips_crm.has_permission('manage_users'));
-CREATE POLICY invites_manage ON tips_crm.team_invites FOR ALL TO authenticated USING (tips_crm.has_permission('manage_users')) WITH CHECK (tips_crm.has_permission('manage_users'));
-CREATE POLICY territories_read ON tips_crm.territories FOR SELECT TO authenticated USING (tips_crm.in_assigned_territory(id));
-CREATE POLICY territories_manage ON tips_crm.territories FOR ALL TO authenticated USING (tips_crm.has_permission('manage_territories')) WITH CHECK (tips_crm.has_permission('manage_territories'));
-CREATE POLICY assignments_read ON tips_crm.territory_assignments FOR SELECT TO authenticated USING (profile_id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY assignments_manage ON tips_crm.territory_assignments FOR ALL TO authenticated USING (tips_crm.has_permission('manage_territories')) WITH CHECK (tips_crm.has_permission('manage_territories'));
-CREATE POLICY accounts_read ON tips_crm.accounts FOR SELECT TO authenticated USING (tips_crm.in_assigned_territory(territory_id));
-CREATE POLICY accounts_write ON tips_crm.accounts FOR ALL TO authenticated USING (tips_crm.has_permission('manage_accounts') OR tips_crm.in_assigned_territory(territory_id)) WITH CHECK (tips_crm.has_permission('manage_accounts') OR tips_crm.in_assigned_territory(territory_id));
-CREATE POLICY plans_read ON tips_crm.plans FOR SELECT TO authenticated USING (owner_id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY plans_write ON tips_crm.plans FOR ALL TO authenticated USING (owner_id = auth.uid() OR tips_crm.has_permission('approve_plans')) WITH CHECK (owner_id = auth.uid() OR tips_crm.has_permission('approve_plans'));
-CREATE POLICY plan_visits_read ON tips_crm.plan_visits FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM tips_crm.plans p WHERE p.id = plan_id AND (p.owner_id = auth.uid() OR tips_crm.has_permission('view_team_data'))));
-CREATE POLICY plan_visits_write ON tips_crm.plan_visits FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM tips_crm.plans p WHERE p.id = plan_id AND (p.owner_id = auth.uid() OR tips_crm.has_permission('approve_plans')))) WITH CHECK (EXISTS (SELECT 1 FROM tips_crm.plans p WHERE p.id = plan_id AND (p.owner_id = auth.uid() OR tips_crm.has_permission('approve_plans'))));
-CREATE POLICY visits_read ON tips_crm.visits FOR SELECT TO authenticated USING (rep_id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY visits_write ON tips_crm.visits FOR ALL TO authenticated USING (rep_id = auth.uid() OR tips_crm.has_permission('approve_plans')) WITH CHECK (rep_id = auth.uid() OR tips_crm.has_permission('approve_plans'));
-CREATE POLICY duty_sessions_read ON tips_crm.duty_sessions FOR SELECT TO authenticated USING (profile_id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY duty_sessions_write ON tips_crm.duty_sessions FOR ALL TO authenticated USING (profile_id = auth.uid()) WITH CHECK (profile_id = auth.uid());
-CREATE POLICY duty_points_read ON tips_crm.duty_location_points FOR SELECT TO authenticated USING (profile_id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY duty_points_write ON tips_crm.duty_location_points FOR INSERT TO authenticated WITH CHECK (profile_id = auth.uid());
-CREATE POLICY notifications_read ON tips_crm.notifications FOR SELECT TO authenticated USING (recipient_id = auth.uid() OR tips_crm.has_permission('view_team_data'));
-CREATE POLICY notifications_update ON tips_crm.notifications FOR UPDATE TO authenticated USING (recipient_id = auth.uid()) WITH CHECK (recipient_id = auth.uid());
-CREATE POLICY notifications_send ON tips_crm.notifications FOR INSERT TO authenticated WITH CHECK (tips_crm.has_permission('send_notifications'));
+ALTER TABLE tips_crm.companies
+  ADD COLUMN IF NOT EXISTS payment_tier_key text REFERENCES tips_crm.payment_tiers(key) DEFAULT 'standard',
+  ADD COLUMN IF NOT EXISTS max_user_limit integer NOT NULL DEFAULT 20;
 
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA tips_crm REVOKE ALL ON TABLES FROM PUBLIC, anon;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA tips_crm GRANT ALL ON TABLES TO service_role;
+UPDATE tips_crm.roles
+SET permissions = ARRAY(SELECT DISTINCT unnest(permissions || ARRAY['manage_outcomes', 'export_reports']))
+WHERE key IN ('system_admin', 'sales_manager');

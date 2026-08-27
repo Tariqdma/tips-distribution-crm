@@ -92,8 +92,8 @@ export default function CompanyAccountSetupScreen() {
   };
   const metrics = useMemo(() => setup ? [{ key: "doctor", value: setup.doctorCount }, { key: "pharmacy", value: setup.pharmacyCount }, { key: "hospital", value: setup.hospitalCount }, { key: "distributor", value: setup.distributorCount }] as const : [], [setup]);
 
-  if (!session) return <Redirect href="/login" />;
-  if (!isManager) return <Redirect href="/company" />;
+  if (!session) return <Redirect href={"/login" as never} />;
+  if (!isManager) return <Redirect href={"/company" as never} />;
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loading}>جاري تحميل دليل الجهات…</Text></ScreenContainer>;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
