@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Platform } from "react-native";
 import * as Network from "expo-network";
 import { sendOperationalNotification } from "@/lib/notifications";
 import { stateForCity } from "@/lib/sudan-locations";
@@ -331,6 +332,21 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     }
   }, [commit, isOnline, profileId, syncSingleOfflineVisitDraft]);
   useEffect(() => {
+    if (Platform.OS === "web") {
+      setIsOnline(typeof window !== "undefined" ? window.navigator.onLine : true);
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      if (typeof window !== "undefined") {
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+      }
+      return () => {
+        if (typeof window !== "undefined") {
+          window.removeEventListener("online", handleOnline);
+          window.removeEventListener("offline", handleOffline);
+        }
+      };
+    }
     const updateNetwork = (state: Network.NetworkState) => setIsOnline(state.isInternetReachable !== false && state.isConnected !== false);
     void Network.getNetworkStateAsync().then(updateNetwork).catch(() => setIsOnline(true));
     const subscription = Network.addNetworkStateListener(updateNetwork);
