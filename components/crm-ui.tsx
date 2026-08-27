@@ -24,7 +24,7 @@ export const palette = {
 export function AppHeader({ eyebrow, title, right }: { eyebrow?: string; title: string; right?: ReactNode }) {
   return (
     <View style={styles.header}>
-      <View style={{ flex: 1, alignItems: "flex-end" }}>
+      <View style={{ flex: 1, flexShrink: 1, alignItems: "flex-end" }}>
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
         <Text style={styles.headerTitle}>{title}</Text>
       </View>
@@ -70,9 +70,9 @@ export function MetricCard({
       <View style={[styles.metricIcon, { backgroundColor: colors.bg }]}>
         <MaterialIcons name={icon} size={19} color={colors.icon} />
       </View>
-      <View style={{ alignItems: "flex-end" }}>
-        <Text style={[styles.metricValue, compact && styles.metricValueCompact]}>{value}</Text>
-        <Text style={[styles.metricLabel, compact && styles.metricLabelCompact]}>{label}</Text>
+      <View style={{ flexShrink: 1, width: "100%", alignItems: "flex-end" }}>
+        <Text style={[styles.metricValue, compact && styles.metricValueCompact]} numberOfLines={1}>{value}</Text>
+        <Text style={[styles.metricLabel, compact && styles.metricLabelCompact]} numberOfLines={2}>{label}</Text>
       </View>
     </View>
   );
@@ -151,7 +151,7 @@ export function SecondaryButton({
 export function InfoRow({ icon, title, value }: { icon: keyof typeof MaterialIcons.glyphMap; title: string; value: string }) {
   return (
     <View style={styles.infoRow}>
-      <View style={{ flex: 1, alignItems: "flex-end" }}>
+      <View style={{ flex: 1, flexShrink: 1, alignItems: "flex-end" }}>
         <Text style={styles.infoValue}>{value}</Text>
         <Text style={styles.infoLabel}>{title}</Text>
       </View>
@@ -163,23 +163,23 @@ export function InfoRow({ icon, title, value }: { icon: keyof typeof MaterialIco
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", minHeight: 54, marginBottom: 18 },
-  headerRight: { marginLeft: 12 },
-  eyebrow: { color: palette.muted, fontSize: 12, textAlign: "right", marginBottom: 3 },
-  headerTitle: { color: palette.ink, fontSize: 25, fontWeight: "800", textAlign: "right", lineHeight: 32 },
-  sectionRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginTop: 22, marginBottom: 11 },
-  sectionTitle: { color: palette.ink, fontWeight: "800", fontSize: 17, textAlign: "right" },
+  header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", minHeight: 54, marginBottom: 18, gap: 10 },
+  headerRight: { marginLeft: 0 },
+  eyebrow: { color: palette.muted, fontSize: 12, lineHeight: 17, textAlign: "right", marginBottom: 3 },
+  headerTitle: { color: palette.ink, fontSize: 22, fontWeight: "800", textAlign: "right", lineHeight: 30 },
+  sectionRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginTop: 22, marginBottom: 11, gap: 8 },
+  sectionTitle: { color: palette.ink, fontWeight: "800", fontSize: 17, lineHeight: 24, textAlign: "right", flexShrink: 1 },
   textAction: { paddingVertical: 6, paddingHorizontal: 2 },
   textActionLabel: { color: palette.primary, fontWeight: "700", fontSize: 13 },
-  metricCard: { flex: 1, minWidth: 104, backgroundColor: palette.surface, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.line, gap: 9, alignItems: "flex-end" },
-  metricCardCompact: { minWidth: 0, padding: 10, borderRadius: 15, gap: 6 },
+  metricCard: { flex: 1, minWidth: 100, backgroundColor: palette.surface, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: palette.line, gap: 8, alignItems: "flex-end" },
+  metricCardCompact: { minWidth: 0, padding: 10, borderRadius: 15, gap: 5 },
   metricIcon: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  metricValue: { color: palette.ink, fontSize: 20, fontWeight: "800", lineHeight: 24 },
-  metricValueCompact: { fontSize: 17, lineHeight: 21 },
-  metricLabel: { color: palette.muted, fontSize: 11, textAlign: "right", marginTop: 2 },
+  metricValue: { color: palette.ink, fontSize: 19, fontWeight: "800", lineHeight: 25, textAlign: "right" },
+  metricValueCompact: { fontSize: 16, lineHeight: 21 },
+  metricLabel: { color: palette.muted, fontSize: 11, lineHeight: 16, textAlign: "right", marginTop: 2 },
   metricLabelCompact: { fontSize: 9, lineHeight: 13 },
-  badge: { flexDirection: "row-reverse", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10 },
-  badgeText: { fontSize: 11, fontWeight: "700" },
+  badge: { flexDirection: "row-reverse", alignItems: "center", gap: 4, alignSelf: "flex-end", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, flexShrink: 0 },
+  badgeText: { fontSize: 11, fontWeight: "700", lineHeight: 15 },
   avatar: { alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#FFFFFF", fontWeight: "800" },
   primaryButton: { minHeight: 52, backgroundColor: palette.primary, borderRadius: 15, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 18 },
@@ -189,6 +189,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: palette.primary, fontWeight: "800", fontSize: 14 },
   infoRow: { flexDirection: "row-reverse", alignItems: "center", gap: 11, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#EDF1EF" },
   infoIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: "#F1F7F5", alignItems: "center", justifyContent: "center" },
-  infoValue: { color: palette.ink, fontSize: 14, fontWeight: "700", textAlign: "right" },
-  infoLabel: { color: palette.muted, fontSize: 11, marginTop: 2, textAlign: "right" },
+  infoValue: { color: palette.ink, fontSize: 14, fontWeight: "700", textAlign: "right", lineHeight: 20 },
+  infoLabel: { color: palette.muted, fontSize: 11, marginTop: 2, textAlign: "right", lineHeight: 16 },
 });

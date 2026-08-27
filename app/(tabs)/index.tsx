@@ -69,6 +69,9 @@ export default function TodayScreen() {
           right={
             <View style={styles.headerActions}>
               <NotificationButton count={unreadNotificationCount} />
+              <TouchableOpacity onPress={() => void (async () => { await signOut(); router.replace("/login" as never); })()} style={styles.signOutBtn} accessibilityLabel="تسجيل الخروج">
+                <MaterialIcons name="logout" size={17} color={palette.error} />
+              </TouchableOpacity>
               <View style={styles.profile}>
                 <Text style={styles.profileText}>
                   {(profile?.full_name ?? "م")
@@ -264,6 +267,7 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: "row-reverse", gap: 8, alignItems: "center" },
   profile: { height: 38, width: 38, borderRadius: 19, backgroundColor: "#DFF2EC", alignItems: "center", justifyContent: "center" },
   profileText: { color: palette.primary, fontWeight: "800", fontSize: 12 },
+  signOutBtn: { height: 38, width: 38, borderRadius: 14, backgroundColor: "#FFF0F0", borderWidth: 1, borderColor: "#F8C4C4", alignItems: "center", justifyContent: "center" },
   hero: { backgroundColor: palette.primary, borderRadius: 22, padding: 18, elevation: 3 },
   heroTop: { flexDirection: "row-reverse", alignItems: "center", gap: 12 },
   todayIcon: { height: 38, width: 38, borderRadius: 12, backgroundColor: "#0B7A6D", alignItems: "center", justifyContent: "center" },
