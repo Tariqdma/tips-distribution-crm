@@ -39,7 +39,6 @@ export default function CompanyPortalGateway() {
   }
   if (!isCompanyManager) return <Redirect href={(profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor" ? "/supervisor" : "/") as never} />;
   if (setupStatus === "loading") return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loadingCopy}>جاري التحقق من إعدادات الشركة…</Text></ScreenContainer>;
-  if (setupStatus === "incomplete") return <Redirect href={"/company-setup" as never} />;
   if (shouldUseDesktopPortal) return <Redirect href={"/admin" as never} />;
   return <AdminDashboard />;
 }
