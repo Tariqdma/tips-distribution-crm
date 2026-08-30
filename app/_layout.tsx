@@ -115,6 +115,9 @@ export default function RootLayout() {
             <Stack.Screen name="company-team-setup" />
             <Stack.Screen name="company-territory-setup" />
             <Stack.Screen name="company-account-setup" />
+            <Stack.Screen name="product-catalog" />
+            <Stack.Screen name="admin/products" />
+            <Stack.Screen name="admin/product-insights" />
             <Stack.Screen name="offline-drafts" />
             <Stack.Screen name="visit-sync-history" />
             <Stack.Screen name="platform" />

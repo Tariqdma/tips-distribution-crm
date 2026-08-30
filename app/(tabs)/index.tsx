@@ -160,6 +160,17 @@ export default function TodayScreen() {
           </TouchableOpacity>
         ) : null}
 
+        <TouchableOpacity onPress={() => router.push("/product-catalog" as never)} style={styles.productCatalog}>
+          <View style={styles.productCatalogIcon}>
+            <MaterialIcons name="inventory-2" size={20} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <Text style={styles.productCatalogTitle}>كتالوج منتجات الشركة</Text>
+            <Text style={styles.productCatalogCopy}>راجع المنتجات قبل الزيارة، ثم وثّق الترويج أو المناقشة داخل التقرير.</Text>
+          </View>
+          <MaterialIcons name="chevron-left" size={22} color="#6F5B20" />
+        </TouchableOpacity>
+
         {/* Follow Ups Needed */}
         {dueFollowUps.length ? (
           <>
@@ -297,6 +308,10 @@ const styles = StyleSheet.create({
   medicalToolsIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: "#246B91", alignItems: "center", justifyContent: "center" },
   medicalToolsTitle: { color: "#174B65", fontSize: 12, fontWeight: "900", textAlign: "right" },
   medicalToolsCopy: { color: "#4C7183", fontSize: 10, marginTop: 3, textAlign: "right" },
+  productCatalog: { marginTop: 14, minHeight: 70, padding: 12, borderRadius: 16, backgroundColor: "#FFF9EB", borderWidth: 1, borderColor: "#F3DC9D", flexDirection: "row-reverse", alignItems: "center", gap: 10 },
+  productCatalogIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: "#9A7619", alignItems: "center", justifyContent: "center" },
+  productCatalogTitle: { color: "#725922", fontSize: 12, fontWeight: "900", textAlign: "right" },
+  productCatalogCopy: { color: "#8D7A45", fontSize: 10, marginTop: 3, textAlign: "right" },
   followupCard: { backgroundColor: "#FFF9EB", borderWidth: 1, borderColor: "#F3DC9D", borderRadius: 18, paddingHorizontal: 13 },
   followupRow: { minHeight: 57, flexDirection: "row-reverse", alignItems: "center", gap: 9 },
   followupTitle: { color: "#795D14", fontSize: 12, fontWeight: "800", textAlign: "right" },
