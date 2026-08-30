@@ -72,7 +72,7 @@ async function requireFinancialAccess(authorization?: string) {
   if (!ENV.supabaseUrl || !ENV.supabaseAnonKey || !ENV.supabaseServiceRoleKey) throw new Error("إعدادات الخادم المالي غير مكتملة.");
   const token = accessTokenFromHeader(authorization);
   const actorClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
+  const { data, error } = await actorClient.rpc("tips_crm_my_profile_v2");
   if (error) throw new Error("تعذر التحقق من صلاحية الإدارة المالية.");
   const profile = (data as FinancialActor[] | null)?.[0];
   if (!profile || !profile.permissions.some((permission) => permission === "all" || permission === "export_reports")) throw new Error("لا تملك صلاحية عرض البيانات المالية.");

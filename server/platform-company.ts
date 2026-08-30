@@ -95,7 +95,7 @@ async function requirePlatformAdmin(authorization?: string) {
     auth: { autoRefreshToken: false, persistSession: false },
     global: { headers: { Authorization: `Bearer ${tokenFromHeader(authorization)}` } },
   });
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
+  const { data, error } = await actorClient.rpc("tips_crm_my_profile_v2");
   const profile = (data as Array<{ id: string; is_platform_admin?: boolean }> | null)?.[0];
   if (error || !profile?.is_platform_admin) throw new Error("هذه العملية مخصصة لمدير المنصة فقط.");
   const adminClient = createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, {
@@ -385,4 +385,3 @@ export async function updateCompanySubscription(input: UpdateCompanySubscription
   if (error) throw new Error("تعذر تحديث باقة وسعة الشركة.");
   return { companyId: input.companyId, paymentTierKey: input.paymentTierKey, maxUserLimit: input.maxUserLimit };
 }
-

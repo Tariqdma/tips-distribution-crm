@@ -69,7 +69,7 @@ async function requireUserManager(authorization?: string) {
   const actorClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
     auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
-  const { data: profileRows, error: profileError } = await actorClient.rpc("tips_crm_my_profile");
+  const { data: profileRows, error: profileError } = await actorClient.rpc("tips_crm_my_profile_v2");
   if (profileError) throw new Error("تعذر التحقق من صلاحية الإدارة.");
   const actorProfile = (profileRows as Array<{ id: string; permissions: string[]; active_company_id: string | null }> | null)?.[0];
   if (!actorProfile?.permissions?.some((permission) => permission === "all" || permission === "manage_users")) {

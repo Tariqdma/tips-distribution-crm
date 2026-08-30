@@ -12,7 +12,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const refreshProfile = async (): Promise<SupabaseProfile | null> => {
     if (!supabase) return null;
-    const { data } = await supabase.rpc("tips_crm_my_profile");
+    const { data } = await supabase.rpc("tips_crm_my_profile_v2");
     const nextProfile = (data?.[0] as SupabaseProfile | undefined) ?? null;
     if (nextProfile) {
       await supabase.rpc("tips_crm_mark_company_manager_activation");

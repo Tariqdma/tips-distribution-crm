@@ -53,7 +53,7 @@ function createActorClient(authorization?: string) {
 
 async function requireCompanyManager(authorization?: string) {
   const actorClient = createActorClient(authorization);
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
+  const { data, error } = await actorClient.rpc("tips_crm_my_profile_v2");
   const profile = (data as Array<{ role_key: string; active_company_id: string | null; is_platform_admin?: boolean }> | null)?.[0];
   const validRole = ["company_manager", "sales_manager", "system_admin"].includes(profile?.role_key ?? "");
   if (error || !profile?.active_company_id || profile.is_platform_admin || !validRole) throw new Error("هذه العملية مخصصة لمدير الشركة فقط.");
