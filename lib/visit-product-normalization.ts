@@ -1,6 +1,20 @@
 export type ProductInteractionType = "promoted" | "discussed" | "requested_info" | "order_interest";
 
-export type CatalogProduct = { id: string; name: string; category?: string | null; description?: string | null; unitLabel: string };
+export type CatalogProduct = {
+  id: string;
+  sku?: string | null;
+  name: string;
+  category?: string | null;
+  description?: string | null;
+  unitLabel: string;
+  scientificName?: string | null;
+  packSize?: string | null;
+  imageUrl?: string | null;
+  isOrderable?: boolean;
+  listPrice?: number | null;
+  priceCurrency?: string | null;
+  isActive?: boolean;
+};
 export type AssignedVisitSample = { materialId: string; name: string; unitLabel: string; availableQuantity: number };
 export type VisitProductInteractionInput = { productId: string; interactionType: ProductInteractionType; note?: string };
 export type VisitSampleDeliveryInput = { materialId: string; quantity: number };

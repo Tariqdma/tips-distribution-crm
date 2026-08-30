@@ -171,6 +171,17 @@ export default function TodayScreen() {
           <MaterialIcons name="chevron-left" size={22} color="#6F5B20" />
         </TouchableOpacity>
 
+        {profile?.role_key === "sales_rep" ? <TouchableOpacity onPress={() => router.push("/proformas" as never)} style={styles.productCatalog}>
+          <View style={styles.productCatalogIcon}>
+            <MaterialIcons name="receipt-long" size={20} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1, alignItems: "flex-end" }}>
+            <Text style={styles.productCatalogTitle}>الفواتير المبدئية</Text>
+            <Text style={styles.productCatalogCopy}>أنشئ مسودة طلب، ثم أصدر وشارك PDF غير محاسبي مع العميل.</Text>
+          </View>
+          <MaterialIcons name="chevron-left" size={22} color="#6F5B20" />
+        </TouchableOpacity> : null}
+
         {/* Follow Ups Needed */}
         {dueFollowUps.length ? (
           <>

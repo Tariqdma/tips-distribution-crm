@@ -29,7 +29,7 @@ export type MonthlyTarget = { id: string; monthStart: string; targetType: "من�
 export type MonthlyPerformance = { monthStart: string; targetType: MonthlyTarget["targetType"]; targetKey: string; metric: TargetMetric; actualValue: number };
 export type OfflineVisitSyncNotice = { count: number; syncedAt: string };
 
-export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
+export type Account = { id: string; remoteId?: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
 export type Visit = { id: string; accountId: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; checkedInAt?: string; completedAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean; collectionAmount?: number; revenueAmount?: number; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string } & VisitProductContextInput;
 export type PlanScheduleDay = { id: string; label: string; dateLabel: string; visitIds: string[] };
 export type PlanVisitDetail = { id: string; accountId?: string; accountName: string; scheduledFor: string };
@@ -216,7 +216,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         const type = accountTypeFromRemote[account.account_type] ?? "موزع";
         const localId = account.local_ref || `remote-${account.id}`;
         const cached = current.accounts.find((item) => item.id === localId);
-        return { ...cached, id: localId, name: account.name, type, specialty: account.specialty ?? undefined, state: account.state, city: account.city, area: account.area ?? "", address: account.address ?? "", contact: account.phone ?? "", lastVisit: cached?.lastVisit ?? "لم تتم زيارة", priority: cached?.priority ?? "اعتيادية", initials: initialsFor(account.name), accent: accentForAccountType[type] } as Account;
+        return { ...cached, id: localId, remoteId: account.id, name: account.name, type, specialty: account.specialty ?? undefined, state: account.state, city: account.city, area: account.area ?? "", address: account.address ?? "", contact: account.phone ?? "", lastVisit: cached?.lastVisit ?? "لم تتم زيارة", priority: cached?.priority ?? "اعتيادية", initials: initialsFor(account.name), accent: accentForAccountType[type] } as Account;
       });
       const pendingLocalAccounts = current.accounts.filter((account) => account.id.startsWith("a-") && !sharedAccounts?.some((item) => item.id === account.id));
       const sharedBoundaries = remoteTerritories?.flatMap((territory) => {

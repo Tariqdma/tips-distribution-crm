@@ -5,16 +5,28 @@ import type { AssignedVisitSample, CatalogProduct, VisitProductContextInput } fr
 export { normalizeVisitProductContext, productInteractionLabels } from "./visit-product-normalization";
 export type { AssignedVisitSample, CatalogProduct, ProductInteractionType, VisitProductContextInput, VisitProductInteractionInput, VisitSampleDeliveryInput } from "./visit-product-normalization";
 
-export async function listCatalogProducts(): Promise<CatalogProduct[]> {
+export async function listCatalogProducts(includeInactive = false): Promise<CatalogProduct[]> {
   if (!supabase) return [];
-  const { data, error } = await supabase.rpc("tips_crm_list_products");
+  const { data, error } = await supabase.rpc("tips_crm_list_catalog_products_v2", { include_inactive: includeInactive });
   if (error) throw error;
-  return (data ?? []).map((item: { id: string; name: string; category?: string | null; description?: string | null; unit_label?: string | null }) => ({
+  return (data ?? []).map((item: {
+    id: string; sku?: string | null; name: string; category?: string | null; description?: string | null; unit_label?: string | null;
+    scientific_name?: string | null; pack_size?: string | null; image_url?: string | null; is_orderable?: boolean | null;
+    list_price?: number | string | null; price_currency?: string | null; is_active?: boolean | null;
+  }) => ({
     id: item.id,
+    sku: item.sku,
     name: item.name,
     category: item.category,
     description: item.description,
     unitLabel: item.unit_label || "وحدة",
+    scientificName: item.scientific_name,
+    packSize: item.pack_size,
+    imageUrl: item.image_url,
+    isOrderable: Boolean(item.is_orderable),
+    listPrice: item.list_price === null || item.list_price === undefined ? null : Number(item.list_price),
+    priceCurrency: item.price_currency || "SDG",
+    isActive: item.is_active !== false,
   }));
 }
 
