@@ -3,7 +3,7 @@ import { normalizeVisitProductContext } from "./visit-product-normalization";
 import type { AssignedVisitSample, CatalogProduct, VisitProductContextInput } from "./visit-product-normalization";
 
 export { normalizeVisitProductContext, productInteractionLabels } from "./visit-product-normalization";
-export type { AssignedVisitSample, CatalogProduct, ProductInteractionType, VisitProductContextInput, VisitProductInteractionInput, VisitSampleDeliveryInput } from "./visit-product-normalization";
+export type { AssignedVisitSample, CatalogProduct, PharmacyAvailabilityStatus, PharmacyProductAvailability, ProductInteractionType, VisitProductContextInput, VisitProductInteractionInput, VisitSampleDeliveryInput } from "./visit-product-normalization";
 
 export async function listCatalogProducts(includeInactive = false): Promise<CatalogProduct[]> {
   if (!supabase) return [];

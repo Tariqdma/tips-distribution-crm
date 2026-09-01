@@ -20,6 +20,22 @@ describe("normalizeVisitProductContext", () => {
     expect(normalized.marketFeedback).toBe("طلبت الصيدلية عبوة أصغر");
   });
 
+  it("normalizes pharmacy availability as bounded market observations", () => {
+    const normalized = normalizeVisitProductContext({
+      pharmacyProductAvailability: [
+        { productId: "product-a", status: "available" },
+        { productId: "product-a", status: "low" },
+        { productId: "product-b", status: "not_available", observedQuantity: 12.456 },
+        { productId: "product-c", status: "invalid" as never, observedQuantity: -2 },
+      ],
+    });
+
+    expect(normalized.pharmacyProductAvailability).toEqual([
+      { productId: "product-a", status: "available", observedQuantity: undefined },
+      { productId: "product-b", status: "not_available", observedQuantity: 12.46 },
+    ]);
+  });
+
   it("keeps valid unique sample deliveries with safe quantities", () => {
     const normalized = normalizeVisitProductContext({
       sampleDeliveries: [

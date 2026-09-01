@@ -18,7 +18,9 @@ export type CatalogProduct = {
 export type AssignedVisitSample = { materialId: string; name: string; unitLabel: string; availableQuantity: number };
 export type VisitProductInteractionInput = { productId: string; interactionType: ProductInteractionType; note?: string };
 export type VisitSampleDeliveryInput = { materialId: string; quantity: number };
-export type VisitProductContextInput = { productInteractions?: VisitProductInteractionInput[]; sampleDeliveries?: VisitSampleDeliveryInput[]; marketFeedback?: string; competitorNotes?: string; followUpRecommendation?: string };
+export type PharmacyAvailabilityStatus = "available" | "low" | "not_available";
+export type PharmacyProductAvailability = { productId: string; status: PharmacyAvailabilityStatus; observedQuantity?: number };
+export type VisitProductContextInput = { productInteractions?: VisitProductInteractionInput[]; sampleDeliveries?: VisitSampleDeliveryInput[]; marketFeedback?: string; competitorNotes?: string; followUpRecommendation?: string; pharmacyProductAvailability?: PharmacyProductAvailability[] };
 
 export const productInteractionLabels: Record<ProductInteractionType, string> = {
   promoted: "تم ترويجه", discussed: "تمت مناقشته", requested_info: "طُلبت معلومات عنه", order_interest: "يوجد اهتمام بالطلب",
@@ -33,5 +35,6 @@ export function normalizeVisitProductContext(input: VisitProductContextInput): V
     productInteractions: productInteractions.filter((line, index, lines) => lines.findIndex((candidate) => candidate.productId === line.productId) === index),
     sampleDeliveries: sampleDeliveries.filter((line, index, lines) => lines.findIndex((candidate) => candidate.materialId === line.materialId) === index),
     marketFeedback: shortText(input.marketFeedback), competitorNotes: shortText(input.competitorNotes), followUpRecommendation: shortText(input.followUpRecommendation),
+    pharmacyProductAvailability: (input.pharmacyProductAvailability ?? []).filter((line) => line.productId && ["available", "low", "not_available"].includes(line.status) && (line.observedQuantity === undefined || (Number.isFinite(line.observedQuantity) && line.observedQuantity >= 0))).slice(0, 50).map((line) => ({ productId: line.productId, status: line.status, observedQuantity: line.observedQuantity === undefined ? undefined : Math.min(1000000, Math.round(line.observedQuantity * 100) / 100) })).filter((line, index, lines) => lines.findIndex((candidate) => candidate.productId === line.productId) === index),
   };
 }
