@@ -24,7 +24,7 @@ const requiresTerritory = (role: AppRole) => role === "مندوب مبيعات" 
 const roleKeyFor = (role: AppRole) => ({ مدير: "sales_manager", "مشرف مبيعات": "sales_supervisor", "مشرف طبي": "medical_supervisor", محاسب: "accountant", "مندوب مبيعات": "sales_rep", "مندوب طبي": "medical_rep" }[role]);
 
 export default function TeamScreen() {
-  const { data, activeMemberId, role, refreshSharedCatalog, selectTeamMember, updateTeamMemberRole, createInvite, resendInvite, revokeInvite } = useCrm(); const { session, profile, loading: sessionLoading, refreshProfile } = useSupabaseAuth(); const canManageTeam = Boolean(profile?.permissions.includes("all") || profile?.permissions.includes("manage_users"));
+  const { data, activeMemberId, role, refreshSharedCatalog, selectTeamMember, updateTeamMemberRole, createInvite, resendInvite, revokeInvite } = useCrm(); const { session, profile, loading: sessionLoading, refreshProfile } = useSupabaseAuth(); const canManageTeam = Boolean(profile && !profile.is_platform_admin && (profile.permissions.includes("all") || profile.permissions.includes("manage_users") || ["company_manager", "sales_manager", "system_admin"].includes(profile.role_key)));
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<AppRole>("مندوب مبيعات");
   const [territoryIds, setTerritoryIds] = useState<string[]>([]);
