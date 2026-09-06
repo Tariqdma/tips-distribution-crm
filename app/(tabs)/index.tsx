@@ -69,7 +69,7 @@ export default function TodayScreen() {
           right={
             <View style={styles.headerActions}>
               <NotificationButton count={unreadNotificationCount} />
-              <View style={styles.profile}>
+              <TouchableOpacity onPress={() => router.push("/profile" as never)} style={styles.profile} accessibilityRole="button" accessibilityLabel="فتح الملف الشخصي">
                 <Text style={styles.profileText}>
                   {(profile?.full_name ?? "م")
                     .split(" ")
@@ -77,7 +77,7 @@ export default function TodayScreen() {
                     .map((part) => part[0])
                     .join("")}
                 </Text>
-              </View>
+              </TouchableOpacity>
             </View>
           }
         />

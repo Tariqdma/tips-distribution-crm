@@ -126,6 +126,7 @@ export default function RootLayout() {
             <Stack.Screen name="platform" />
             <Stack.Screen name="supervisor" />
             <Stack.Screen name="change-password" />
+            <Stack.Screen name="profile" />
             <Stack.Screen name="reset-password" />
           </Stack>
           <OfflineVisitSyncToast />

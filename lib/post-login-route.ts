@@ -18,5 +18,8 @@ export function getPlatformPortalFallbackRoute(roleKey?: string | null) {
 
 export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string, isPlatformAdmin = false) {
   const isManager = isPlatformAdmin || roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager" || roleKey === "sales_supervisor" || roleKey === "medical_supervisor";
-  return isManager && (pathname === "/" || pathname === "/index" || pathname === "/(tabs)" || pathname === "/(tabs)/index");
+  if (!isManager) return false;
+  const normalizedPath = pathname.replace(/^\/\(tabs\)/, "") || "/";
+  const isManagerRoute = normalizedPath === "/admin" || normalizedPath.startsWith("/admin/");
+  return !isManagerRoute;
 }
