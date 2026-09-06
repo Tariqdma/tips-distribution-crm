@@ -19,9 +19,24 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function ProfileScreen() {
-  const { profile, signOut } = useSupabaseAuth();
+  const { profile, signOut, signOutOtherDevices } = useSupabaseAuth();
   const roleLabel = profile?.role_name || roleLabels[profile?.role_key ?? ""] || "مستخدم";
   const territories = profile?.territory_labels?.filter(Boolean) ?? (profile?.territory_label ? [profile.territory_label] : []);
+
+  const handleSignOutOtherDevices = () => {
+    Alert.alert("تسجيل الخروج من الأجهزة الأخرى", "سيتم إبقاء هذا الجهاز متصلاً وإغلاق الجلسات الأخرى. هل تريد المتابعة؟", [
+      { text: "إلغاء", style: "cancel" },
+      {
+        text: "تسجيل الخروج من الأجهزة الأخرى",
+        style: "destructive",
+        onPress: () => {
+          void signOutOtherDevices().then((success) => {
+            Alert.alert(success ? "تم التنفيذ" : "تعذر التنفيذ", success ? "تم تسجيل الخروج من الجلسات الأخرى." : "تعذر إنهاء الجلسات الأخرى. تحقق من الاتصال وحاول مرة أخرى.");
+          });
+        },
+      },
+    ]);
+  };
 
   const handleSignOut = () => {
     Alert.alert("تسجيل الخروج", "هل تريد تسجيل الخروج من هذا الجهاز؟", [
@@ -69,6 +84,15 @@ export default function ProfileScreen() {
           <InfoRow icon="map" label="مناطق العمل" value={territories.length ? territories.join("، ") : "لا توجد مناطق مسندة"} />
         </View>
 
+        <View style={styles.sessionCard}>
+          <View style={styles.sessionIcon}><MaterialIcons name="phonelink-lock" size={22} color={palette.primary} /></View>
+          <View style={styles.sessionCopy}><Text style={styles.sessionTitle}>الجلسة الحالية</Text><Text style={styles.sessionHint}>هذا الجهاز متصل الآن. يمكنك إنهاء الجلسات على الأجهزة الأخرى دون تسجيل خروجك هنا.</Text></View>
+        </View>
+        <TouchableOpacity onPress={handleSignOutOtherDevices} style={styles.otherSessionsButton} accessibilityRole="button">
+          <MaterialIcons name="devices" size={21} color={palette.primary} />
+          <Text style={styles.otherSessionsText}>تسجيل الخروج من الأجهزة الأخرى</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity onPress={() => router.push("/change-password" as never)} style={styles.actionRow} accessibilityRole="button">
           <MaterialIcons name="lock-reset" size={22} color={palette.primary} />
           <View style={styles.actionCopy}><Text style={styles.actionTitle}>تغيير كلمة المرور</Text><Text style={styles.actionHint}>حدّث كلمة المرور من خلال المسار الآمن</Text></View>
@@ -107,6 +131,13 @@ const styles = StyleSheet.create({
   infoCopy: { flex: 1, alignItems: "flex-end" },
   infoLabel: { color: palette.muted, fontSize: 11, fontWeight: "700" },
   infoValue: { color: palette.ink, fontSize: 13, fontWeight: "800", textAlign: "right", marginTop: 2 },
+  sessionCard: { flexDirection: "row-reverse", alignItems: "center", gap: 11, backgroundColor: "#E7F6F0", borderRadius: 18, padding: 15, borderWidth: 1, borderColor: "#BDE9D8" },
+  sessionIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" },
+  sessionCopy: { flex: 1, alignItems: "flex-end" },
+  sessionTitle: { color: palette.ink, fontSize: 14, fontWeight: "900", textAlign: "right" },
+  sessionHint: { color: palette.muted, fontSize: 11, lineHeight: 17, textAlign: "right", marginTop: 3 },
+  otherSessionsButton: { minHeight: 52, borderRadius: 17, borderWidth: 1, borderColor: "#A9DCCB", backgroundColor: "#F4FFFA", flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8 },
+  otherSessionsText: { color: palette.primary, fontSize: 13, fontWeight: "900" },
   actionRow: { flexDirection: "row-reverse", alignItems: "center", gap: 11, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "#E2ECE8" },
   actionCopy: { flex: 1, alignItems: "flex-end" },
   actionTitle: { color: palette.ink, fontSize: 14, fontWeight: "900" },

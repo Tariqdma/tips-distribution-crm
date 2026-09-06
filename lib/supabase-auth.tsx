@@ -3,7 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { supabase } from "@/lib/supabase-client";
 
 export type SupabaseProfile = { id: string; full_name: string; email: string | null; role_key: string; role_name: string; permissions: string[]; is_active: boolean; must_change_password: boolean; is_platform_admin?: boolean; active_company_id?: string | null; active_company_name?: string | null; active_company_slug?: string | null; reports_to_profile_id?: string | null; territory_key?: string | null; territory_label?: string | null; territory_keys?: string[] | null; territory_labels?: string[] | null };
-type SupabaseAuthValue = { session: Session | null; user: User | null; profile: SupabaseProfile | null; loading: boolean; refreshProfile: () => Promise<SupabaseProfile | null>; claimFirstSystemAdmin: () => Promise<boolean>; signOut: () => Promise<void> };
+type SupabaseAuthValue = { session: Session | null; user: User | null; profile: SupabaseProfile | null; loading: boolean; refreshProfile: () => Promise<SupabaseProfile | null>; claimFirstSystemAdmin: () => Promise<boolean>; signOut: () => Promise<void>; signOutOtherDevices: () => Promise<boolean> };
 const SupabaseAuthContext = createContext<SupabaseAuthValue | null>(null);
 
 export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
@@ -47,7 +47,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.subscription.unsubscribe();
   }, []);
   const claimFirstSystemAdmin = async () => { if (!supabase) return false; const { data, error } = await supabase.rpc("tips_crm_claim_first_system_admin"); if (error || !data) return false; await refreshProfile(); return true; };
-  const value = useMemo<SupabaseAuthValue>(() => ({ session, user: session?.user ?? null, profile, loading, refreshProfile, claimFirstSystemAdmin, signOut: async () => { await supabase?.auth.signOut(); setSession(null); setProfile(null); } }), [session, profile, loading]);
+  const signOutOtherDevices = async () => { if (!supabase) return false; const { error } = await supabase.auth.signOut({ scope: "others" }); return !error; };
+  const value = useMemo<SupabaseAuthValue>(() => ({ session, user: session?.user ?? null, profile, loading, refreshProfile, claimFirstSystemAdmin, signOut: async () => { await supabase?.auth.signOut(); setSession(null); setProfile(null); }, signOutOtherDevices }), [session, profile, loading]);
   return <SupabaseAuthContext.Provider value={value}>{children}</SupabaseAuthContext.Provider>;
 }
 
