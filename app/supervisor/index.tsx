@@ -4,6 +4,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { AppHeader, MetricCard, PrimaryButton, SectionTitle, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { UserMenu } from "@/components/user-menu";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -25,7 +26,7 @@ export default function SupervisorDashboard() {
   if (!meta) return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><MaterialIcons name="lock-outline" size={34} color={palette.primary} /><Text style={styles.lockedTitle}>وصول مقيّد</Text><Text style={styles.lockedText}>هذه الصفحة مخصصة لمشرف المبيعات أو المشرف الطبي ضمن شركة معتمدة.</Text><PrimaryButton label="العودة لتسجيل الدخول" icon="login" onPress={() => router.replace("/login" as never)} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow={profile?.active_company_name || "شركة Tips CRM"} title={meta.title} right={<TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.signOut}><MaterialIcons name="logout" size={19} color={palette.primary} /></TouchableOpacity>} />
+    <AppHeader eyebrow={profile?.active_company_name || "شركة Tips CRM"} title={meta.title} right={<UserMenu />} />
     <View style={styles.hero}><View style={styles.heroIcon}><MaterialIcons name="supervisor-account" size={23} color="#FFFFFF" /></View><View style={{ flex: 1, alignItems: "flex-end" }}><Text style={styles.heroTitle}>مرحباً {profile?.full_name}</Text><Text style={styles.heroText}>{meta.subtitle}</Text></View></View>
     <View style={styles.metrics}><MetricCard compact={isCompact} label="أعضاء الفريق" value={String(reps.length)} icon="groups" /><MetricCard compact={isCompact} label="خطط للمراجعة" value={String(pendingPlans.length)} icon="pending-actions" tone="amber" /><MetricCard compact={isCompact} label="زيارات مكتملة" value={String(completedVisits)} icon="task-alt" tone="blue" /></View>
     <SectionTitle title="فريقك المباشر" />

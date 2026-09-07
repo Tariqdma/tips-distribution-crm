@@ -8,6 +8,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { TerritoryMap } from "@/components/territory-map";
 import { NotificationButton } from "@/components/notification-button";
+import { UserMenu } from "@/components/user-menu";
 import { useOperationalRole } from "@/hooks/use-operational-role";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
@@ -116,7 +117,7 @@ export function AdminDashboard() {
   }
 
   return <ScreenContainer className={isPhone ? "px-4" : "px-5"} containerClassName="bg-background"><ScrollView contentContainerStyle={[styles.content, isWide && styles.wideContent]} showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow={operational.usesServerProfile ? `صلاحية موثقة · ${operational.territory}` : "مسؤولية اليوم · ولاية الخرطوم"} title="لوحة الإدارة" right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity><TouchableOpacity onPress={() => { void signOut(); router.replace("/login" as never); }} style={styles.signOutButton} title="تسجيل الخروج"><MaterialIcons name="logout" size={18} color={palette.error} /></TouchableOpacity></View>} />
+    <AppHeader eyebrow={operational.usesServerProfile ? `صلاحية موثقة · ${operational.territory}` : "مسؤولية اليوم · ولاية الخرطوم"} title="لوحة الإدارة" right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity><UserMenu /></View>} />
 
     <View style={styles.managerBanner}><View style={styles.managerIcon}><MaterialIcons name="verified-user" size={21} color="#FFFFFF" /></View><View style={styles.bannerCopy}><Text style={styles.managerTitle}>فريقك يتحرك وفق خطة معتمدة</Text><Text style={styles.managerHint}>تابع الخطة والموقع والتغطية من مكان واحد</Text></View></View>
     {isCompanyManager && companySetupReady !== true ? <TouchableOpacity onPress={() => router.push("/company-setup" as never)} style={styles.setupNotice}><View style={styles.setupNoticeIcon}><MaterialIcons name="settings-suggest" size={19} color={palette.warning} /></View><View style={styles.bannerCopy}><Text style={styles.setupNoticeTitle}>{companySetupReady === false ? "أكمل تهيئة شركتك" : "راجع إعدادات تشغيل الشركة"}</Text><Text style={styles.setupNoticeText}>{companySetupReady === false ? "أدخل طبيعة النشاط والدوام وسياسة الموقع قبل بدء التشغيل." : "افتح إعدادات الشركة لمراجعة الهوية وسياسات الدوام والموقع."}</Text></View><MaterialIcons name="chevron-left" size={20} color={palette.warning} /></TouchableOpacity> : null}

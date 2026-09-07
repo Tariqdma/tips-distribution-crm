@@ -1,0 +1,11 @@
+{
+  "name": "tips-crm-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tips Distribution & Medical CRM — Web Management Portal (Platform Admin & Company Management)",
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start --web",
+    "build": "expo export --platform web --output-dir dist"
+  }
+}
