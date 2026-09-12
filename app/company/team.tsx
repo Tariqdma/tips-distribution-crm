@@ -53,7 +53,7 @@ export default function AdminTeamPage() {
     const territoryLabels = selectedTerritories.map((territory) => territory.name);
     setCreating(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/employee-accounts`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/company/employee-accounts`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ fullName, email, password: temporaryPassword, roleKey, territoryId: territoryIds[0], territoryIds, territoryLabel: territoryLabels.join("، "), territoryLabels, forcePasswordChange }),
       });

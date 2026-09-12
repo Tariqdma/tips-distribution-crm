@@ -54,9 +54,15 @@ export function validateCompanyOperationalSetup(input: Partial<SaveCompanyOperat
 async function requireCompanyManager(authorization?: string) {
   const actorClient = createActorClient(authorization);
   const { data, error } = await actorClient.rpc("tips_crm_my_profile");
-  const profile = (data as Array<{ role_key: string; active_company_id: string | null; is_platform_admin?: boolean }> | null)?.[0];
-  const validRole = ["company_manager", "sales_manager", "system_admin"].includes(profile?.role_key ?? "");
-  if (error || !profile?.active_company_id || profile.is_platform_admin || !validRole) throw new Error("هذه العملية مخصصة لمدير الشركة فقط.");
+  if (error) throw new Error(`تعذر التحقق من ملف مدير الشركة: ${error.message}`);
+
+  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  const profile = rows[0] as { role_key?: string; active_company_id?: string | null; is_platform_admin?: boolean } | undefined;
+  if (!profile) throw new Error("تعذر العثور على ملف المستخدم الحالي.");
+  if (profile.is_platform_admin) throw new Error("حساب مدير المنصة لا يمكنه استخدام إعدادات شركة تشغيلية.");
+
+  if (profile.role_key !== "company_manager") throw new Error("هذه العملية مخصصة لمدير الشركة فقط.");
+  if (!profile.active_company_id) throw new Error("ملف المستخدم لا يحتوي على شركة نشطة. حدّث الدالة tips_crm_my_profile في Supabase.");
   return actorClient;
 }
 

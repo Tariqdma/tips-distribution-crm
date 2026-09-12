@@ -68,7 +68,7 @@ export default function CompanyTeamSetupScreen() {
     if (isRepresentative(roleKey) && (!territoryIds.length || !reportsToProfileId)) { setFeedback({ tone: "error", text: "اختر المدير المباشر ومنطقة عمل واحدة على الأقل للمندوب." }); return; }
     setSaving(true); setFeedback(null);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/employee-accounts`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/company/employee-accounts`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ fullName: fullName.trim(), email: email.trim(), password, roleKey, reportsToProfileId: reportsToProfileId || undefined, territoryIds, territoryId: territoryIds[0], territoryLabels: selectedTerritories.map((territory) => territory.name), territoryLabel: selectedTerritories.map((territory) => territory.name).join("، "), forcePasswordChange }),
       });
@@ -86,7 +86,7 @@ export default function CompanyTeamSetupScreen() {
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loading}>جاري تحميل هيكل الفريق…</Text></ScreenContainer>;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow="المرحلة الثانية · مدير الشركة" title="إعداد فريق الشركة" right={<TouchableOpacity onPress={() => router.replace("/company" as never)} style={styles.back}><MaterialIcons name="arrow-forward" size={20} color={palette.primary} /></TouchableOpacity>} />
+    <AppHeader eyebrow="المرحلة الثالثة · مدير الشركة" title="إعداد فريق الشركة" right={<TouchableOpacity onPress={() => router.replace("/company" as never)} style={styles.back}><MaterialIcons name="arrow-forward" size={20} color={palette.primary} /></TouchableOpacity>} />
     <View style={styles.hero}><View style={styles.heroIcon}><MaterialIcons name="account-tree" size={26} color="#FFFFFF" /></View><View style={styles.alignEnd}><Text style={styles.heroTitle}>{setup?.isTeamSetupStarted ? "هيكل الفريق قيد التشغيل" : "ابدأ بهيكل فريقك"}</Text><Text style={styles.heroText}>أضف المشرفين والمحاسب أولاً. المندوبون يمكن ربطهم بمشرفهم وبمناطق عملهم بعد تجهيز المناطق.</Text></View></View>
     <View style={styles.metrics}><Metric label="مشرفو المبيعات" value={setup?.salesSupervisors.length ?? 0} color="#7C3AED" /><Metric label="المشرفون الطبيون" value={setup?.medicalSupervisors.length ?? 0} color="#0E7490" /><Metric label="المحاسبون" value={setup?.accountants.length ?? 0} color="#B45309" /></View>
     <View style={styles.notice}><MaterialIcons name="info-outline" size={19} color={palette.primary} /><Text style={styles.noticeText}>لا يخلط النظام أعضاء شركتك مع أي شركة أخرى. عند إضافة مندوب، يُحدّد مديره المباشر حتى تظهر المتابعة والاعتمادات بالشكل الصحيح.</Text></View>

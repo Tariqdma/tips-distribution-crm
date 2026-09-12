@@ -22,7 +22,7 @@ export function EmployeeDirectory({ accessToken }: { accessToken?: string }) {
     if (!accessToken) return;
     setLoading(true); setError("");
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/employee-accounts`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const response = await fetch(`${getApiBaseUrl()}/api/company/employee-accounts`, { headers: { Authorization: `Bearer ${accessToken}` } });
       const result = await response.json() as { accounts?: DirectoryEmployee[]; message?: string };
       if (!response.ok) throw new Error(result.message ?? "تعذر تحميل دليل الحسابات.");
       setEmployees(result.accounts ?? []);
@@ -38,7 +38,7 @@ export function EmployeeDirectory({ accessToken }: { accessToken?: string }) {
     if (password.length < 8) { Alert.alert("كلمة مرور ضعيفة", "اكتب أو ولّد كلمة مرور مؤقتة من 8 أحرف على الأقل."); return; }
     setResetting(true);
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/employee-accounts/${target.id}/reset-password`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ password, forcePasswordChange: forceChange }) });
+      const response = await fetch(`${getApiBaseUrl()}/api/company/employee-accounts/${target.id}/reset-password`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ password, forcePasswordChange: forceChange }) });
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message ?? "تعذر إعادة تعيين كلمة المرور.");
       Alert.alert("تمت إعادة التعيين", `تم إصدار كلمة مرور مؤقتة جديدة لـ ${target.fullName}. سلّمها عبر قناة آمنة.`);

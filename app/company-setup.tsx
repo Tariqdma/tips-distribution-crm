@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { Redirect, router } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
@@ -17,12 +17,14 @@ function setupUrl() { return `${getApiBaseUrl()}/api/company/setup`; }
 
 export default function CompanySetupScreen() {
   const { session, profile } = useSupabaseAuth();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [setup, setSetup] = useState<Setup>(fallback);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const isManager = profile?.role_key === "company_manager" || profile?.role_key === "sales_manager" || (profile?.role_key === "system_admin" && !profile.is_platform_admin);
+  const isManager = profile?.role_key === "company_manager" && !profile.is_platform_admin;
+  const isEditingFromSettings = mode === "edit";
 
   const request = useCallback(async (method: "GET" | "PUT", body?: Setup) => {
     if (!session?.access_token) throw new Error("انتهت الجلسة. سجّل الدخول مرة أخرى.");
@@ -36,15 +38,16 @@ export default function CompanySetupScreen() {
 
   const basicCompleted = useMemo(() => [setup.companyName.trim().length > 1, setup.activityType.trim().length > 1, setup.workingDays.length > 0, Boolean(setup.workdayStartsAt && setup.workdayEndsAt)].filter(Boolean).length, [setup]);
   const toggleDay = (day: string) => setSetup((current) => ({ ...current, workingDays: current.workingDays.includes(day) ? current.workingDays.filter((item) => item !== day) : [...current.workingDays, day] }));
-  const save = async () => { try { setSaving(true); setError(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر حفظ الإعدادات."); } finally { setSaving(false); } };
+  const save = async () => { try { setSaving(true); setError(null); setSuccess(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر حفظ الإعدادات."); } finally { setSaving(false); } };
 
   if (!session) return <Redirect href={"/login" as never} />;
   if (!isManager) return <Redirect href={"/company" as never} />;
   if (loading) return <ScreenContainer className="items-center justify-center"><ActivityIndicator color={palette.primary} size="large" /><Text style={styles.loading}>جاري تجهيز ملف الشركة…</Text></ScreenContainer>;
+  if (setup.isSetupComplete && !isEditingFromSettings) return <Redirect href={"/company" as never} />;
 
   return <ScreenContainer className="px-5" containerClassName="bg-background"><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow="إعداد أولي · مدير الشركة" title="تهيئة الشركة" right={<TouchableOpacity onPress={() => router.replace("/company" as never)} style={styles.back}><MaterialIcons name="arrow-forward" size={20} color={palette.primary} /></TouchableOpacity>} />
-    <View style={styles.hero}><View style={styles.heroIcon}><MaterialIcons name="rocket-launch" size={26} color="#FFFFFF" /></View><View style={styles.heroCopy}><Text style={styles.heroTitle}>{setup.isSetupComplete ? "إعدادات التشغيل جاهزة" : "جهّز شركتك قبل التشغيل"}</Text><Text style={styles.heroText}>حدّد هوية الشركة والدوام وسياسة الموقع مرة واحدة. تستطيع تعديلها لاحقاً من نفس الصفحة.</Text></View></View>
+    <AppHeader eyebrow={isEditingFromSettings ? "إعدادات الشركة · مدير الشركة" : "إعداد أولي · مدير الشركة"} title={isEditingFromSettings ? "إعدادات التشغيل" : "تهيئة الشركة"} right={<TouchableOpacity onPress={() => router.replace(isEditingFromSettings ? "/settings" as never : "/company" as never)} style={styles.back}><MaterialIcons name="arrow-forward" size={20} color={palette.primary} /></TouchableOpacity>} />
+    <View style={styles.hero}><View style={styles.heroIcon}><MaterialIcons name="rocket-launch" size={26} color="#FFFFFF" /></View><View style={styles.heroCopy}><Text style={styles.heroTitle}>{setup.isSetupComplete ? "إعدادات التشغيل" : "جهّز شركتك قبل التشغيل"}</Text><Text style={styles.heroText}>{isEditingFromSettings ? "عدّل هوية الشركة والدوام وسياسة الموقع. هذه الإعدادات متاحة لمدير الشركة فقط." : "أكمل الهوية والدوام وسياسة الموقع قبل بدء التشغيل."}</Text></View></View>
     <View style={styles.progressCard}><View style={styles.progressHead}><Text style={styles.progressValue}>{basicCompleted}/4</Text><View><Text style={styles.progressTitle}>التهيئة الأساسية</Text><Text style={styles.progressText}>{setup.isSetupComplete ? "اكتملت الإعدادات التشغيلية" : "أكمل الحقول المطلوبة للحفظ"}</Text></View></View><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${basicCompleted * 25}%` }]} /></View></View>
     {success ? <Feedback tone="success" text={success} /> : null}{error ? <Feedback tone="error" text={error} /> : null}
     <Section icon="business" title="هوية الشركة" copy="هذه البيانات تظهر لمدير الشركة وتبقى منفصلة عن الشركات الأخرى." />
@@ -60,9 +63,9 @@ export default function CompanySetupScreen() {
     <PolicyRow icon="location-searching" title="يتطلب الموقع عند الزيارة" copy="تأكيد موقع المندوب عند تسجيل الزيارة." value={setup.gpsTrackingRequired} onValueChange={(gpsTrackingRequired) => setSetup((current) => ({ ...current, gpsTrackingRequired }))} />
     <PolicyRow icon="directions-run" title="تتبع خارج الزيارة" copy="تسجيل الموقع أثناء الدوام عندما يتم تشغيل التتبع المباشر." value={setup.outsideVisitTracking} onValueChange={(outsideVisitTracking) => setSetup((current) => ({ ...current, outsideVisitTracking }))} />
     <PolicyRow icon="fence" title="تنبيه حدود المنطقة" copy="تنبيه الإدارة عند الخروج من مناطق التغطية المعيّنة." value={setup.geofenceEnforcement} onValueChange={(geofenceEnforcement) => setSetup((current) => ({ ...current, geofenceEnforcement }))} />
-    <View style={styles.readiness}><View style={styles.readinessIcon}><MaterialIcons name="fact-check" size={20} color={palette.primary} /></View><View style={styles.heroCopy}><Text style={styles.readinessTitle}>ما بعد التهيئة الأساسية</Text><Text style={styles.readinessText}>المناطق: {setup.territoryCount} · أعضاء الفريق: {setup.teamMemberCount} · الجهات: {setup.accountCount}</Text><Text style={styles.readinessHint}>الخطوة التالية: أضف مشرفي المبيعات والمشرفين الطبيين والمحاسب، ثم أكمل إعداد المناطق.</Text></View></View>
-    <PrimaryButton label={saving ? "جاري حفظ الإعدادات…" : "حفظ وإكمال التهيئة"} icon={saving ? "hourglass-top" : "task-alt"} disabled={saving} onPress={() => void save()} style={{ marginTop: 24 }} />
-    {setup.isSetupComplete ? <PrimaryButton label="إعداد فريق الشركة" icon="groups" onPress={() => router.push("/company-team-setup" as never)} style={{ marginTop: 10 }} /> : null}
+    <View style={styles.readiness}><View style={styles.readinessIcon}><MaterialIcons name="fact-check" size={20} color={palette.primary} /></View><View style={styles.heroCopy}><Text style={styles.readinessTitle}>ما بعد التهيئة الأساسية</Text><Text style={styles.readinessText}>المناطق: {setup.territoryCount} · أعضاء الفريق: {setup.teamMemberCount} · الجهات: {setup.accountCount}</Text><Text style={styles.readinessHint}>الخطوة التالية: حدّد مناطق تغطية الشركة، ثم أضف المشرفين والمندوبين واربطهم بالمناطق.</Text></View></View>
+    <PrimaryButton label={saving ? "جاري حفظ الإعدادات…" : isEditingFromSettings ? "حفظ التعديلات" : "حفظ وإكمال التهيئة"} icon={saving ? "hourglass-top" : "task-alt"} disabled={saving} onPress={() => void save()} style={{ marginTop: 24 }} />
+    {setup.isSetupComplete ? <PrimaryButton label="إعداد مناطق العمل" icon="map" onPress={() => router.push("/company-territory-setup" as never)} style={{ marginTop: 10 }} /> : null}
     <TouchableOpacity onPress={() => router.replace("/company" as never)} style={styles.later}><Text style={styles.laterText}>العودة إلى لوحة الشركة</Text></TouchableOpacity>
   </ScrollView></ScreenContainer>;
 }
@@ -73,7 +76,7 @@ function PolicyRow({ icon, title, copy, value, onValueChange }: { icon: keyof ty
 function Feedback({ tone, text }: { tone: "success" | "error"; text: string }) { const success = tone === "success"; return <View style={[styles.feedback, success ? styles.feedbackSuccess : styles.feedbackError]}><MaterialIcons name={success ? "check-circle" : "error-outline"} size={18} color={success ? palette.success : palette.error} /><Text style={[styles.feedbackText, { color: success ? palette.success : palette.error }]}>{text}</Text></View>; }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 10, paddingBottom: 34, maxWidth: 620, width: "100%", alignSelf: "center" }, loading: { color: palette.muted, fontSize: 13, marginTop: 12 }, back: { width: 39, height: 39, borderRadius: 13, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, hero: { flexDirection: "row-reverse", gap: 12, alignItems: "center", backgroundColor: "#143D35", borderRadius: 21, padding: 17 }, heroIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: "#28715F", alignItems: "center", justifyContent: "center" }, heroCopy: { flex: 1, flexShrink: 1, alignItems: "flex-end" }, heroTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", textAlign: "right", lineHeight: 22 }, heroText: { color: "#C6E6DD", fontSize: 11, lineHeight: 17, marginTop: 4, textAlign: "right" },
+  content: { paddingTop: 10, paddingBottom: 34, maxWidth: 620, width: "100%", alignSelf: "center" }, loading: { color: palette.muted, fontSize: 13, marginTop: 12 }, back: { width: 39, height: 39, borderRadius: 13, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, hero: { flexDirection: "row-reverse", gap: 12, alignItems: "center", backgroundColor: "#143D35", borderRadius: 21, padding: 17 }, heroIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: "#28715F", alignItems: "center", justifyContent: "center" }, heroCopy: { flex: 1, flexShrink: 1, alignItems: "flex-end" }, heroTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", textAlign: "right", lineHeight: 22 }, heroText: { color: "#FFFFFF", fontSize: 11, lineHeight: 17, marginTop: 4, textAlign: "right" },
   progressCard: { backgroundColor: "#FFFFFF", borderRadius: 17, borderWidth: 1, borderColor: "#CDE5DC", padding: 14, marginTop: 14 }, progressHead: { flexDirection: "row-reverse", alignItems: "center", gap: 10 }, progressValue: { color: palette.primary, fontSize: 18, fontWeight: "900", backgroundColor: "#E9F8F2", paddingHorizontal: 11, paddingVertical: 7, borderRadius: 11 }, progressTitle: { color: palette.ink, fontSize: 13, fontWeight: "900", textAlign: "right", lineHeight: 18 }, progressText: { color: palette.muted, fontSize: 10, marginTop: 3, textAlign: "right", lineHeight: 15 }, progressTrack: { height: 6, borderRadius: 4, backgroundColor: "#EAF0ED", overflow: "hidden", marginTop: 12 }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: palette.primary },
   feedback: { flexDirection: "row-reverse", alignItems: "center", gap: 7, padding: 11, borderRadius: 13, marginTop: 12, borderWidth: 1 }, feedbackSuccess: { backgroundColor: "#E9F8F2", borderColor: "#B9DED3" }, feedbackError: { backgroundColor: "#FFF0F0", borderColor: "#F2C1C1" }, feedbackText: { fontSize: 12, fontWeight: "700", flex: 1, flexShrink: 1, textAlign: "right", lineHeight: 17 },
   section: { flexDirection: "row-reverse", alignItems: "center", gap: 9, marginTop: 23 }, sectionIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" }, sectionTitle: { color: palette.ink, fontSize: 15, fontWeight: "900", textAlign: "right", lineHeight: 21 }, sectionCopy: { color: palette.muted, fontSize: 10, lineHeight: 15, marginTop: 2, textAlign: "right" }, field: { marginTop: 11 }, label: { color: palette.ink, fontSize: 11, fontWeight: "900", textAlign: "right", marginBottom: 6 }, required: { color: palette.error }, input: { minHeight: 48, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "#DCE8E3", borderRadius: 13, paddingHorizontal: 12, color: palette.ink, fontSize: 13 },

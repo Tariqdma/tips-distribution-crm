@@ -1,6 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,11 @@ type SettingsTab = "company" | "notifications" | "security" | "appearance";
 export default function SettingsScreen() {
   const { profile, refreshProfile } = useSupabaseAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>("company");
+  const isCompanyManager = profile?.role_key === "company_manager" && !profile.is_platform_admin;
+
+  useEffect(() => {
+    if (!isCompanyManager && activeTab === "company") setActiveTab("notifications");
+  }, [activeTab, isCompanyManager]);
 
   // Company / General settings state
   const [companyName, setCompanyName] = useState(profile?.active_company_name || "TIPS Pharma Distribution");
@@ -109,7 +114,7 @@ export default function SettingsScreen() {
   };
 
   const tabs: { key: SettingsTab; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
-    { key: "company", label: "بيانات الشركة", icon: "business" },
+    ...(isCompanyManager ? [{ key: "company" as const, label: "بيانات الشركة", icon: "business" as const }] : []),
     { key: "notifications", label: "التنبيهات والإشعارات", icon: "notifications" },
     { key: "security", label: "الأمان والدخول", icon: "security" },
     { key: "appearance", label: "المظهر والعرض", icon: "palette" },
@@ -160,6 +165,19 @@ export default function SettingsScreen() {
                 <MaterialIcons name="business" size={20} color={palette.primary} />
                 <Text style={styles.cardTitle}>بيانات الشركة وهوية النظام</Text>
               </View>
+
+              <TouchableOpacity
+                onPress={() => router.push("/company-setup?mode=edit" as never)}
+                style={styles.operationalSettingsLink}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="tune" size={19} color="#FFFFFF" />
+                <View style={styles.operationalSettingsCopy}>
+                  <Text style={styles.operationalSettingsTitle}>إعدادات التشغيل</Text>
+                  <Text style={styles.operationalSettingsText}>هوية التشغيل والدوام وسياسة الموقع</Text>
+                </View>
+                <MaterialIcons name="arrow-back" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
 
               {companySuccess ? (
                 <View style={styles.successBanner}>
@@ -512,6 +530,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: palette.ink,
+    textAlign: "right",
+  },
+  operationalSettingsLink: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    marginBottom: 18,
+    borderRadius: 10,
+    backgroundColor: palette.primary,
+  },
+  operationalSettingsCopy: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  operationalSettingsTitle: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "right",
+  },
+  operationalSettingsText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    marginTop: 2,
     textAlign: "right",
   },
   formGroup: {

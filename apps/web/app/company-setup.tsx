@@ -36,7 +36,7 @@ export default function CompanySetupScreen() {
 
   const basicCompleted = useMemo(() => [setup.companyName.trim().length > 1, setup.activityType.trim().length > 1, setup.workingDays.length > 0, Boolean(setup.workdayStartsAt && setup.workdayEndsAt)].filter(Boolean).length, [setup]);
   const toggleDay = (day: string) => setSetup((current) => ({ ...current, workingDays: current.workingDays.includes(day) ? current.workingDays.filter((item) => item !== day) : [...current.workingDays, day] }));
-  const save = async () => { try { setSaving(true); setError(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر حفظ الإعدادات."); } finally { setSaving(false); } };
+  const save = async () => { try { setSaving(true); setError(null); setSuccess(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر حفظ الإعدادات."); } finally { setSaving(false); } };
 
   if (!session) return <Redirect href={"/login" as never} />;
   if (!isManager) return <Redirect href={"/company" as never} />;
@@ -60,9 +60,9 @@ export default function CompanySetupScreen() {
     <PolicyRow icon="location-searching" title="يتطلب الموقع عند الزيارة" copy="تأكيد موقع المندوب عند تسجيل الزيارة." value={setup.gpsTrackingRequired} onValueChange={(gpsTrackingRequired) => setSetup((current) => ({ ...current, gpsTrackingRequired }))} />
     <PolicyRow icon="directions-run" title="تتبع خارج الزيارة" copy="تسجيل الموقع أثناء الدوام عندما يتم تشغيل التتبع المباشر." value={setup.outsideVisitTracking} onValueChange={(outsideVisitTracking) => setSetup((current) => ({ ...current, outsideVisitTracking }))} />
     <PolicyRow icon="fence" title="تنبيه حدود المنطقة" copy="تنبيه الإدارة عند الخروج من مناطق التغطية المعيّنة." value={setup.geofenceEnforcement} onValueChange={(geofenceEnforcement) => setSetup((current) => ({ ...current, geofenceEnforcement }))} />
-    <View style={styles.readiness}><View style={styles.readinessIcon}><MaterialIcons name="fact-check" size={20} color={palette.primary} /></View><View style={styles.heroCopy}><Text style={styles.readinessTitle}>ما بعد التهيئة الأساسية</Text><Text style={styles.readinessText}>المناطق: {setup.territoryCount} · أعضاء الفريق: {setup.teamMemberCount} · الجهات: {setup.accountCount}</Text><Text style={styles.readinessHint}>الخطوة التالية: أضف مشرفي المبيعات والمشرفين الطبيين والمحاسب، ثم أكمل إعداد المناطق.</Text></View></View>
+    <View style={styles.readiness}><View style={styles.readinessIcon}><MaterialIcons name="fact-check" size={20} color={palette.primary} /></View><View style={styles.heroCopy}><Text style={styles.readinessTitle}>ما بعد التهيئة الأساسية</Text><Text style={styles.readinessText}>المناطق: {setup.territoryCount} · أعضاء الفريق: {setup.teamMemberCount} · الجهات: {setup.accountCount}</Text><Text style={styles.readinessHint}>الخطوة التالية: حدّد مناطق تغطية الشركة، ثم أضف المشرفين والمندوبين واربطهم بالمناطق.</Text></View></View>
     <PrimaryButton label={saving ? "جاري حفظ الإعدادات…" : "حفظ وإكمال التهيئة"} icon={saving ? "hourglass-top" : "task-alt"} disabled={saving} onPress={() => void save()} style={{ marginTop: 24 }} />
-    {setup.isSetupComplete ? <PrimaryButton label="إعداد فريق الشركة" icon="groups" onPress={() => router.push("/company-team-setup" as never)} style={{ marginTop: 10 }} /> : null}
+    {setup.isSetupComplete ? <PrimaryButton label="إعداد مناطق العمل" icon="map" onPress={() => router.push("/company-territory-setup" as never)} style={{ marginTop: 10 }} /> : null}
     <TouchableOpacity onPress={() => router.replace("/company" as never)} style={styles.later}><Text style={styles.laterText}>العودة إلى لوحة الشركة</Text></TouchableOpacity>
   </ScrollView></ScreenContainer>;
 }

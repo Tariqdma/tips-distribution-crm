@@ -72,9 +72,7 @@ export function UserMenu() {
   const isPlatformAdmin = Boolean(profile?.is_platform_admin);
   const isCompanyManager =
     !isPlatformAdmin &&
-    (profile?.role_key === "company_manager" ||
-      profile?.role_key === "sales_manager" ||
-      profile?.role_key === "system_admin");
+    profile?.role_key === "company_manager";
   const isSupervisor =
     profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor";
 
@@ -97,14 +95,14 @@ export function UserMenu() {
     },
   ];
 
-  // Only Company Managers get Company Setup
+  // Only company managers can reach the company configuration area.
   if (isCompanyManager) {
     menuItems.push({
       icon: "settings-suggest",
-      label: "إعدادات وهوية الشركة",
+      label: "إعدادات الشركة",
       onPress: () => {
         hideMenu();
-        router.push("/company-setup" as never);
+        router.push("/settings" as never);
       },
     });
   }
