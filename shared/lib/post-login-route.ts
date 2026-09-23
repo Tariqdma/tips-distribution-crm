@@ -1,30 +1,34 @@
+import { legacyPermissionsFor } from "../auth/legacy";
+import type { Portal } from "../auth/portals";
+import { landingPortal } from "../auth/resolve";
+
+// Platform administration is web-only by design (design.md:72); the native /platform/login
+// route shows the explanatory screen instead of the platform portal itself.
+const PORTAL_HREF: Record<Exclude<Portal, "platform">, string> = {
+  company: "/company",
+  supervisor: "/supervisor",
+  rep: "/",
+};
+
+const NO_PORTAL_FALLBACK = "/";
+
 export function getPostLoginRoute(input: { roleKey?: string | null; mustChangePassword?: boolean; isPlatformAdmin?: boolean; isWeb: boolean }) {
   if (input.mustChangePassword) return "/change-password";
-  if (input.isPlatformAdmin) {
-    return input.isWeb ? "/platform" : "/platform/login";
-  }
-  const isCompanyManager = input.roleKey === "system_admin" || input.roleKey === "sales_manager" || input.roleKey === "company_manager";
-  const isSupervisor = input.roleKey === "sales_supervisor" || input.roleKey === "medical_supervisor";
-  if (isSupervisor) return "/supervisor";
-  if (isCompanyManager) return "/company";
-
-  // Field reps (sales_rep, medical_rep)
-  if (input.isWeb) {
-    return "/rep-mobile-only";
-  }
-  return "/";
+  const portal = landingPortal(legacyPermissionsFor({ roleKey: input.roleKey, isPlatformAdmin: input.isPlatformAdmin }));
+  if (portal === "platform") return input.isWeb ? "/platform" : "/platform/login";
+  if (!portal) return NO_PORTAL_FALLBACK;
+  return PORTAL_HREF[portal];
 }
 
 /** The safe destination when a non-platform account opens the platform URL directly. */
 export function getPlatformPortalFallbackRoute(roleKey?: string | null) {
-  const isCompanyManager = roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager";
-  if (isCompanyManager) return "/company";
-  if (roleKey === "sales_supervisor" || roleKey === "medical_supervisor") return "/supervisor";
-  return "/";
+  const portal = landingPortal(legacyPermissionsFor({ roleKey }));
+  return portal && portal !== "platform" ? PORTAL_HREF[portal] : NO_PORTAL_FALLBACK;
 }
 
 export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string, isPlatformAdmin = false) {
-  const isManager = isPlatformAdmin || roleKey === "system_admin" || roleKey === "sales_manager" || roleKey === "company_manager" || roleKey === "sales_supervisor" || roleKey === "medical_supervisor";
-  return isManager && (pathname === "/" || pathname === "/index" || pathname === "/(tabs)" || pathname === "/(tabs)/index");
+  const isFieldHome = pathname === "/" || pathname === "/index" || pathname === "/(tabs)" || pathname === "/(tabs)/index";
+  if (!isFieldHome) return false;
+  const portal = landingPortal(legacyPermissionsFor({ roleKey, isPlatformAdmin }));
+  return portal !== null && portal !== "rep";
 }
-

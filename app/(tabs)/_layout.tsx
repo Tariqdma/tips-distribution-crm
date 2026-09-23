@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { ActivityIndicator, View } from "react-native";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
-import { shouldRedirectManagerFromFieldHome } from "@/lib/post-login-route";
+import { getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "@shared/lib/post-login-route";
 
 export default function TabLayout() {
   const { session, loading, profile } = useSupabaseAuth();
@@ -21,13 +21,9 @@ export default function TabLayout() {
   if (!session) return <Redirect href="/login" />;
   if (profile?.must_change_password) return <Redirect href={"/change-password" as never} />;
   if (shouldRedirectManagerFromFieldHome(profile?.role_key, pathname, Boolean(profile?.is_platform_admin))) {
-    const destination = profile?.is_platform_admin ? "/platform" : profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor" ? "/supervisor" : "/company";
+    const destination = getPostLoginRoute({ roleKey: profile?.role_key, isPlatformAdmin: Boolean(profile?.is_platform_admin), isWeb: Platform.OS === "web" });
     return <Redirect href={destination as never} />;
   }
-  if (Platform.OS === "web" && (profile?.role_key === "sales_rep" || profile?.role_key === "medical_rep")) {
-    return <Redirect href={"/rep-mobile-only" as never} />;
-  }
-
   return (
     <Tabs
       screenOptions={{

@@ -6,7 +6,7 @@ import { palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { supabase } from "@/lib/supabase-client";
-import { getPostLoginRoute } from "@/lib/post-login-route";
+import { getPostLoginRoute } from "@shared/lib/post-login-route";
 
 export default function InviteAcceptanceScreen() {
   const { token } = useLocalSearchParams<{ token: string }>(); const { session, loading, refreshProfile } = useSupabaseAuth(); const [processing, setProcessing] = useState(false); const [message, setMessage] = useState("سجّل الدخول بالحساب الذي وصلته الدعوة للمتابعة."); const [nextRoute, setNextRoute] = useState("/(tabs)");

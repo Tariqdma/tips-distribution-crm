@@ -6,7 +6,7 @@ import { palette } from "@/components/crm-ui";
 import { validateNewPassword } from "@/lib/password-policy";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
-import { getPostLoginRoute } from "@/lib/post-login-route";
+import { getPostLoginRoute } from "@shared/lib/post-login-route";
 
 export default function ChangePasswordScreen() {
   const { profile, refreshProfile, signOut } = useSupabaseAuth();

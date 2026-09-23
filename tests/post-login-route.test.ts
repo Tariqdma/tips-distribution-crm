@@ -1,21 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { getPlatformPortalFallbackRoute, getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "../lib/post-login-route";
+import { getPlatformPortalFallbackRoute, getPostLoginRoute, shouldRedirectManagerFromFieldHome } from "@shared/lib/post-login-route";
 
 describe("post-login routing", () => {
   it("sends web managers to the dedicated company portal", () => {
-    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: true })).toBe("/company");
+    expect(getPostLoginRoute({ roleKey: "company_manager", isWeb: true })).toBe("/company");
     expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: true })).toBe("/company");
   });
 
   it("sends company managers to their dedicated company portal on every client", () => {
-    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: false })).toBe("/company");
+    expect(getPostLoginRoute({ roleKey: "company_manager", isWeb: false })).toBe("/company");
     expect(getPostLoginRoute({ roleKey: "sales_manager", isWeb: false })).toBe("/company");
     expect(getPostLoginRoute({ roleKey: "company_manager", isWeb: true })).toBe("/company");
   });
 
-  it("sends a platform administrator to the dedicated platform portal", () => {
+  it("sends a platform administrator to the dedicated platform portal on web, and the explanatory screen on native", () => {
     expect(getPostLoginRoute({ roleKey: "system_admin", isPlatformAdmin: true, isWeb: true })).toBe("/platform");
-    expect(getPostLoginRoute({ roleKey: "company_manager", isPlatformAdmin: true, isWeb: false })).toBe("/platform");
+    expect(getPostLoginRoute({ roleKey: "company_manager", isPlatformAdmin: true, isWeb: false })).toBe("/platform/login");
   });
 
   it("redirects non-platform accounts away from the platform URL", () => {
@@ -30,7 +30,7 @@ describe("post-login routing", () => {
     expect(getPostLoginRoute({ roleKey: "medical_supervisor", isWeb: false })).toBe("/supervisor");
   });
 
-  it("sends field representatives to their employee tabs on web and mobile", () => {
+  it("sends field representatives to the full rep experience on both web and mobile", () => {
     expect(getPostLoginRoute({ roleKey: "sales_rep", isWeb: true })).toBe("/");
     expect(getPostLoginRoute({ roleKey: "medical_rep", isWeb: false })).toBe("/");
   });
@@ -40,13 +40,22 @@ describe("post-login routing", () => {
   });
 
   it("moves a restored mobile manager session away from the field home", () => {
-    expect(shouldRedirectManagerFromFieldHome("system_admin", "/")).toBe(true);
-    expect(shouldRedirectManagerFromFieldHome("sales_manager", "/(tabs)")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("company_manager", "/")).toBe(true);
+    expect(shouldRedirectManagerFromFieldHome("sales_manager", "/(tabs)")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("company_manager", "/(tabs)/index")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("sales_supervisor", "/")).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("sales_rep", "/", true)).toBe(true);
     expect(shouldRedirectManagerFromFieldHome("sales_rep", "/")).toBe(false);
-    expect(shouldRedirectManagerFromFieldHome("system_admin", "/plans")).toBe(false);
+    expect(shouldRedirectManagerFromFieldHome("company_manager", "/plans")).toBe(false);
+  });
+
+  // system_admin is only ever written alongside is_platform_admin = true (docs/authorization-model.md
+  // "Migration from the legacy role keys"); on its own it maps to no legacy role, same as any unknown key.
+  it("lands an unrecognized or missing role_key somewhere safe instead of guessing rep", () => {
+    expect(getPostLoginRoute({ roleKey: "system_admin", isWeb: true })).toBe("/");
+    expect(getPostLoginRoute({ roleKey: null, isWeb: true })).toBe("/");
+    expect(getPostLoginRoute({ isWeb: false })).toBe("/");
+    expect(getPlatformPortalFallbackRoute("system_admin")).toBe("/");
+    expect(shouldRedirectManagerFromFieldHome("system_admin", "/")).toBe(false);
   });
 });

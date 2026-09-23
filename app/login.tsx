@@ -7,7 +7,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { sendPasswordRecoveryEmail, supabase } from "@/lib/supabase-client";
 import { getPasswordRecoveryRedirect } from "@/lib/auth-redirect";
-import { getPostLoginRoute } from "@/lib/post-login-route";
+import { getPostLoginRoute } from "@shared/lib/post-login-route";
 
 function translateAuthError(error: unknown): string {
   if (!error) return "حدث خطأ غير متوقع. يرجى المحاولة مجدداً.";
