@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import { ENV } from "./_core/env";
+import { legacyRolesFor } from "../shared/auth/legacy";
+import { requireCompanyPermission } from "./_core/authorize";
 
 export type CompanyTeamSetupMember = {
   profileId: string;
@@ -33,31 +33,17 @@ type TeamSetupRow = {
   is_active: boolean;
 };
 
-function requireConfig() {
-  if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) throw new Error("إعدادات فريق الشركة غير مكتملة.");
-}
-
-function tokenFromHeader(authorization?: string) {
-  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) throw new Error("جلسة مدير الشركة مطلوبة لتنفيذ هذا الإجراء.");
-  return token;
-}
-
-function createActorClient(authorization?: string) {
-  requireConfig();
-  return createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: `Bearer ${tokenFromHeader(authorization)}` } },
-  });
-}
-
 async function requireCompanyManager(authorization?: string) {
-  const actorClient = createActorClient(authorization);
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
-  const profile = (data as Array<{ role_key: string; active_company_id: string | null; is_platform_admin?: boolean }> | null)?.[0];
-  const validRole = ["company_manager", "sales_manager", "system_admin"].includes(profile?.role_key ?? "");
-  if (error || !profile?.active_company_id || profile.is_platform_admin || !validRole) throw new Error("هذه العملية مخصصة لمدير الشركة فقط.");
-  return actorClient;
+  const deniedMessage = "هذه العملية مخصصة لمدير الشركة فقط.";
+  const actor = await requireCompanyPermission(authorization, "employee.manage", {
+    configMissing: "إعدادات فريق الشركة غير مكتملة.",
+    sessionRequired: "جلسة مدير الشركة مطلوبة لتنفيذ هذا الإجراء.",
+    rpcError: () => deniedMessage,
+    profileMissing: deniedMessage,
+    permissionDenied: deniedMessage,
+    noActiveCompany: deniedMessage,
+  });
+  return actor.actorClient;
 }
 
 function mapMember(row: TeamSetupRow): CompanyTeamSetupMember {
@@ -80,7 +66,11 @@ export function buildCompanyTeamSetup(rows: TeamSetupRow[]): CompanyTeamSetup {
   const accountants = byRole("accountant");
   const salesRepresentatives = byRole("sales_rep");
   const medicalRepresentatives = byRole("medical_rep");
-  const companyManagers = byRole("company_manager");
+  const eligibleForDiscipline = (discipline: "sales" | "medical") =>
+    members.filter((member) => {
+      const { roles, disciplines } = legacyRolesFor({ roleKey: member.roleKey });
+      return roles.includes("manager") || (roles.includes("supervisor") && disciplines.includes(discipline));
+    });
   return {
     members,
     salesSupervisors,
@@ -88,8 +78,8 @@ export function buildCompanyTeamSetup(rows: TeamSetupRow[]): CompanyTeamSetup {
     accountants,
     salesRepresentatives,
     medicalRepresentatives,
-    eligibleSalesManagers: members.filter((member) => ["company_manager", "sales_supervisor"].includes(member.roleKey)),
-    eligibleMedicalManagers: members.filter((member) => ["company_manager", "medical_supervisor"].includes(member.roleKey)),
+    eligibleSalesManagers: eligibleForDiscipline("sales"),
+    eligibleMedicalManagers: eligibleForDiscipline("medical"),
     isTeamSetupStarted: salesSupervisors.length + medicalSupervisors.length + accountants.length + salesRepresentatives.length + medicalRepresentatives.length > 0,
   };
 }

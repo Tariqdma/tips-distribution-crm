@@ -1,5 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-import { ENV } from "./_core/env";
+import { requireCompanyPermission } from "./_core/authorize";
 
 export type CompanyOperationalSetup = {
   companyId: string;
@@ -24,24 +23,6 @@ export type CompanyOperationalSetup = {
 
 export type SaveCompanyOperationalSetupInput = Omit<CompanyOperationalSetup, "companyId" | "timezone" | "isSetupComplete" | "completedAt" | "territoryCount" | "teamMemberCount" | "accountCount">;
 
-function requireConfig() {
-  if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) throw new Error("إعدادات الشركة غير مكتملة.");
-}
-
-function tokenFromHeader(authorization?: string) {
-  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) throw new Error("جلسة مدير الشركة مطلوبة لتنفيذ هذا الإجراء.");
-  return token;
-}
-
-function createActorClient(authorization?: string) {
-  requireConfig();
-  return createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: `Bearer ${tokenFromHeader(authorization)}` } },
-  });
-}
-
 export function validateCompanyOperationalSetup(input: Partial<SaveCompanyOperationalSetupInput>) {
   if (!input.companyName?.trim() || input.companyName.trim().length < 2) return "اكتب اسم الشركة بصورة صحيحة.";
   if (!input.activityType?.trim() || input.activityType.trim().length < 2) return "اكتب طبيعة نشاط الشركة.";
@@ -52,18 +33,15 @@ export function validateCompanyOperationalSetup(input: Partial<SaveCompanyOperat
 }
 
 async function requireCompanyManager(authorization?: string) {
-  const actorClient = createActorClient(authorization);
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
-  if (error) throw new Error(`تعذر التحقق من ملف مدير الشركة: ${error.message}`);
-
-  const rows = Array.isArray(data) ? data : data ? [data] : [];
-  const profile = rows[0] as { role_key?: string; active_company_id?: string | null; is_platform_admin?: boolean } | undefined;
-  if (!profile) throw new Error("تعذر العثور على ملف المستخدم الحالي.");
-  if (profile.is_platform_admin) throw new Error("حساب مدير المنصة لا يمكنه استخدام إعدادات شركة تشغيلية.");
-
-  if (profile.role_key !== "company_manager") throw new Error("هذه العملية مخصصة لمدير الشركة فقط.");
-  if (!profile.active_company_id) throw new Error("ملف المستخدم لا يحتوي على شركة نشطة. حدّث الدالة tips_crm_my_profile في Supabase.");
-  return actorClient;
+  const actor = await requireCompanyPermission(authorization, "company.profile.update", {
+    configMissing: "إعدادات الشركة غير مكتملة.",
+    sessionRequired: "جلسة مدير الشركة مطلوبة لتنفيذ هذا الإجراء.",
+    rpcError: (message) => `تعذر التحقق من ملف مدير الشركة: ${message}`,
+    profileMissing: "تعذر العثور على ملف المستخدم الحالي.",
+    permissionDenied: "هذه العملية مخصصة لمدير الشركة فقط.",
+    noActiveCompany: "ملف المستخدم لا يحتوي على شركة نشطة. حدّث الدالة tips_crm_my_profile في Supabase.",
+  });
+  return actor.actorClient;
 }
 
 function mapSetup(row: Record<string, unknown>): CompanyOperationalSetup {

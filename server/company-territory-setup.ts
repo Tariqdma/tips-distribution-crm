@@ -1,5 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-import { ENV } from "./_core/env";
+import { requireCompanyPermission } from "./_core/authorize";
 
 export type TerritoryPoint = { latitude: number; longitude: number };
 export type CompanyTerritory = { clientKey: string; name: string; state: string; city: string; centerLatitude: number; centerLongitude: number; radiusMeters: number; polygonPoints: TerritoryPoint[]; assignedMemberCount: number; isBoundaryComplete: boolean };
@@ -8,17 +7,17 @@ export type SaveCompanyTerritoryInput = { clientKey?: string; name: string; stat
 
 type TerritoryRow = { client_key: string; name: string; state: string; city: string; center_latitude: number | string; center_longitude: number | string; radius_meters: number | string; polygon_points: unknown; assigned_member_count: number | string; is_boundary_complete: boolean };
 
-function requireConfig() { if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) throw new Error("إعدادات مناطق الشركة غير مكتملة."); }
-function tokenFromHeader(authorization?: string) { const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]; if (!token) throw new Error("جلسة مدير الشركة مطلوبة لتنفيذ هذا الإجراء."); return token; }
-function createActorClient(authorization?: string) { requireConfig(); return createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { Authorization: `Bearer ${tokenFromHeader(authorization)}` } } }); }
-
 async function requireCompanyManager(authorization?: string) {
-  const actorClient = createActorClient(authorization);
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
-  const profile = (data as Array<{ role_key: string; active_company_id: string | null; is_platform_admin?: boolean }> | null)?.[0];
-  const validRole = ["company_manager", "sales_manager", "system_admin"].includes(profile?.role_key ?? "");
-  if (error || !profile?.active_company_id || profile.is_platform_admin || !validRole) throw new Error("هذه العملية مخصصة لمدير الشركة فقط.");
-  return actorClient;
+  const deniedMessage = "هذه العملية مخصصة لمدير الشركة فقط.";
+  const actor = await requireCompanyPermission(authorization, "territory.manage", {
+    configMissing: "إعدادات مناطق الشركة غير مكتملة.",
+    sessionRequired: "جلسة مدير الشركة مطلوبة لتنفيذ هذا الإجراء.",
+    rpcError: () => deniedMessage,
+    profileMissing: deniedMessage,
+    permissionDenied: deniedMessage,
+    noActiveCompany: deniedMessage,
+  });
+  return actor.actorClient;
 }
 
 function pointsFromUnknown(value: unknown): TerritoryPoint[] {

@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { legacyPermissionsFor } from "../shared/auth/legacy";
+import { canGrant } from "../shared/auth/resolve";
 import { ENV } from "./_core/env";
 
 export const EMPLOYEE_ROLE_KEYS = ["sales_manager", "company_manager", "sales_supervisor", "medical_supervisor", "accountant", "sales_rep", "medical_rep"] as const;
@@ -71,7 +73,7 @@ async function requireUserManager(authorization?: string) {
   });
   const { data: profileRows, error: profileError } = await actorClient.rpc("tips_crm_my_profile");
   if (profileError) throw new Error("تعذر التحقق من صلاحية الإدارة.");
-  const actorProfile = (profileRows as Array<{ id: string; permissions: string[]; active_company_id: string | null }> | null)?.[0];
+  const actorProfile = (profileRows as Array<{ id: string; role_key?: string | null; is_platform_admin?: boolean; permissions: string[]; active_company_id: string | null }> | null)?.[0];
   if (!actorProfile?.permissions?.some((permission) => permission === "all" || permission === "manage_users")) {
     throw new Error("لا تملك صلاحية إدارة حسابات الموظفين.");
   }
@@ -84,7 +86,11 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
   const validationError = validateTemporaryEmployeeInput(input);
   if (validationError) throw new Error(validationError);
 
-  const { actorClient, adminClient, activeCompanyId } = await requireUserManager(authorization);
+  const { actorClient, actorProfile, adminClient, activeCompanyId } = await requireUserManager(authorization);
+
+  const actorPermissions = legacyPermissionsFor({ roleKey: actorProfile.role_key, isPlatformAdmin: actorProfile.is_platform_admin });
+  const targetPermissions = Array.from(legacyPermissionsFor({ roleKey: input.roleKey }));
+  if (!canGrant(actorPermissions, targetPermissions)) throw new Error("الدور المحدد غير متاح لإنشاء حساب موظف.");
 
   // Check company user limit before creating account
   const [companyRes, membershipCountRes] = await Promise.all([
