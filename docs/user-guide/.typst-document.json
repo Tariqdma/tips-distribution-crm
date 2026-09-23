@@ -1,0 +1,10 @@
+{
+  "entry": "main.typ",
+  "metadata": {
+    "author": "Tips للتوزيع",
+    "subtitle": "دليل التشغيل للإدارة والمناديب",
+    "title": "دليل استخدام Tips CRM"
+  },
+  "mode": "report",
+  "theme": "report-theme.typ"
+}

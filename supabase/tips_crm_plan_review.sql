@@ -1,0 +1,28 @@
+CREATE OR REPLACE FUNCTION public.tips_crm_review_plan(target_plan_id uuid, next_status text, note text DEFAULT NULL)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = tips_crm, auth, public
+AS $$
+BEGIN
+  IF NOT tips_crm.has_permission('approve_plans') THEN
+    RAISE EXCEPTION 'Plan approval permission required';
+  END IF;
+  IF next_status NOT IN ('approved', 'returned') THEN
+    RAISE EXCEPTION 'Invalid plan review status';
+  END IF;
+  UPDATE tips_crm.plans
+  SET status = next_status,
+      manager_note = NULLIF(note, ''),
+      approved_by = auth.uid(),
+      approved_at = CASE WHEN next_status = 'approved' THEN now() ELSE NULL END,
+      updated_at = now()
+  WHERE id = target_plan_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Plan not found'; END IF;
+  PERFORM tips_crm.log_audit('plan_' || next_status, 'plan', target_plan_id::text, jsonb_build_object('note', note));
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.tips_crm_review_plan(uuid, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.tips_crm_review_plan(uuid, text, text) TO authenticated;

@@ -1,0 +1,4 @@
+{
+  "project_id": "luqrrjhvaremronfcvaf",
+  "query": "select table_name from information_schema.tables where table_schema = 'tips_crm' and table_name = 'audit_log' limit 1"
+}

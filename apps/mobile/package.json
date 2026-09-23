@@ -1,0 +1,11 @@
+{
+  "name": "tips-crm-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tips Distribution & Medical CRM — Android & Mobile Field App (Sales Rep, Medical Rep, Offline Field Ops)",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start --android",
+    "android": "expo run:android"
+  }
+}

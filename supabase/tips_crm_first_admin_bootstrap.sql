@@ -1,0 +1,28 @@
+CREATE OR REPLACE FUNCTION public.tips_crm_claim_first_system_admin()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = tips_crm, auth, public
+AS $$
+DECLARE
+  account_name text;
+  account_email text;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Authentication required'; END IF;
+  IF EXISTS (SELECT 1 FROM tips_crm.profiles WHERE role_key = 'system_admin') THEN RETURN false; END IF;
+
+  SELECT COALESCE(NULLIF(raw_user_meta_data ->> 'full_name', ''), email, 'مدير Tips'), email
+  INTO account_name, account_email
+  FROM auth.users WHERE id = auth.uid();
+
+  IF account_email IS NULL THEN RAISE EXCEPTION 'Authenticated account not found'; END IF;
+
+  INSERT INTO tips_crm.profiles (id, full_name, email, role_key, is_active)
+  VALUES (auth.uid(), account_name, account_email, 'system_admin', true)
+  ON CONFLICT (id) DO UPDATE SET role_key = 'system_admin', is_active = true, updated_at = now();
+  RETURN true;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.tips_crm_claim_first_system_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.tips_crm_claim_first_system_admin() TO authenticated;

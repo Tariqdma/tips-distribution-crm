@@ -1,0 +1,4 @@
+{
+  "project_id": "luqrrjhvaremronfcvaf",
+  "query": "select table_schema, table_name from information_schema.tables where table_schema = 'tips_crm' order by table_name limit 20;"
+}
