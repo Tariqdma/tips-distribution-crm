@@ -200,7 +200,7 @@ export default function AdminDashboardIndex() {
         </View>
 
         <View style={styles.modulesGrid}>
-          {quickModules.map((mod, idx) => (
+          {quickModules.filter((mod) => mod.href !== "/company/roles" || can("role.custom.manage")).map((mod, idx) => (
             <TouchableOpacity
               key={idx}
               style={styles.moduleCard}

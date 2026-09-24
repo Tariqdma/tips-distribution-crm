@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { palette } from "@/components/crm-ui";
 import { UserMenu } from "@/components/user-menu";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 type NavItem = {
@@ -88,6 +89,7 @@ const platformNavCategories: NavCategory[] = [
 export function AdminWebShell({ children, title }: { children: ReactNode; title: string }) {
   const pathname = usePathname();
   const { session, loading, profile } = useSupabaseAuth();
+  const { can } = usePermissions();
   const { width } = useWindowDimensions();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -95,7 +97,10 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
   const isSidebarCollapsed = collapsed || isSmallScreen;
 
   const isPlatform = Boolean(profile?.is_platform_admin);
-  const currentNavCategories = isPlatform ? platformNavCategories : companyNavCategories;
+  const currentNavCategories = (isPlatform ? platformNavCategories : companyNavCategories).map((category) => ({
+    ...category,
+    items: category.items.filter((item) => item.href !== "/company/roles" || can("role.custom.manage")),
+  })).filter((category) => category.items.length > 0);
 
   if (loading) {
     return (
