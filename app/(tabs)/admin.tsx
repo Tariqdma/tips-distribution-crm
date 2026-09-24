@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 
@@ -9,11 +10,11 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { TerritoryMap } from "@/components/territory-map";
 import { NotificationButton } from "@/components/notification-button";
 import { UserMenu } from "@/components/user-menu";
-import { useOperationalRole } from "@/hooks/use-operational-role";
 import { usePermissions } from "@/hooks/use-permissions";
+import { latestPositionsByProfile, type DutyPointRow } from "@/lib/duty-tracking-payload";
 import { useCrm } from "@/lib/crm-store";
+import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
-import { trpc } from "@/lib/trpc";
 import { router } from "expo-router";
 
 function ManagerShortcut({ icon, label, onPress }: { icon: keyof typeof MaterialIcons.glyphMap; label: string; onPress: () => void }) {
@@ -21,12 +22,11 @@ function ManagerShortcut({ icon, label, onPress }: { icon: keyof typeof Material
 }
 
 export function AdminDashboard() {
-  const { data, approvePlan, returnPlan, accountById, addVisitResult, role: localRole, unreadNotificationCount } = useCrm();
-  const operational = useOperationalRole(localRole);
-  const { session } = useSupabaseAuth();
+  const { data, approvePlan, returnPlan, accountById, addVisitResult, unreadNotificationCount } = useCrm();
+  const { session, profile } = useSupabaseAuth();
   const { can } = usePermissions();
   const isCompanyManager = can("employee.manage");
-  const role = isCompanyManager ? "مدير" : operational.role;
+  const canViewTeamTelemetry = can("telemetry.read.team");
   const { width } = useWindowDimensions();
   const isWide = Platform.OS === "web" && width >= 800;
   const isPhone = width < 800;
@@ -99,7 +99,24 @@ export function AdminDashboard() {
     return () => { cancelled = true; };
   }, [isCompanyManager, session?.access_token]);
 
-  const liveQuery = trpc.tracking.live.useQuery(undefined, { enabled: operational.isAuthenticated && role === "مدير", refetchInterval: 30000 });
+  const liveQuery = useQuery({
+    queryKey: ["duty-live-positions"],
+    queryFn: async () => {
+      if (!supabase) return [] as DutyPointRow[];
+      const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data: rows, error } = await supabase
+        .schema("tips_crm")
+        .from("duty_location_points")
+        .select("profile_id,latitude,longitude,captured_at,profiles(full_name,role_key,territory_label)")
+        .gte("captured_at", since)
+        .order("captured_at", { ascending: false })
+        .limit(300);
+      if (error) throw error;
+      return (rows ?? []) as unknown as DutyPointRow[];
+    },
+    enabled: canViewTeamTelemetry,
+    refetchInterval: 30000,
+  });
   const pendingPlans = data.plans.filter((plan) => plan.status === "بانتظار الاعتماد");
   const completed = data.visits.filter((visit) => visit.status === "مكتملة").length;
   const attentionVisits = data.visits.filter((visit) => visit.status === "تحتاج مراجعة");
@@ -110,16 +127,16 @@ export function AdminDashboard() {
     const last = status.lastPoint ?? status.path.at(-1);
     return last && member ? { id: member.id, name: member.name, initials: member.initials, role: member.role, territory: member.territory, latitude: last.latitude, longitude: last.longitude, updatedAt: new Date(last.capturedAt).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }), active: status.isOnDuty, path: status.path } : null;
   }).filter((item): item is Exclude<typeof item, null> => Boolean(item)) as LiveRepPosition[];
-  const serverLive: LiveRepPosition[] = (liveQuery.data ?? []).map((point) => ({ id: String(point.userId), name: point.name ?? "مندوب", initials: (point.name ?? "مندوب").split(" ").slice(0, 2).map((part) => part[0]).join(" "), role: point.crmRole ?? "مندوب", territory: point.territory ?? "غير معين", latitude: Number(point.latitude), longitude: Number(point.longitude), updatedAt: new Date(point.capturedAt).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }), active: true, path: [{ latitude: Number(point.latitude), longitude: Number(point.longitude) }] }));
+  const serverLive: LiveRepPosition[] = latestPositionsByProfile(liveQuery.data ?? []).map((row) => { const name = row.profiles?.full_name ?? "مندوب"; return { id: row.profile_id, name, initials: name.split(" ").slice(0, 2).map((part) => part[0]).join(" "), role: row.profiles?.role_key ?? "مندوب", territory: row.profiles?.territory_label ?? "غير معين", latitude: Number(row.latitude), longitude: Number(row.longitude), updatedAt: new Date(row.captured_at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }), active: true, path: [{ latitude: Number(row.latitude), longitude: Number(row.longitude) }] }; });
   const liveReps = serverLive.length ? serverLive : localLive;
   const selectedLiveRep = selectedRepId || liveReps[0]?.id || "";
 
-  if (role !== "مدير") {
+  if (!isCompanyManager) {
     return <ScreenContainer className="px-5" containerClassName="bg-background"><View style={styles.locked}><View style={styles.lockIcon}><MaterialIcons name="lock-outline" size={32} color={palette.primary} /></View><Text style={styles.lockedTitle}>وصول مقيّد</Text><Text style={styles.lockedText}>لوحة الإدارة مخصصة للمدير. يمكنك العودة إلى خطتك وزياراتك الميدانية.</Text><PrimaryButton label="إدارة الفريق" icon="groups" onPress={() => router.push("/team" as never)} style={{ alignSelf: "stretch", marginTop: 20 }} /></View></ScreenContainer>;
   }
 
   return <ScreenContainer className={isPhone ? "px-4" : "px-5"} containerClassName="bg-background"><ScrollView contentContainerStyle={[styles.content, isWide && styles.wideContent]} showsVerticalScrollIndicator={false}>
-    <AppHeader eyebrow={operational.usesServerProfile ? `صلاحية موثقة · ${operational.territory}` : "مسؤولية اليوم · ولاية الخرطوم"} title="لوحة الإدارة" right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity><UserMenu /></View>} />
+    <AppHeader eyebrow={profile ? `صلاحية موثقة · ${profile.territory_label ?? "غير معين"}` : "مسؤولية اليوم · ولاية الخرطوم"} title="لوحة الإدارة" right={<View style={styles.headerActions}><NotificationButton count={unreadNotificationCount} /><TouchableOpacity onPress={() => router.push("/team" as never)} style={styles.roleButton}><MaterialIcons name="groups" size={19} color={palette.primary} /></TouchableOpacity><UserMenu /></View>} />
 
     <View style={styles.managerBanner}><View style={styles.managerIcon}><MaterialIcons name="verified-user" size={21} color="#FFFFFF" /></View><View style={styles.bannerCopy}><Text style={styles.managerTitle}>فريقك يتحرك وفق خطة معتمدة</Text><Text style={styles.managerHint}>تابع الخطة والموقع والتغطية من مكان واحد</Text></View></View>
     {isCompanyManager && companySetupReady !== true ? <TouchableOpacity onPress={() => router.push("/company-setup" as never)} style={styles.setupNotice}><View style={styles.setupNoticeIcon}><MaterialIcons name="settings-suggest" size={19} color={palette.warning} /></View><View style={styles.bannerCopy}><Text style={styles.setupNoticeTitle}>{companySetupReady === false ? "أكمل تهيئة شركتك" : "راجع إعدادات تشغيل الشركة"}</Text><Text style={styles.setupNoticeText}>{companySetupReady === false ? "أدخل طبيعة النشاط والدوام وسياسة الموقع قبل بدء التشغيل." : "افتح إعدادات الشركة لمراجعة الهوية وسياسات الدوام والموقع."}</Text></View><MaterialIcons name="chevron-left" size={20} color={palette.warning} /></TouchableOpacity> : null}
