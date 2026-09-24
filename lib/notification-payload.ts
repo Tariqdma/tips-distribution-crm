@@ -36,3 +36,18 @@ export function buildNotificationInsert(input: { title: string; body: string; ki
     created_by: input.createdBy,
   };
 }
+
+// One row per recipient rather than a single recipient_id IS NULL broadcast. The notifications
+// table has no company_id, so a broadcast row carries no tenant scope at all — and the read policy
+// (recipient_id = auth.uid() OR view_team_data) makes it invisible to reps, who hold neither.
+// Addressing each recipient satisfies both without a schema change.
+export function buildTeamNotificationInserts(input: {
+  title: string;
+  body: string;
+  kind: CrmNotification["kind"];
+  createdBy: string;
+  recipientIds: readonly string[];
+}): NotificationInsert[] {
+  const recipients = Array.from(new Set(input.recipientIds)).filter((id) => id.length > 0);
+  return recipients.map((recipientId) => buildNotificationInsert({ ...input, recipientId }));
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNotificationInsert, isNotificationKind, notificationKindFor } from "../lib/notification-payload";
+import { buildNotificationInsert, buildTeamNotificationInserts, isNotificationKind, notificationKindFor } from "../lib/notification-payload";
 
 describe("notificationKindFor", () => {
   it("maps every Arabic CrmNotification kind to its CHECK-constrained English value", () => {
@@ -41,5 +41,33 @@ describe("buildNotificationInsert", () => {
     const row = buildNotificationInsert({ title: "t", body: "b", kind: "فريق", createdBy: "manager-1", recipientId: "rep-1" });
     expect(row.recipient_id).toBe("rep-1");
     expect(row.kind).toBe("team");
+  });
+});
+
+describe("team fan-out", () => {
+  const base = { title: " تنبيه ", body: " النص ", kind: "تنبيه" as const, createdBy: "sender-1" };
+
+  it("addresses one row per recipient instead of a single untargeted broadcast", () => {
+    const rows = buildTeamNotificationInserts({ ...base, recipientIds: ["a", "b", "c"] });
+    expect(rows).toHaveLength(3);
+    expect(rows.map((row) => row.recipient_id)).toEqual(["a", "b", "c"]);
+    expect(rows.every((row) => row.recipient_id !== null)).toBe(true);
+  });
+
+  it("trims content and maps the Arabic kind on every row", () => {
+    const [row] = buildTeamNotificationInserts({ ...base, recipientIds: ["a"] });
+    expect(row.title).toBe("تنبيه");
+    expect(row.body).toBe("النص");
+    expect(row.kind).toBe("alert");
+    expect(row.created_by).toBe("sender-1");
+  });
+
+  it("drops duplicate and empty recipient ids", () => {
+    const rows = buildTeamNotificationInserts({ ...base, recipientIds: ["a", "a", "", "b"] });
+    expect(rows.map((row) => row.recipient_id)).toEqual(["a", "b"]);
+  });
+
+  it("returns nothing when there are no recipients, so the caller can refuse to send", () => {
+    expect(buildTeamNotificationInserts({ ...base, recipientIds: [] })).toEqual([]);
   });
 });
