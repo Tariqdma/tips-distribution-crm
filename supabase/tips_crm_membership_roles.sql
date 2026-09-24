@@ -183,21 +183,25 @@ DO $$ BEGIN
 END $$;
 
 -- ------------------------------------------------------------------
--- 4. supervisor_assignments — explicit Team membership. Never inferred
---    from shared Territory or Discipline. Modelled on territory_assignments.
+-- 4. Team — no new table.
+--
+--    company_memberships.reports_to_profile_id already models explicit
+--    supervision, and it is already populated: server/company-team-setup.ts
+--    writes it and the "المدير المباشر" picker in app/company-team-setup.tsx
+--    feeds it. That is exactly the explicit assignment the spec requires —
+--    never inferred from shared Territory or Discipline.
+--
+--    An earlier draft of this migration added a supervisor_assignments table.
+--    It was removed: two sources of truth for who supervises whom is the class
+--    of defect this redesign exists to eliminate. A Rep reports to one
+--    Supervisor, which is what the spec describes and what this column holds.
+--
+--    Index it for the "who reports to me" lookup a Supervisor's screens make.
 -- ------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS tips_crm.supervisor_assignments (
-  company_id uuid NOT NULL REFERENCES tips_crm.companies(id) ON DELETE CASCADE,
-  supervisor_profile_id uuid NOT NULL REFERENCES tips_crm.profiles(id) ON DELETE CASCADE,
-  rep_profile_id uuid NOT NULL REFERENCES tips_crm.profiles(id) ON DELETE CASCADE,
-  assigned_by uuid REFERENCES auth.users(id),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (company_id, supervisor_profile_id, rep_profile_id),
-  CHECK (supervisor_profile_id <> rep_profile_id)
-);
-
-CREATE INDEX IF NOT EXISTS supervisor_assignments_rep_idx ON tips_crm.supervisor_assignments(company_id, rep_profile_id);
+CREATE INDEX IF NOT EXISTS company_memberships_reports_to_idx
+  ON tips_crm.company_memberships(company_id, reports_to_profile_id)
+  WHERE reports_to_profile_id IS NOT NULL;
 
 -- ------------------------------------------------------------------
 -- 5. membership_permissions — the materialized union RLS will read.
@@ -358,8 +362,14 @@ FOR EACH ROW EXECUTE FUNCTION tips_crm.trg_roles_recompute();
 -- 8a. Create the company_memberships row for every profile with an
 --     active_company_id that lacks one. Non-platform-admins only —
 --     a Platform Admin holds no Membership.
-INSERT INTO tips_crm.company_memberships (company_id, profile_id, is_active)
-SELECT p.active_company_id, p.id, true
+--
+--     role_key is populated from the profile's own legacy key. The deployed
+--     table declares that column NOT NULL, unlike the definition checked into
+--     supabase/chunks/01_schema_and_tables.sql — the repo SQL is not the source
+--     of truth for this database. The column stays unread by the new model;
+--     membership_roles below is what carries a Membership's Roles.
+INSERT INTO tips_crm.company_memberships (company_id, profile_id, role_key, is_active)
+SELECT p.active_company_id, p.id, p.role_key, true
 FROM tips_crm.profiles p
 WHERE p.active_company_id IS NOT NULL
   AND NOT p.is_platform_admin
@@ -441,7 +451,6 @@ END $$;
 
 ALTER TABLE tips_crm.membership_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tips_crm.membership_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tips_crm.supervisor_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tips_crm.role_grant_audit ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS membership_roles_read ON tips_crm.membership_roles;
@@ -460,15 +469,6 @@ USING (
   OR (company_id = tips_crm.my_company_id() AND tips_crm.has_permission('view_team_data'))
 );
 
-DROP POLICY IF EXISTS supervisor_assignments_read ON tips_crm.supervisor_assignments;
-CREATE POLICY supervisor_assignments_read ON tips_crm.supervisor_assignments FOR SELECT TO authenticated
-USING (
-  supervisor_profile_id = auth.uid()
-  OR rep_profile_id = auth.uid()
-  OR tips_crm.is_platform_admin()
-  OR (company_id = tips_crm.my_company_id() AND tips_crm.has_permission('view_team_data'))
-);
-
 DROP POLICY IF EXISTS role_grant_audit_read ON tips_crm.role_grant_audit;
 CREATE POLICY role_grant_audit_read ON tips_crm.role_grant_audit FOR SELECT TO authenticated
 USING (
@@ -483,12 +483,11 @@ COMMIT;
 -- trusting it. Nothing here mutates data.
 -- ==============================================================================
 
--- RLS must be on for all four new tables (expect four rows, rowsecurity = true)
+-- RLS must be on for all three new tables (expect three rows, rowsecurity = true)
 -- SELECT tablename, rowsecurity
 -- FROM pg_tables
 -- WHERE schemaname = 'tips_crm'
---   AND tablename IN ('membership_roles', 'membership_permissions',
---                     'supervisor_assignments', 'role_grant_audit');
+--   AND tablename IN ('membership_roles', 'membership_permissions', 'role_grant_audit');
 
 -- Memberships per company
 -- SELECT company_id, count(*) AS membership_count
