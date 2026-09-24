@@ -378,30 +378,38 @@ ON CONFLICT (company_id, profile_id) DO NOTHING;
 -- 8b. Map each legacy role_key to its new System Role(s) and Discipline
 --     set. system_admin is excluded: those profiles are platform admins
 --     and get no membership role (enforced again in 8c as a safety net).
-CREATE TEMP TABLE _legacy_role_map (legacy_key text PRIMARY KEY, new_role_key text NOT NULL, disciplines text[] NOT NULL) ON COMMIT DROP;
-INSERT INTO _legacy_role_map (legacy_key, new_role_key, disciplines) VALUES
-  ('company_manager', 'manager', '{}'::text[]),
-  ('sales_manager', 'manager', '{}'::text[]),
-  ('sales_supervisor', 'supervisor', ARRAY['sales']),
-  ('medical_supervisor', 'supervisor', ARRAY['medical']),
-  ('sales_rep', 'rep', ARRAY['sales']),
-  ('medical_rep', 'rep', ARRAY['medical']),
-  ('accountant', 'accountant', '{}'::text[]);
-
-UPDATE tips_crm.company_memberships cm
-SET disciplines = ARRAY(
-  SELECT DISTINCT unnest(cm.disciplines || lrm.disciplines)
+--     The mapping is a CTE, not a temp table. The Supabase SQL editor can run
+--     statements over pooled connections, so a TEMP TABLE created by one
+--     statement is not guaranteed to exist for the next — an earlier draft
+--     failed here with 'relation "_legacy_role_map" does not exist'. Both
+--     writes therefore happen in one statement, which also keeps the mapping
+--     defined exactly once.
+WITH legacy_role_map (legacy_key, new_role_key, disciplines) AS (
+  VALUES
+    ('company_manager',    'manager',    '{}'::text[]),
+    ('sales_manager',      'manager',    '{}'::text[]),
+    ('sales_supervisor',   'supervisor', ARRAY['sales']::text[]),
+    ('medical_supervisor', 'supervisor', ARRAY['medical']::text[]),
+    ('sales_rep',          'rep',        ARRAY['sales']::text[]),
+    ('medical_rep',        'rep',        ARRAY['medical']::text[]),
+    ('accountant',         'accountant', '{}'::text[])
+),
+disciplines_backfilled AS (
+  UPDATE tips_crm.company_memberships cm
+  SET disciplines = ARRAY(
+    SELECT DISTINCT unnest(cm.disciplines || lrm.disciplines)
+  )
+  FROM tips_crm.profiles p
+  JOIN legacy_role_map lrm ON lrm.legacy_key = p.role_key
+  WHERE cm.profile_id = p.id
+    AND cm.company_id = p.active_company_id
+    AND NOT p.is_platform_admin
+  RETURNING cm.company_id
 )
-FROM tips_crm.profiles p
-JOIN _legacy_role_map lrm ON lrm.legacy_key = p.role_key
-WHERE cm.profile_id = p.id
-  AND cm.company_id = p.active_company_id
-  AND NOT p.is_platform_admin;
-
 INSERT INTO tips_crm.membership_roles (company_id, profile_id, role_key)
 SELECT p.active_company_id, p.id, lrm.new_role_key
 FROM tips_crm.profiles p
-JOIN _legacy_role_map lrm ON lrm.legacy_key = p.role_key
+JOIN legacy_role_map lrm ON lrm.legacy_key = p.role_key
 WHERE p.active_company_id IS NOT NULL
   AND NOT p.is_platform_admin
 ON CONFLICT (company_id, profile_id, role_key) DO NOTHING;
