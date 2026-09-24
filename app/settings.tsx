@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { supabase } from "@/lib/supabase-client";
 
@@ -22,8 +23,9 @@ type SettingsTab = "company" | "notifications" | "security" | "appearance";
 
 export default function SettingsScreen() {
   const { profile, refreshProfile } = useSupabaseAuth();
+  const { can } = usePermissions();
   const [activeTab, setActiveTab] = useState<SettingsTab>("company");
-  const isCompanyManager = profile?.role_key === "company_manager" && !profile.is_platform_admin;
+  const isCompanyManager = can("company.profile.update");
 
   useEffect(() => {
     if (!isCompanyManager && activeTab === "company") setActiveTab("notifications");

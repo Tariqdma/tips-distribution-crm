@@ -6,6 +6,7 @@ import { GeographicMap } from "@/components/geographic-map";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { type TerritoryBoundary, useCrm } from "@/lib/crm-store";
 import { citiesForState, SUDAN_STATES } from "@/lib/sudan-locations";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
@@ -21,7 +22,8 @@ const defaultPoint = cityCenters["الخرطوم"];
 const endpoint = () => `${getApiBaseUrl()}/api/company/territory-setup`;
 
 export default function CompanyTerritorySetupScreen() {
-  const { session, profile } = useSupabaseAuth();
+  const { session } = useSupabaseAuth();
+  const { can } = usePermissions();
   const { refreshSharedCatalog } = useCrm();
   const [setup, setSetup] = useState<TerritorySetup | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ export default function CompanyTerritorySetupScreen() {
   const [polygonPoints, setPolygonPoints] = useState<Point[]>([]);
   const [picker, setPicker] = useState<PickerType>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const isManager = profile?.role_key === "company_manager" || profile?.role_key === "sales_manager" || (profile?.role_key === "system_admin" && !profile.is_platform_admin);
+  const isManager = can("territory.manage");
   const cities = citiesForState(state);
 
   const load = useCallback(async () => {

@@ -5,6 +5,7 @@ import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 const DAYS = [{ key: "saturday", label: "السبت" }, { key: "sunday", label: "الأحد" }, { key: "monday", label: "الاثنين" }, { key: "tuesday", label: "الثلاثاء" }, { key: "wednesday", label: "الأربعاء" }, { key: "thursday", label: "الخميس" }, { key: "friday", label: "الجمعة" }];
@@ -16,14 +17,15 @@ const fallback: Setup = { companyId: "", companyName: "", legalName: "", activit
 function setupUrl() { return `${getApiBaseUrl()}/api/company/setup`; }
 
 export default function CompanySetupScreen() {
-  const { session, profile } = useSupabaseAuth();
+  const { session } = useSupabaseAuth();
+  const { can } = usePermissions();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [setup, setSetup] = useState<Setup>(fallback);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const isManager = profile?.role_key === "company_manager" && !profile.is_platform_admin;
+  const isManager = can("company.profile.update");
   const isEditingFromSettings = mode === "edit";
 
   const request = useCallback(async (method: "GET" | "PUT", body?: Setup) => {

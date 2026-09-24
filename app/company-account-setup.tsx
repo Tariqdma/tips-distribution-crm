@@ -9,6 +9,7 @@ import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { accountImportTemplateColumns, parseAccountImportRows, type AccountImportPreviewRow } from "@/lib/account-import";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -35,7 +36,8 @@ function rowsFromPastedText(value: string) {
 }
 
 export default function CompanyAccountSetupScreen() {
-  const { session, profile } = useSupabaseAuth();
+  const { session } = useSupabaseAuth();
+  const { can } = usePermissions();
   const { refreshSharedCatalog } = useCrm();
   const [setup, setSetup] = useState<AccountSetup | null>(null);
   const [previewRows, setPreviewRows] = useState<AccountImportPreviewRow[]>([]);
@@ -47,7 +49,7 @@ export default function CompanyAccountSetupScreen() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pastedText, setPastedText] = useState("");
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const isManager = profile?.role_key === "company_manager" || profile?.role_key === "sales_manager" || (profile?.role_key === "system_admin" && !profile.is_platform_admin);
+  const isManager = can("account.import");
   const validPreviewRows = previewRows.filter((row) => !row.errors.length && row.accountType);
   const invalidPreviewRows = previewRows.filter((row) => row.errors.length);
 

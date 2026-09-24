@@ -6,6 +6,7 @@ import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { MultiTerritorySelect } from "@/components/multi-territory-select";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -26,7 +27,8 @@ const isRepresentative = (roleKey: RoleKey) => roleKey === "sales_rep" || roleKe
 const setupUrl = () => `${getApiBaseUrl()}/api/company/team-setup`;
 
 export default function CompanyTeamSetupScreen() {
-  const { session, profile } = useSupabaseAuth();
+  const { session } = useSupabaseAuth();
+  const { can } = usePermissions();
   const { data, refreshSharedCatalog } = useCrm();
   const [setup, setSetup] = useState<TeamSetup | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export default function CompanyTeamSetupScreen() {
   const [territoryIds, setTerritoryIds] = useState<string[]>([]);
   const [forcePasswordChange, setForcePasswordChange] = useState(true);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const isManager = profile?.role_key === "company_manager" || profile?.role_key === "sales_manager" || (profile?.role_key === "system_admin" && !profile.is_platform_admin);
+  const isManager = can("employee.manage");
   const territoryOptions = data.territories.map((territory) => ({ id: territory.id, name: territory.name, state: territory.state, city: territory.city }));
 
   const load = useCallback(async () => {

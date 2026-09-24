@@ -11,13 +11,15 @@ import {
 } from "react-native";
 import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export default function AdminDashboardIndex() {
   const { profile } = useSupabaseAuth();
   const { data } = useCrm();
-  const isCompanyManager = profile?.role_key === "company_manager" && !profile.is_platform_admin;
+  const { can } = usePermissions();
+  const isCompanyManager = can("company.profile.update");
 
   const completedVisits = data.visits.filter((v) => v.status === "مكتملة").length;
   const totalVisits = data.visits.length;

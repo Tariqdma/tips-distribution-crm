@@ -17,6 +17,7 @@ import { Redirect, router } from "expo-router";
 import { MetricCard, PrimaryButton, palette } from "@/components/crm-ui";
 import { PlatformWebShell, type PlatformTabKey } from "@/components/platform-web-shell";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
@@ -143,6 +144,7 @@ function requestStatusColor(status: string) {
 
 export default function PlatformPortalScreen() {
   const { profile, session, loading, refreshProfile } = useSupabaseAuth();
+  const { can } = usePermissions();
   const { width } = useWindowDimensions();
   const isWide = Platform.OS === "web" && width >= 850;
 
@@ -197,7 +199,7 @@ export default function PlatformPortalScreen() {
   const [authTimedOut, setAuthTimedOut] = useState(false);
 
   const load = useCallback(async () => {
-    if (!profile?.is_platform_admin && profile?.role_key !== "platform_admin" && profile?.email !== "platform.admin@tips-sd.com") {
+    if (!can("portal.platform.enter")) {
       setFetching(false);
       return;
     }
@@ -614,12 +616,7 @@ export default function PlatformPortalScreen() {
     );
   }
 
-  const isPlatformAdmin =
-    Boolean(profile?.is_platform_admin) ||
-    profile?.role_key === "platform_admin" ||
-    profile?.email === "platform.admin@tips-sd.com";
-
-  if (!isPlatformAdmin) return <Redirect href={"/platform/login" as never} />;
+  if (!can("portal.platform.enter")) return <Redirect href={"/platform/login" as never} />;
 
   const tabTitles: Record<PlatformTabKey, string> = {
     overview: "لوحة التحكم والتحليلات",

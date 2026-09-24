@@ -10,6 +10,7 @@ import { TerritoryMap } from "@/components/territory-map";
 import { NotificationButton } from "@/components/notification-button";
 import { UserMenu } from "@/components/user-menu";
 import { useOperationalRole } from "@/hooks/use-operational-role";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { trpc } from "@/lib/trpc";
@@ -22,8 +23,9 @@ function ManagerShortcut({ icon, label, onPress }: { icon: keyof typeof Material
 export function AdminDashboard() {
   const { data, approvePlan, returnPlan, accountById, addVisitResult, role: localRole, unreadNotificationCount } = useCrm();
   const operational = useOperationalRole(localRole);
-  const { profile, session } = useSupabaseAuth();
-  const isCompanyManager = profile?.role_key === "company_manager" || profile?.role_key === "sales_manager" || (profile?.role_key === "system_admin" && !profile.is_platform_admin);
+  const { session } = useSupabaseAuth();
+  const { can } = usePermissions();
+  const isCompanyManager = can("employee.manage");
   const role = isCompanyManager ? "مدير" : operational.role;
   const { width } = useWindowDimensions();
   const isWide = Platform.OS === "web" && width >= 800;

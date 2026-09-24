@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { palette } from "@/components/crm-ui";
 import { UserAvatar } from "@/components/user-avatar";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { router } from "expo-router";
 
@@ -15,6 +16,7 @@ type MenuItem = {
 
 export function UserMenu() {
   const { profile, session, signOut } = useSupabaseAuth();
+  const { can } = usePermissions();
   const [open, setOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -69,12 +71,8 @@ export function UserMenu() {
   }, [hideMenu, signOut]);
 
   // Determine role-based links
-  const isPlatformAdmin = Boolean(profile?.is_platform_admin);
-  const isCompanyManager =
-    !isPlatformAdmin &&
-    profile?.role_key === "company_manager";
-  const isSupervisor =
-    profile?.role_key === "sales_supervisor" || profile?.role_key === "medical_supervisor";
+  const isCompanyManager = can("company.profile.update");
+  const isSupervisor = can("portal.supervisor.enter");
 
   const menuItems: MenuItem[] = [
     {
