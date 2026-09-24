@@ -65,8 +65,13 @@ Closed and defined in code (`shared/auth/permissions.ts`). A Role may bundle the
 **Finance (2)**
 `credit_limit.manage` · `finance.reconcile`
 
-**Reports and audit (3)**
-`report.read.team` · `report.read.company` · `audit.read.company`
+**Notifications (1)**
+`notification.send.team`
+
+**Reports and audit (4)**
+`report.read.team` · `report.read.company` · `report.export` · `audit.read.company`
+
+Two of these were added when the RLS audit found old permission strings with no equivalent in the original vocabulary. `send_notifications` became `notification.send.team` — broadcasting to a team is a capability no other permission implies, and a Supervisor needs it for their own team. `export_reports` became `report.export`, kept separate from `report.read.*` so that reading a dashboard and extracting its data can be granted independently. The third, `manage_outcomes`, was folded into `catalogue.manage`: visit-outcome labels are a company-configured list, which is what catalogue management already means.
 
 **Platform (4)** — reachable only through `is_platform_admin`, never through a Role
 `platform.company.review` · `platform.company.suspend` · `platform.package.manage` · `platform.audit.read`

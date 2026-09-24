@@ -69,8 +69,10 @@ INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_syst
       'telemetry.read.company',
       'credit_limit.manage',
       'finance.reconcile',
+      'notification.send.team',
       'report.read.team',
       'report.read.company',
+      'report.export',
       'audit.read.company'
     ],
     true,
@@ -89,6 +91,7 @@ INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_syst
       'visit.read.team',
       'visit.review',
       'telemetry.read.team',
+      'notification.send.team',
       'report.read.team'
     ],
     true,

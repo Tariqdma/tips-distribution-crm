@@ -54,9 +54,12 @@ const telemetryPermissions = ["telemetry.read.team", "telemetry.read.company"] a
 
 const financePermissions = ["credit_limit.manage", "finance.reconcile"] as const;
 
+const notificationPermissions = ["notification.send.team"] as const;
+
 const reportAndAuditPermissions = [
   "report.read.team",
   "report.read.company",
+  "report.export",
   "audit.read.company",
 ] as const;
 
@@ -77,6 +80,7 @@ export const ALL_PERMISSIONS = [
   ...visitPermissions,
   ...telemetryPermissions,
   ...financePermissions,
+  ...notificationPermissions,
   ...reportAndAuditPermissions,
   ...platformOnlyPermissions,
 ] as const;

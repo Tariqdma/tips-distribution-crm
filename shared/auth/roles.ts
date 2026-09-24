@@ -21,6 +21,7 @@ const supervisorPermissions = [
   "visit.read.team",
   "visit.review",
   "telemetry.read.team",
+  "notification.send.team",
   "report.read.team",
 ] as const satisfies readonly Permission[];
 
