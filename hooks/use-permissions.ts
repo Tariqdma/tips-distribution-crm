@@ -1,8 +1,10 @@
 import { useMemo } from "react";
-import { legacyPermissionsFor } from "@shared/auth/legacy";
+import { legacyPermissionsFor, legacyRolesFor, type Discipline } from "@shared/auth/legacy";
 import type { Permission } from "@shared/auth/permissions";
 import { hasPermission } from "@shared/auth/resolve";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+
+export type { Discipline } from "@shared/auth/legacy";
 
 export function usePermissions() {
   const { profile } = useSupabaseAuth();
@@ -12,11 +14,18 @@ export function usePermissions() {
     [profile?.role_key, profile?.is_platform_admin]
   );
 
+  const disciplines = useMemo(
+    () => new Set<Discipline>(legacyRolesFor({ roleKey: profile?.role_key, isPlatformAdmin: profile?.is_platform_admin }).disciplines),
+    [profile?.role_key, profile?.is_platform_admin]
+  );
+
   return useMemo(
     () => ({
       permissions,
       can: (permission: Permission) => hasPermission(permissions, permission),
+      disciplines,
+      hasDiscipline: (discipline: Discipline) => disciplines.has(discipline),
     }),
-    [permissions]
+    [permissions, disciplines]
   );
 }

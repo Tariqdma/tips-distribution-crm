@@ -11,6 +11,7 @@ import { getFieldDataScope } from "@/lib/field-data-scope";
 import { isFollowUpDue } from "@/lib/operational-insights";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { enableMobileNotifications, getMobileNotificationPermission, isMobileNotificationsAvailable } from "@/lib/mobile-notifications";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const priorityWeight = { عالية: 0, متوسطة: 1, اعتيادية: 2 } as const;
 const isoToday = () => new Date().toISOString().slice(0, 10);
@@ -20,6 +21,7 @@ export default function TodayScreen() {
   const { data, accountById, unreadNotificationCount, recordDutyPoint, isOnline, offlineVisitDrafts } = useCrm();
   const { profile, signOut } = useSupabaseAuth();
   const scope = getFieldDataScope(data, profile);
+  const { hasDiscipline } = usePermissions();
 
   useEffect(() => {
     if (isMobileNotificationsAvailable()) void getMobileNotificationPermission().then(setNotificationPermission);
@@ -150,7 +152,7 @@ export default function TodayScreen() {
         <DutyTrackerCard onPoint={recordDutyPoint} />
 
         {/* Medical Tools Access */}
-        {profile?.role_key === "medical_rep" ? (
+        {hasDiscipline("medical") ? (
           <TouchableOpacity onPress={() => router.push("/medical-tools" as never)} style={styles.medicalTools}>
             <View style={styles.medicalToolsIcon}>
               <MaterialIcons name="biotech" size={20} color="#FFFFFF" />

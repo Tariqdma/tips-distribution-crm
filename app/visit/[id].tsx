@@ -9,11 +9,13 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { AccountAvatar, AppHeader, PrimaryButton, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
+import { disciplineForAppRole } from "@/lib/app-role-discipline";
 import { type DoctorInterest, type FollowUpPriority, type MedicalInteractionType, type MedicalVisitGoal, type VisitAttachment, useCrm } from "@/lib/crm-store";
 import { isSupportedVisitAttachment } from "@/lib/visit-attachments";
 import { isLocationWithinAssignedTerritories } from "@/lib/crm-logic";
 import { getFieldDataScope } from "@/lib/field-data-scope";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 
 type VisitDraft = { result?: string; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; collectionAmount?: string; revenueAmount?: string; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string };
 const draftKey = (visitId: string) => `tips-crm-visit-draft-v1:${visitId}`;
@@ -28,10 +30,12 @@ const formatFollowUpDate = (value?: string) => value ? new Date(`${value}T12:00:
 export default function VisitScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   Object.assign(styles as Record<string, unknown>, medicalExtraStyles);
-  const { data, activeMemberId, accountById, completeVisit, isOnline } = useCrm(); const { profile } = useSupabaseAuth(); const scope = getFieldDataScope(data, profile);
+  const { data, activeMemberId, accountById, completeVisit, isOnline } = useCrm(); const { profile } = useSupabaseAuth(); const { hasDiscipline } = usePermissions(); const scope = getFieldDataScope(data, profile);
   const visit = scope.visits.find((item) => item.id === params.id); const account = visit ? accountById(visit.accountId) : undefined;
   const activeMember = data.teamMembers.find((member) => member.id === (profile?.id ?? activeMemberId)); const assignedTerritoryIds = activeMember?.territoryIds?.length ? activeMember.territoryIds : activeMember?.territoryId ? [activeMember.territoryId] : []; const assignedBoundaries = data.boundaries.filter((boundary) => assignedTerritoryIds.includes(boundary.territoryId));
-  const isMedicalRep = profile?.role_key === "medical_rep" || activeMember?.role === "مندوب طبي";
+  // Two different subjects: the signed-in user's Discipline, and the visit's owning team member,
+  // who can only be read from the local store's Arabic role label (lib/crm-store.tsx).
+  const isMedicalRep = hasDiscipline("medical") || (activeMember ? disciplineForAppRole(activeMember.role) === "medical" : false);
   const [result, setResult] = useState(visit?.result ?? data.visitResults[0]); const [note, setNote] = useState(visit?.note ?? ""); const [followUpAction, setFollowUpAction] = useState(visit?.followUpAction ?? ""); const [followUpDate, setFollowUpDate] = useState(visit?.followUpDate ?? ""); const [reportPriority, setReportPriority] = useState<FollowUpPriority>(visit?.reportPriority ?? "متوسطة"); const [collectionAmount, setCollectionAmount] = useState(visit?.collectionAmount ? String(visit.collectionAmount) : ""); const [revenueAmount, setRevenueAmount] = useState(visit?.revenueAmount ? String(visit.revenueAmount) : ""); const [receiptReference, setReceiptReference] = useState(visit?.receiptReference ?? ""); const [medicalInteractionType, setMedicalInteractionType] = useState<MedicalInteractionType | undefined>(visit?.medicalInteractionType); const [medicalVisitGoal, setMedicalVisitGoal] = useState<MedicalVisitGoal | undefined>(visit?.medicalVisitGoal); const [promotedProduct, setPromotedProduct] = useState(visit?.promotedProduct ?? ""); const [scientificMessage, setScientificMessage] = useState(visit?.scientificMessage ?? ""); const [doctorInterest, setDoctorInterest] = useState<DoctorInterest | undefined>(visit?.doctorInterest); const [medicalFeedback, setMedicalFeedback] = useState(visit?.medicalFeedback ?? ""); const [attachments, setAttachments] = useState<VisitAttachment[]>(visit?.attachments ?? []); const [location, setLocation] = useState(visit?.location); const [locationMessage, setLocationMessage] = useState(visit?.location ? "تم حفظ موقع الحضور" : "لم يتم التقاط الموقع بعد"); const [isLocating, setIsLocating] = useState(false); const [isSaving, setIsSaving] = useState(false); const [draftReady, setDraftReady] = useState(false); const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const hasFollowUp = Boolean(followUpAction.trim() || followUpDate);
   const quickDates = useMemo(() => [{ label: "غداً", value: daysFromNow(1) }, { label: "بعد 3 أيام", value: daysFromNow(3) }, { label: "الأسبوع القادم", value: daysFromNow(7) }], []);
