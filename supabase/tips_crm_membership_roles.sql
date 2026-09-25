@@ -130,7 +130,19 @@ INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_syst
     true,
     true
   )
-ON CONFLICT (key) DO NOTHING;
+ON CONFLICT (key) DO UPDATE SET
+  display_name = EXCLUDED.display_name,
+  description  = EXCLUDED.description,
+  permissions  = EXCLUDED.permissions,
+  is_system    = true,
+  is_active    = true;
+-- DO UPDATE, not DO NOTHING: `accountant` already existed from
+-- supabase/seed_test_accounts.sql, so DO NOTHING silently left it holding its old
+-- legacy permission array while the four genuinely new names seeded correctly.
+-- Re-running this file must converge every System Role on the bundle above.
+-- Note this UPDATE is blocked once tips_crm_authorization_integrity.sql has
+-- installed the immutability trigger; re-seeding after that point needs the
+-- disable/enable pattern used in tips_crm_fix_accountant_role.sql.
 
 -- ------------------------------------------------------------------
 -- 2. membership_roles — a Membership may hold several Roles at once.
