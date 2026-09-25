@@ -1,18 +1,23 @@
-import { createClient } from "@supabase/supabase-js";
-import { permissionsForLegacyRoleKey } from "../shared/auth/legacy-role-key";
-import { permissionsFromMembership } from "../shared/auth/permission-set";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Discipline } from "../shared/auth/legacy-role-key";
 import { canGrant } from "../shared/auth/resolve";
-import { SYSTEM_ROLE_PERMISSIONS } from "../shared/auth/roles";
+import { SYSTEM_ROLE_PERMISSIONS, type SystemRoleName } from "../shared/auth/roles";
+import { requireCompanyPermission } from "./_core/authorize";
 import { ENV } from "./_core/env";
 
-export const EMPLOYEE_ROLE_KEYS = ["sales_manager", "company_manager", "sales_supervisor", "medical_supervisor", "accountant", "sales_rep", "medical_rep"] as const;
-export type EmployeeRoleKey = (typeof EMPLOYEE_ROLE_KEYS)[number];
+// owner is deliberately excluded: ownership is assigned deliberately, never handed out
+// through the staff-creation flow (docs/authorization-model.md "System Role bundles").
+export const CREATABLE_ROLES = ["manager", "supervisor", "rep", "accountant"] as const satisfies readonly SystemRoleName[];
+export type CreatableRole = (typeof CREATABLE_ROLES)[number];
+
+export const DISCIPLINES = ["sales", "medical"] as const satisfies readonly Discipline[];
 
 export type TemporaryEmployeeInput = {
   fullName: string;
   email: string;
   password: string;
-  roleKey: EmployeeRoleKey;
+  role: CreatableRole;
+  disciplines: Discipline[];
   reportsToProfileId?: string;
   territoryLabel?: string;
   territoryLabels?: string[];
@@ -33,15 +38,20 @@ export type EmployeeDirectoryEntry = {
 };
 
 export type ResetEmployeePasswordInput = { password: string; forcePasswordChange: boolean };
-export type AvailableTerritory = { client_key: string | null; name: string };
+export type AvailableTerritory = { id: string; client_key: string | null; name: string };
 
 export function validateTemporaryEmployeeInput(input: TemporaryEmployeeInput) {
   if (input.fullName.trim().length < 2) return "اكتب الاسم الكامل للموظف.";
   if (!/^\S+@\S+\.\S+$/.test(input.email.trim())) return "اكتب بريداً إلكترونياً صحيحاً.";
   if (input.password.length < 8) return "كلمة المرور المؤقتة يجب أن تتكون من 8 أحرف على الأقل.";
-  if (!EMPLOYEE_ROLE_KEYS.includes(input.roleKey)) return "الدور المحدد غير متاح لإنشاء حساب موظف.";
+  if (!CREATABLE_ROLES.includes(input.role)) return "الدور المحدد غير متاح لإنشاء حساب موظف.";
+  const disciplines = Array.from(new Set(input.disciplines ?? []));
+  if (!disciplines.every((discipline) => (DISCIPLINES as readonly string[]).includes(discipline))) return "الاختصاص المحدد غير صحيح.";
+  const needsOneDiscipline = input.role === "rep" || input.role === "supervisor";
+  if (needsOneDiscipline && disciplines.length !== 1) return "اختر اختصاصاً واحداً (مبيعات أو طبي) لهذا الدور.";
+  if (!needsOneDiscipline && disciplines.length !== 0) return "هذا الدور لا يقبل تحديد اختصاص.";
   const territoryIds = input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : []);
-  if ((input.roleKey === "sales_rep" || input.roleKey === "medical_rep") && territoryIds.length === 0) return "اختر منطقة عمل واحدة على الأقل للمندوب.";
+  if (input.role === "rep" && territoryIds.length === 0) return "اختر منطقة عمل واحدة على الأقل للمندوب.";
   return null;
 }
 
@@ -56,46 +66,42 @@ function requireAdminConfig() {
   }
 }
 
-function accessTokenFromHeader(authorization?: string) {
-  const match = authorization?.match(/^Bearer\s+(.+)$/i);
-  if (!match?.[1]) throw new Error("جلسة الإدارة مطلوبة لإنشاء حساب الموظف.");
-  return match[1];
-}
-
 function validateResetEmployeePasswordInput(input: ResetEmployeePasswordInput) {
   if (input.password.length < 8) return "كلمة المرور المؤقتة يجب أن تتكون من 8 أحرف على الأقل.";
   return null;
 }
 
-async function requireUserManager(authorization?: string) {
+// Shared with the rest of server/: employee.manage is read from membership_permissions
+// (materialized by trigger), not from the actor's own single-role legacy permissions column.
+async function requireEmployeeManager(authorization?: string) {
   requireAdminConfig();
-  const accessToken = accessTokenFromHeader(authorization);
-  const actorClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
-    auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  const actor = await requireCompanyPermission(authorization, "employee.manage", {
+    configMissing: "إعدادات إنشاء حسابات الموظفين غير مكتملة.",
+    sessionRequired: "جلسة الإدارة مطلوبة لإنشاء حساب الموظف.",
+    rpcError: () => "تعذر التحقق من صلاحية الإدارة.",
+    profileMissing: "تعذر التحقق من صلاحية الإدارة.",
+    permissionDenied: "لا تملك صلاحية إدارة حسابات الموظفين.",
+    noActiveCompany: "اختر الشركة النشطة قبل إدارة الحسابات.",
   });
-  const { data: profileRows, error: profileError } = await actorClient.rpc("tips_crm_my_profile");
-  if (profileError) throw new Error("تعذر التحقق من صلاحية الإدارة.");
-  const actorProfile = (profileRows as Array<{ id: string; role_key?: string | null; is_platform_admin?: boolean; permissions: string[]; membership_permissions?: string[] | null; active_company_id: string | null }> | null)?.[0];
-  if (!actorProfile?.permissions?.some((permission) => permission === "all" || permission === "manage_users")) {
-    throw new Error("لا تملك صلاحية إدارة حسابات الموظفين.");
-  }
-  if (!actorProfile.active_company_id) throw new Error("اختر الشركة النشطة قبل إدارة الحسابات.");
+  const actorId = actor.profile.id;
+  if (typeof actorId !== "string" || !actorId) throw new Error("تعذر التحقق من صلاحية الإدارة.");
   const adminClient = createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  return { actorClient, actorProfile, adminClient, activeCompanyId: actorProfile.active_company_id };
+  return { actorClient: actor.actorClient, actorPermissions: actor.permissions, actorId, adminClient, activeCompanyId: actor.activeCompanyId };
+}
+
+async function rollbackEmployeeCreation(adminClient: SupabaseClient, userId: string): Promise<never> {
+  await adminClient.auth.admin.deleteUser(userId);
+  throw new Error("تعذر تعيين صلاحيات الموظف ومناطق عمله؛ لم يُحتفظ بالحساب.");
 }
 
 export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInput, authorization?: string) {
   const validationError = validateTemporaryEmployeeInput(input);
   if (validationError) throw new Error(validationError);
 
-  const { actorClient, actorProfile, adminClient, activeCompanyId } = await requireUserManager(authorization);
+  const { actorClient, actorPermissions, actorId: managerId, adminClient, activeCompanyId } = await requireEmployeeManager(authorization);
 
-  const actorPermissions = permissionsFromMembership({
-    membershipPermissions: actorProfile.membership_permissions,
-    isPlatformAdmin: actorProfile.is_platform_admin,
-  });
-  const targetPermissions = permissionsForLegacyRoleKey(input.roleKey);
-  if (!targetPermissions || !canGrant(actorPermissions, Array.from(targetPermissions))) {
+  const targetPermissions = SYSTEM_ROLE_PERMISSIONS[input.role];
+  if (!canGrant(actorPermissions, targetPermissions)) {
     throw new Error("الدور المحدد غير متاح لإنشاء حساب موظف.");
   }
 
@@ -113,6 +119,7 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
   }
 
   const normalizedEmail = input.email.trim().toLowerCase();
+  const disciplines = Array.from(new Set(input.disciplines ?? []));
   const territoryKeys = Array.from(new Set(input.territoryIds?.map((territoryId) => territoryId.trim()).filter(Boolean) ?? (input.territoryId?.trim() ? [input.territoryId.trim()] : [])));
   const submittedLabels = input.territoryLabels?.map((label) => label.trim()).filter(Boolean) ?? [];
   const territoryLabelsFromInput = submittedLabels.length ? submittedLabels : (input.territoryLabel ?? "").split("،").map((label) => label.trim()).filter(Boolean);
@@ -132,25 +139,52 @@ export async function createTemporaryEmployeeAccount(input: TemporaryEmployeeInp
     throw new Error(detail);
   }
 
-  const finalizeParameters = {
-    target_profile_id: created.user.id,
-    employee_full_name: input.fullName.trim(),
-    employee_email: normalizedEmail,
-    employee_role_key: input.roleKey,
-    employee_territory_keys: resolvedTerritories.keys,
-    employee_force_password_change: input.forcePasswordChange,
-  };
-  const { error: finalizeError } = await actorClient.rpc("tips_crm_finalize_employee_account", input.reportsToProfileId ? { ...finalizeParameters, employee_reports_to_profile_id: input.reportsToProfileId } : finalizeParameters);
-  if (finalizeError) {
-    await adminClient.auth.admin.deleteUser(created.user.id);
-    throw new Error("تعذر تعيين صلاحيات الموظف ومناطق عمله؛ لم يُحتفظ بالحساب.");
+  // The auth trigger already inserted a default profiles row for created.user.id; write the
+  // Role and Discipline set directly. company_memberships must be written before
+  // membership_roles: the recompute trigger on membership_roles reads membership_roles joined
+  // to roles for that (company_id, profile_id) pair, which requires the membership row to
+  // already exist. membership_permissions itself is never written here — the trigger derives it.
+  const { error: profileError } = await adminClient.schema("tips_crm").from("profiles").update({
+    full_name: input.fullName.trim(),
+    email: normalizedEmail,
+    role_key: input.role,
+    must_change_password: input.forcePasswordChange,
+    temporary_password_issued_at: new Date().toISOString(),
+  }).eq("id", created.user.id);
+  if (profileError) return rollbackEmployeeCreation(adminClient, created.user.id);
+
+  const { error: membershipError } = await adminClient.schema("tips_crm").from("company_memberships").insert({
+    company_id: activeCompanyId,
+    profile_id: created.user.id,
+    role_key: input.role,
+    disciplines,
+    is_active: true,
+    reports_to_profile_id: input.reportsToProfileId ?? null,
+  });
+  if (membershipError) return rollbackEmployeeCreation(adminClient, created.user.id);
+
+  const { error: roleError } = await adminClient.schema("tips_crm").from("membership_roles").insert({
+    company_id: activeCompanyId,
+    profile_id: created.user.id,
+    role_key: input.role,
+    granted_by: managerId,
+  });
+  if (roleError) return rollbackEmployeeCreation(adminClient, created.user.id);
+
+  if (resolvedTerritories.selected.length) {
+    const { error: territoryInsertError } = await adminClient.schema("tips_crm").from("territory_assignments").insert(
+      resolvedTerritories.selected.map((territory) => ({ territory_id: territory.id, profile_id: created.user.id, company_id: activeCompanyId, assigned_by: managerId }))
+    );
+    if (territoryInsertError) return rollbackEmployeeCreation(adminClient, created.user.id);
   }
 
-  return { id: created.user.id, email: normalizedEmail, fullName: input.fullName.trim(), roleKey: input.roleKey, forcePasswordChange: input.forcePasswordChange };
+  await adminClient.schema("tips_crm").from("audit_log").insert({ actor_id: managerId, action: "employee_account_created", entity_type: "profile", entity_id: created.user.id, details: { email: normalizedEmail, role_key: input.role, disciplines, territory_keys: resolvedTerritories.keys, force_password_change: input.forcePasswordChange } });
+
+  return { id: created.user.id, email: normalizedEmail, fullName: input.fullName.trim(), role: input.role, disciplines, forcePasswordChange: input.forcePasswordChange };
 }
 
 export async function listEmployeeAccounts(authorization?: string): Promise<EmployeeDirectoryEntry[]> {
-  const { adminClient, activeCompanyId } = await requireUserManager(authorization);
+  const { adminClient, activeCompanyId } = await requireEmployeeManager(authorization);
   const { data: membershipRows, error: membershipsError } = await adminClient.schema("tips_crm").from("company_memberships").select("profile_id").eq("company_id", activeCompanyId).eq("is_active", true);
   if (membershipsError) throw new Error("تعذر التحقق من عضويات الشركة.");
   const profileIds = (membershipRows ?? []).map((membership) => membership.profile_id);
@@ -179,7 +213,7 @@ export async function listEmployeeAccounts(authorization?: string): Promise<Empl
 export async function resetEmployeePassword(employeeId: string, input: ResetEmployeePasswordInput, authorization?: string) {
   const validationError = validateResetEmployeePasswordInput(input);
   if (validationError) throw new Error(validationError);
-  const { actorProfile, adminClient, activeCompanyId } = await requireUserManager(authorization);
+  const { actorId: managerId, adminClient, activeCompanyId } = await requireEmployeeManager(authorization);
   const { data: membership, error: membershipError } = await adminClient.schema("tips_crm").from("company_memberships").select("profile_id").eq("company_id", activeCompanyId).eq("profile_id", employeeId).eq("is_active", true).maybeSingle();
   if (membershipError || !membership) throw new Error("حساب الموظف غير موجود ضمن الشركة النشطة.");
   const { data: targetProfile, error: profileError } = await adminClient.schema("tips_crm").from("profiles").select("id,email,full_name").eq("id", employeeId).maybeSingle();
@@ -188,7 +222,7 @@ export async function resetEmployeePassword(employeeId: string, input: ResetEmpl
   if (updateError) throw new Error("تعذر تحديث كلمة مرور الموظف.");
   const { error: profileUpdateError } = await adminClient.schema("tips_crm").from("profiles").update({ must_change_password: input.forcePasswordChange, temporary_password_issued_at: new Date().toISOString() }).eq("id", employeeId);
   if (profileUpdateError) throw new Error("تم تحديث كلمة المرور لكن تعذر تحديث حالة الحساب.");
-  await adminClient.schema("tips_crm").from("audit_log").insert({ actor_id: actorProfile.id, action: "employee_password_reset", entity_type: "profile", entity_id: employeeId, details: { email: targetProfile.email, force_password_change: input.forcePasswordChange } });
+  await adminClient.schema("tips_crm").from("audit_log").insert({ actor_id: managerId, action: "employee_password_reset", entity_type: "profile", entity_id: employeeId, details: { email: targetProfile.email, force_password_change: input.forcePasswordChange } });
   return { id: employeeId, email: targetProfile.email, fullName: targetProfile.full_name, forcePasswordChange: input.forcePasswordChange };
 }
 

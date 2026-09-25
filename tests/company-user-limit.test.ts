@@ -7,7 +7,8 @@ describe("Company user limit & 3-Tier backend separation", () => {
       fullName: "أحمد المندوب",
       email: "invalid-email",
       password: "password123",
-      roleKey: "sales_rep",
+      role: "rep",
+      disciplines: ["sales"],
       territoryId: "terr-1",
       forcePasswordChange: true,
     });
@@ -17,7 +18,8 @@ describe("Company user limit & 3-Tier backend separation", () => {
       fullName: "أحمد المندوب",
       email: "rep@company.sd",
       password: "password123",
-      roleKey: "sales_rep",
+      role: "rep",
+      disciplines: ["sales"],
       forcePasswordChange: true,
     });
     expect(missingTerritory).toBe("اختر منطقة عمل واحدة على الأقل للمندوب.");
@@ -26,7 +28,8 @@ describe("Company user limit & 3-Tier backend separation", () => {
       fullName: "أحمد المندوب",
       email: "rep@company.sd",
       password: "password123",
-      roleKey: "sales_rep",
+      role: "rep",
+      disciplines: ["sales"],
       territoryId: "terr-1",
       forcePasswordChange: true,
     });

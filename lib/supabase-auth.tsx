@@ -10,6 +10,7 @@ export type SupabaseProfile = {
   role_name: string;
   permissions: string[];
   membership_permissions: string[];
+  disciplines?: string[] | null;
   is_active: boolean;
   must_change_password: boolean;
   is_platform_admin?: boolean;

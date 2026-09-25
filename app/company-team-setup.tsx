@@ -7,23 +7,45 @@ import { ScreenContainer } from "@/components/screen-container";
 import { MultiTerritorySelect } from "@/components/multi-territory-select";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { usePermissions } from "@/hooks/use-permissions";
+import { employeeRoleLabel } from "@/lib/employee-role-label";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { legacyRoleMappingFor, type Discipline } from "@shared/auth/legacy-role-key";
 
 type TeamMember = { profileId: string; fullName: string; email: string; roleKey: string; reportsToProfileId: string | null; reportsToName: string | null; isActive: boolean };
 type TeamSetup = { members: TeamMember[]; salesSupervisors: TeamMember[]; medicalSupervisors: TeamMember[]; accountants: TeamMember[]; salesRepresentatives: TeamMember[]; medicalRepresentatives: TeamMember[]; eligibleSalesManagers: TeamMember[]; eligibleMedicalManagers: TeamMember[]; isTeamSetupStarted: boolean };
-type RoleKey = "sales_supervisor" | "medical_supervisor" | "accountant" | "sales_rep" | "medical_rep";
+type CreatableRole = "manager" | "supervisor" | "rep" | "accountant";
 
-const roles: { key: RoleKey; label: string; icon: keyof typeof MaterialIcons.glyphMap; tint: string }[] = [
-  { key: "sales_supervisor", label: "مشرف مبيعات", icon: "supervisor-account", tint: "#7C3AED" },
-  { key: "medical_supervisor", label: "مشرف طبي", icon: "biotech", tint: "#0E7490" },
+const roles: { key: CreatableRole; label: string; icon: keyof typeof MaterialIcons.glyphMap; tint: string }[] = [
+  { key: "manager", label: "مدير", icon: "manage-accounts", tint: "#1D4ED8" },
+  { key: "supervisor", label: "مشرف", icon: "supervisor-account", tint: "#7C3AED" },
+  { key: "rep", label: "مندوب", icon: "storefront", tint: "#2563EB" },
   { key: "accountant", label: "محاسب", icon: "account-balance-wallet", tint: "#B45309" },
-  { key: "sales_rep", label: "مندوب مبيعات", icon: "storefront", tint: "#2563EB" },
-  { key: "medical_rep", label: "مندوب طبي", icon: "medical-services", tint: "#2563EB" },
 ];
 
-const roleMeta = (roleKey: string) => roles.find((role) => role.key === roleKey) ?? { label: roleKey, icon: "person" as const, tint: palette.primary };
-const isRepresentative = (roleKey: RoleKey) => roleKey === "sales_rep" || roleKey === "medical_rep";
+const disciplineOptions: { key: Discipline; label: string }[] = [
+  { key: "sales", label: "مبيعات" },
+  { key: "medical", label: "طبي" },
+];
+
+const isCreatableRole = (role: string | null): role is CreatableRole => role === "manager" || role === "supervisor" || role === "rep" || role === "accountant";
+const roleVisualsFor = (role: CreatableRole) => roles.find((option) => option.key === role) ?? roles[0];
+// Reads both vocabularies: existing staff still carry a legacy role_key (sales_supervisor,
+// medical_rep, ...), new staff carry a bare System Role key. employeeRoleLabel already resolves
+// the Arabic label for either; only the icon/tint need the legacy key mapped to its new Role first.
+const roleMeta = (roleKey: string) => {
+  const resolvedRole = isCreatableRole(roleKey) ? roleKey : legacyRoleMappingFor(roleKey).role;
+  const visuals = isCreatableRole(resolvedRole) ? roleVisualsFor(resolvedRole) : { icon: "person" as const, tint: palette.primary };
+  return { label: employeeRoleLabel(roleKey), icon: visuals.icon, tint: visuals.tint };
+};
+const isRepresentative = (role: CreatableRole) => role === "rep";
+const needsDiscipline = (role: CreatableRole) => role === "rep" || role === "supervisor";
+const isLegacyManager = (roleKey: string) => roleKey === "company_manager" || roleKey === "sales_manager";
+const isManagerMember = (member: TeamMember) => member.roleKey === "manager" || isLegacyManager(member.roleKey);
+const isMatchingLegacySupervisor = (member: TeamMember, discipline: Discipline) => {
+  const mapping = legacyRoleMappingFor(member.roleKey);
+  return mapping.role === "supervisor" && mapping.disciplines.includes(discipline);
+};
 const setupUrl = () => `${getApiBaseUrl()}/api/company/team-setup`;
 
 export default function CompanyTeamSetupScreen() {
@@ -36,7 +58,8 @@ export default function CompanyTeamSetupScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [roleKey, setRoleKey] = useState<RoleKey>("sales_supervisor");
+  const [role, setRole] = useState<CreatableRole>("supervisor");
+  const [discipline, setDiscipline] = useState<Discipline | null>(null);
   const [reportsToProfileId, setReportsToProfileId] = useState("");
   const [territoryIds, setTerritoryIds] = useState<string[]>([]);
   const [forcePasswordChange, setForcePasswordChange] = useState(true);
@@ -56,23 +79,26 @@ export default function CompanyTeamSetupScreen() {
   useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر تحميل فريق الشركة." }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
 
   const supervisors = useMemo(() => setup ? [...setup.salesSupervisors, ...setup.medicalSupervisors] : [], [setup]);
-  const directManagers = roleKey === "sales_rep" ? setup?.eligibleSalesManagers ?? [] : roleKey === "medical_rep" ? setup?.eligibleMedicalManagers ?? [] : setup?.members.filter((member) => member.roleKey === "company_manager") ?? [];
-  const repsBlocked = isRepresentative(roleKey) && territoryOptions.length === 0;
+  const directManagers = role === "rep" && discipline
+    ? (setup?.members ?? []).filter((member) => isManagerMember(member) || isMatchingLegacySupervisor(member, discipline))
+    : (setup?.members ?? []).filter(isManagerMember);
+  const repsBlocked = isRepresentative(role) && territoryOptions.length === 0;
   const selectedTerritories = territoryOptions.filter((territory) => territoryIds.includes(territory.id));
 
   const generatePassword = () => setPassword(`Tips!${Math.random().toString(36).slice(2, 7)}${Math.floor(10 + Math.random() * 90)}`);
-  const resetForm = () => { setFullName(""); setEmail(""); setPassword(""); setRoleKey("sales_supervisor"); setReportsToProfileId(""); setTerritoryIds([]); setForcePasswordChange(true); };
+  const resetForm = () => { setFullName(""); setEmail(""); setPassword(""); setRole("supervisor"); setDiscipline(null); setReportsToProfileId(""); setTerritoryIds([]); setForcePasswordChange(true); };
 
   const createMember = async () => {
     if (!session?.access_token) { setFeedback({ tone: "error", text: "انتهت الجلسة. سجّل الدخول مرة أخرى." }); return; }
     if (!fullName.trim() || !/^\S+@\S+\.\S+$/.test(email.trim()) || password.length < 8) { setFeedback({ tone: "error", text: "أكمل الاسم والبريد الصحيح وكلمة مرور مؤقتة من 8 أحرف على الأقل." }); return; }
     if (repsBlocked) { setFeedback({ tone: "error", text: "أضف مناطق العمل أولاً قبل إنشاء حساب المندوب." }); return; }
-    if (isRepresentative(roleKey) && (!territoryIds.length || !reportsToProfileId)) { setFeedback({ tone: "error", text: "اختر المدير المباشر ومنطقة عمل واحدة على الأقل للمندوب." }); return; }
+    if (needsDiscipline(role) && !discipline) { setFeedback({ tone: "error", text: "اختر اختصاص العضو (مبيعات أو طبي)." }); return; }
+    if (isRepresentative(role) && (!territoryIds.length || !reportsToProfileId)) { setFeedback({ tone: "error", text: "اختر المدير المباشر ومنطقة عمل واحدة على الأقل للمندوب." }); return; }
     setSaving(true); setFeedback(null);
     try {
       const response = await fetch(`${getApiBaseUrl()}/api/company/employee-accounts`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ fullName: fullName.trim(), email: email.trim(), password, roleKey, reportsToProfileId: reportsToProfileId || undefined, territoryIds, territoryId: territoryIds[0], territoryLabels: selectedTerritories.map((territory) => territory.name), territoryLabel: selectedTerritories.map((territory) => territory.name).join("، "), forcePasswordChange }),
+        body: JSON.stringify({ fullName: fullName.trim(), email: email.trim(), password, role, disciplines: needsDiscipline(role) && discipline ? [discipline] : [], reportsToProfileId: reportsToProfileId || undefined, territoryIds, territoryId: territoryIds[0], territoryLabels: selectedTerritories.map((territory) => territory.name), territoryLabel: selectedTerritories.map((territory) => territory.name).join("، "), forcePasswordChange }),
       });
       const result = await response.json().catch(() => ({})) as { message?: string; account?: { email?: string } };
       if (!response.ok) throw new Error(result.message || "تعذر إنشاء الحساب.");
@@ -97,9 +123,10 @@ export default function CompanyTeamSetupScreen() {
       <Field label="الاسم الكامل" value={fullName} onChangeText={setFullName} placeholder="مثال: أحمد محمد" />
       <Field label="البريد الإلكتروني" value={email} onChangeText={setEmail} placeholder="name@company.sd" keyboardType="email-address" autoCapitalize="none" />
       <View style={styles.passwordLabel}><TouchableOpacity onPress={generatePassword}><Text style={styles.generateText}>توليد كلمة مرور</Text></TouchableOpacity><Text style={styles.labelNoMargin}>كلمة المرور المؤقتة</Text></View><TextInput value={password} onChangeText={setPassword} secureTextEntry textAlign="right" placeholder="8 أحرف على الأقل" placeholderTextColor="#94A39C" style={styles.input} />
-      <Text style={styles.label}>الدور</Text><View style={styles.roles}>{roles.map((role) => <TouchableOpacity key={role.key} onPress={() => { setRoleKey(role.key); setReportsToProfileId(""); setTerritoryIds([]); }} style={[styles.roleChip, roleKey === role.key && styles.roleChipActive]}><MaterialIcons name={role.icon} size={15} color={roleKey === role.key ? palette.primary : palette.muted} /><Text style={[styles.roleChipText, roleKey === role.key && styles.roleChipTextActive]}>{role.label}</Text></TouchableOpacity>)}</View>
-      {directManagers.length ? <><Text style={styles.label}>المدير المباشر {isRepresentative(roleKey) ? <Text style={styles.required}>*</Text> : null}</Text><View style={styles.managerChoices}>{directManagers.map((manager) => <TouchableOpacity key={manager.profileId} onPress={() => setReportsToProfileId(manager.profileId)} style={[styles.managerChoice, reportsToProfileId === manager.profileId && styles.managerChoiceActive]}><Text style={[styles.managerChoiceText, reportsToProfileId === manager.profileId && styles.managerChoiceTextActive]}>{manager.fullName} · {roleMeta(manager.roleKey).label}</Text></TouchableOpacity>)}</View></> : null}
-      {isRepresentative(roleKey) ? <><Text style={styles.label}>مناطق العمل <Text style={styles.required}>*</Text></Text><MultiTerritorySelect territories={territoryOptions} values={territoryIds} onChange={setTerritoryIds} optional={false} />{repsBlocked ? <TouchableOpacity onPress={() => router.push("/territories" as never)} style={styles.territoryWarning}><MaterialIcons name="map" size={16} color={palette.warning} /><Text style={styles.territoryWarningText}>لا توجد مناطق معتمدة؛ افتح إدارة المناطق أولاً.</Text></TouchableOpacity> : null}</> : null}
+      <Text style={styles.label}>الدور</Text><View style={styles.roles}>{roles.map((option) => <TouchableOpacity key={option.key} onPress={() => { setRole(option.key); setDiscipline(null); setReportsToProfileId(""); setTerritoryIds([]); }} style={[styles.roleChip, role === option.key && styles.roleChipActive]}><MaterialIcons name={option.icon} size={15} color={role === option.key ? palette.primary : palette.muted} /><Text style={[styles.roleChipText, role === option.key && styles.roleChipTextActive]}>{option.label}</Text></TouchableOpacity>)}</View>
+      {needsDiscipline(role) ? <><Text style={styles.label}>الاختصاص <Text style={styles.required}>*</Text></Text><View style={styles.roles}>{disciplineOptions.map((option) => <TouchableOpacity key={option.key} onPress={() => setDiscipline(option.key)} style={[styles.roleChip, discipline === option.key && styles.roleChipActive]}><Text style={[styles.roleChipText, discipline === option.key && styles.roleChipTextActive]}>{option.label}</Text></TouchableOpacity>)}</View></> : null}
+      {directManagers.length ? <><Text style={styles.label}>المدير المباشر {isRepresentative(role) ? <Text style={styles.required}>*</Text> : null}</Text><View style={styles.managerChoices}>{directManagers.map((manager) => <TouchableOpacity key={manager.profileId} onPress={() => setReportsToProfileId(manager.profileId)} style={[styles.managerChoice, reportsToProfileId === manager.profileId && styles.managerChoiceActive]}><Text style={[styles.managerChoiceText, reportsToProfileId === manager.profileId && styles.managerChoiceTextActive]}>{manager.fullName} · {roleMeta(manager.roleKey).label}</Text></TouchableOpacity>)}</View></> : null}
+      {isRepresentative(role) ? <><Text style={styles.label}>مناطق العمل <Text style={styles.required}>*</Text></Text><MultiTerritorySelect territories={territoryOptions} values={territoryIds} onChange={setTerritoryIds} optional={false} />{repsBlocked ? <TouchableOpacity onPress={() => router.push("/territories" as never)} style={styles.territoryWarning}><MaterialIcons name="map" size={16} color={palette.warning} /><Text style={styles.territoryWarningText}>لا توجد مناطق معتمدة؛ افتح إدارة المناطق أولاً.</Text></TouchableOpacity> : null}</> : null}
       <View style={styles.switchRow}><Switch value={forcePasswordChange} onValueChange={setForcePasswordChange} trackColor={{ false: "#CBD8D3", true: "#75D0BB" }} thumbColor={forcePasswordChange ? palette.primary : "#FFFFFF"} /><View style={styles.alignEnd}><Text style={styles.switchTitle}>إلزام تغيير كلمة المرور عند أول دخول</Text><Text style={styles.switchCopy}>يحافظ على سرية الحساب بعد تسليمه للموظف.</Text></View></View>
       <PrimaryButton label={saving ? "جاري إنشاء الحساب…" : "إنشاء حساب العضو"} icon={saving ? "hourglass-top" : "person-add-alt-1"} disabled={saving || repsBlocked} onPress={() => void createMember()} style={{ marginTop: 18 }} />
     </View>

@@ -1,11 +1,13 @@
 import { useMemo } from "react";
-import { legacyRoleMappingFor, type Discipline } from "@shared/auth/legacy-role-key";
+import type { Discipline } from "@shared/auth/legacy-role-key";
 import type { Permission } from "@shared/auth/permissions";
 import { permissionsFromMembership } from "@shared/auth/permission-set";
 import { hasPermission } from "@shared/auth/resolve";
+import { disciplinesFromProfile } from "@/lib/discipline-from-profile";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 export type { Discipline } from "@shared/auth/legacy-role-key";
+export { disciplinesFromProfile } from "@/lib/discipline-from-profile";
 
 export function usePermissions() {
   const { profile } = useSupabaseAuth();
@@ -19,12 +21,7 @@ export function usePermissions() {
     [profile?.membership_permissions, profile?.is_platform_admin]
   );
 
-  // Discipline lives on company_memberships.disciplines, which tips_crm_my_profile does not
-  // return; the legacy role_key is still the only signal the client has for it.
-  const disciplines = useMemo(
-    () => (profile?.is_platform_admin ? new Set<Discipline>() : new Set<Discipline>(legacyRoleMappingFor(profile?.role_key).disciplines)),
-    [profile?.role_key, profile?.is_platform_admin]
-  );
+  const disciplines = useMemo(() => disciplinesFromProfile(profile?.disciplines), [profile?.disciplines]);
 
   return useMemo(
     () => ({
