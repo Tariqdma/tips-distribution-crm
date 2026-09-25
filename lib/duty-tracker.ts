@@ -15,19 +15,33 @@ export type DutyTrackingState = { enabled: boolean; startedAt?: string; lastPoin
 let foregroundSubscription: Location.LocationSubscription | null = null;
 const listeners = new Set<(point: DutyPoint) => void>();
 
-let cachedProfileId: string | null = null;
+type DutyActor = { profileId: string; companyId: string };
+
+let cachedActor: DutyActor | null = null;
 let cachedSessionId: string | null = null;
 let sessionPromise: Promise<string> | null = null;
 
-async function getProfileId(): Promise<string | null> {
-  if (cachedProfileId) return cachedProfileId;
+// duty_sessions and duty_location_points both declare company_id NOT NULL with no default, so
+// the company has to be resolved alongside the profile rather than left to the database.
+async function getActor(): Promise<DutyActor | null> {
+  if (cachedActor) return cachedActor;
   if (!supabase) return null;
   const { data } = await supabase.auth.getUser();
-  cachedProfileId = data.user?.id ?? null;
-  return cachedProfileId;
+  const profileId = data.user?.id;
+  if (!profileId) return null;
+  const { data: profile } = await supabase
+    .schema("tips_crm")
+    .from("profiles")
+    .select("active_company_id")
+    .eq("id", profileId)
+    .maybeSingle();
+  const companyId = (profile as { active_company_id: string | null } | null)?.active_company_id;
+  if (!companyId) return null;
+  cachedActor = { profileId, companyId };
+  return cachedActor;
 }
 
-async function resolveDutySessionId(profileId: string): Promise<string> {
+async function resolveDutySessionId(profileId: string, companyId: string): Promise<string> {
   if (!supabase) throw new Error("Supabase غير مهيأ.");
   const { data: existing } = await supabase
     .schema("tips_crm")
@@ -43,7 +57,7 @@ async function resolveDutySessionId(profileId: string): Promise<string> {
   const { data: created, error } = await supabase
     .schema("tips_crm")
     .from("duty_sessions")
-    .insert({ profile_id: profileId })
+    .insert({ profile_id: profileId, company_id: companyId })
     .select("id")
     .single();
   if (error || !created) throw error ?? new Error("تعذر إنشاء جلسة دوام.");
@@ -53,10 +67,10 @@ async function resolveDutySessionId(profileId: string): Promise<string> {
 // Cached for the life of the tracking session so GPS points, which arrive frequently, never
 // query duty_sessions per point — only the first point (or the eager call from
 // startDirectDutyTracking, whichever resolves first) does.
-function ensureDutySessionId(profileId: string): Promise<string> {
+function ensureDutySessionId(actor: DutyActor): Promise<string> {
   if (cachedSessionId) return Promise.resolve(cachedSessionId);
   if (!sessionPromise) {
-    sessionPromise = resolveDutySessionId(profileId)
+    sessionPromise = resolveDutySessionId(actor.profileId, actor.companyId)
       .then((id) => { cachedSessionId = id; return id; })
       .finally(() => { sessionPromise = null; });
   }
@@ -66,7 +80,7 @@ function ensureDutySessionId(profileId: string): Promise<string> {
 async function closeDutySession() {
   const sessionId = cachedSessionId;
   cachedSessionId = null;
-  cachedProfileId = null;
+  cachedActor = null;
   if (!sessionId || !supabase) return;
   try {
     await supabase.schema("tips_crm").from("duty_sessions").update({ is_active: false, ended_at: new Date().toISOString() }).eq("id", sessionId);
@@ -89,10 +103,10 @@ export async function getDutyTrackingState(): Promise<DutyTrackingState> {
 }
 
 async function insertDutyPoint(point: DutyPoint) {
-  const profileId = await getProfileId();
-  if (!profileId || !supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
-  const sessionId = await ensureDutySessionId(profileId);
-  const { error } = await supabase.schema("tips_crm").from("duty_location_points").insert(toDutyLocationPointInsert(sessionId, profileId, point));
+  const actor = await getActor();
+  if (!actor || !supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
+  const sessionId = await ensureDutySessionId(actor);
+  const { error } = await supabase.schema("tips_crm").from("duty_location_points").insert(toDutyLocationPointInsert(sessionId, actor.profileId, actor.companyId, point));
   if (error) throw error;
 }
 
@@ -113,10 +127,10 @@ export async function flushQueuedDutyPoints() {
   const queued = JSON.parse((await AsyncStorage.getItem(DUTY_QUEUE_KEY)) ?? "[]") as DutyPoint[];
   if (!queued.length) return;
   try {
-    const profileId = await getProfileId();
-    if (!profileId || !supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
-    const sessionId = await ensureDutySessionId(profileId);
-    const rows = queued.map((point) => toDutyLocationPointInsert(sessionId, profileId, point));
+    const actor = await getActor();
+    if (!actor || !supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
+    const sessionId = await ensureDutySessionId(actor);
+    const rows = queued.map((point) => toDutyLocationPointInsert(sessionId, actor.profileId, actor.companyId, point));
     const { error } = await supabase.schema("tips_crm").from("duty_location_points").insert(rows);
     if (error) throw error;
     await AsyncStorage.removeItem(DUTY_QUEUE_KEY);
@@ -168,8 +182,8 @@ export async function startDirectDutyTracking() {
     }
   }
 
-  const profileId = await getProfileId();
-  if (profileId) void ensureDutySessionId(profileId).catch(() => undefined);
+  const actor = await getActor();
+  if (actor) void ensureDutySessionId(actor).catch(() => undefined);
 
   if (!foregroundSubscription) {
     foregroundSubscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, timeInterval: 30000, distanceInterval: 40 }, (location) => { void publishPoint(normalise(location, "foreground")); });

@@ -19,9 +19,10 @@ const point = (overrides: Partial<DutyPoint> = {}): DutyPoint => ({
 
 describe("toDutyLocationPointInsert", () => {
   it("maps a queued point to the duty_location_points row shape", () => {
-    expect(toDutyLocationPointInsert("session-1", "profile-1", point())).toEqual({
+    expect(toDutyLocationPointInsert("session-1", "profile-1", "company-1", point())).toEqual({
       session_id: "session-1",
       profile_id: "profile-1",
+      company_id: "company-1",
       latitude: 15.5,
       longitude: 32.5,
       accuracy_meters: 12,
@@ -32,19 +33,19 @@ describe("toDutyLocationPointInsert", () => {
   });
 
   it("rounds accuracy to the nearest metre and speed to two decimal places", () => {
-    const row = toDutyLocationPointInsert("s", "p", point({ accuracyMeters: 9.5, speedMetersPerSecond: 1.005 }));
+    const row = toDutyLocationPointInsert("s", "p", "company-1", point({ accuracyMeters: 9.5, speedMetersPerSecond: 1.005 }));
     expect(row.accuracy_meters).toBe(10);
     expect(row.speed_meters_per_second).toBe(1);
   });
 
   it("nulls out accuracy and speed when the device did not report them", () => {
-    const row = toDutyLocationPointInsert("s", "p", point({ accuracyMeters: null, speedMetersPerSecond: null }));
+    const row = toDutyLocationPointInsert("s", "p", "company-1", point({ accuracyMeters: null, speedMetersPerSecond: null }));
     expect(row.accuracy_meters).toBeNull();
     expect(row.speed_meters_per_second).toBeNull();
   });
 
   it("preserves the background source", () => {
-    expect(toDutyLocationPointInsert("s", "p", point({ source: "background" })).source).toBe("background");
+    expect(toDutyLocationPointInsert("s", "p", "company-1", point({ source: "background" })).source).toBe("background");
   });
 });
 

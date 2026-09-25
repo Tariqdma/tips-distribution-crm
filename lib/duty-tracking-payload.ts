@@ -13,6 +13,7 @@ export type DutyPoint = {
 export type DutyLocationPointInsert = {
   session_id: string;
   profile_id: string;
+  company_id: string;
   latitude: number;
   longitude: number;
   accuracy_meters: number | null;
@@ -21,10 +22,13 @@ export type DutyLocationPointInsert = {
   captured_at: string;
 };
 
-export function toDutyLocationPointInsert(sessionId: string, profileId: string, point: DutyPoint): DutyLocationPointInsert {
+// company_id is NOT NULL on duty_location_points with no default, so it must be supplied
+// explicitly — the schema file checked into supabase/ does not have the column at all.
+export function toDutyLocationPointInsert(sessionId: string, profileId: string, companyId: string, point: DutyPoint): DutyLocationPointInsert {
   return {
     session_id: sessionId,
     profile_id: profileId,
+    company_id: companyId,
     latitude: point.latitude,
     longitude: point.longitude,
     accuracy_meters: point.accuracyMeters != null ? Math.round(point.accuracyMeters) : null,

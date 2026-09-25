@@ -21,15 +21,18 @@ export function notificationKindFor(kind: CrmNotification["kind"]): Notification
 
 export type NotificationInsert = {
   recipient_id: string | null;
+  company_id: string;
   title: string;
   body: string;
   kind: NotificationKind;
   created_by: string;
 };
 
-export function buildNotificationInsert(input: { title: string; body: string; kind: CrmNotification["kind"]; createdBy: string; recipientId?: string | null }): NotificationInsert {
+// company_id is NOT NULL on tips_crm.notifications with no default, so every row must carry it.
+export function buildNotificationInsert(input: { title: string; body: string; kind: CrmNotification["kind"]; createdBy: string; companyId: string; recipientId?: string | null }): NotificationInsert {
   return {
     recipient_id: input.recipientId ?? null,
+    company_id: input.companyId,
     title: input.title.trim(),
     body: input.body.trim(),
     kind: notificationKindFor(input.kind),
@@ -37,15 +40,15 @@ export function buildNotificationInsert(input: { title: string; body: string; ki
   };
 }
 
-// One row per recipient rather than a single recipient_id IS NULL broadcast. The notifications
-// table has no company_id, so a broadcast row carries no tenant scope at all — and the read policy
-// (recipient_id = auth.uid() OR view_team_data) makes it invisible to reps, who hold neither.
-// Addressing each recipient satisfies both without a schema change.
+// One row per recipient rather than a single recipient_id IS NULL broadcast: the read policy is
+// recipient_id = auth.uid() OR view_team_data, and reps hold neither, so an unaddressed row never
+// reaches the people it was written for.
 export function buildTeamNotificationInserts(input: {
   title: string;
   body: string;
   kind: CrmNotification["kind"];
   createdBy: string;
+  companyId: string;
   recipientIds: readonly string[];
 }): NotificationInsert[] {
   const recipients = Array.from(new Set(input.recipientIds)).filter((id) => id.length > 0);

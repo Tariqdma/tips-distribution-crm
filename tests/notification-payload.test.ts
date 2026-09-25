@@ -28,8 +28,9 @@ describe("isNotificationKind", () => {
 
 describe("buildNotificationInsert", () => {
   it("builds a broadcast row (null recipient) trimmed of whitespace, with the mapped kind", () => {
-    expect(buildNotificationInsert({ title: "  تأكيد خطة الغد  ", body: " الرجاء المراجعة ", kind: "تنبيه", createdBy: "profile-1" })).toEqual({
+    expect(buildNotificationInsert({ title: "  تأكيد خطة الغد  ", body: " الرجاء المراجعة ", kind: "تنبيه", createdBy: "profile-1", companyId: "company-1" })).toEqual({
       recipient_id: null,
+      company_id: "company-1",
       title: "تأكيد خطة الغد",
       body: "الرجاء المراجعة",
       kind: "alert",
@@ -38,14 +39,14 @@ describe("buildNotificationInsert", () => {
   });
 
   it("carries an explicit recipient through when one is given", () => {
-    const row = buildNotificationInsert({ title: "t", body: "b", kind: "فريق", createdBy: "manager-1", recipientId: "rep-1" });
+    const row = buildNotificationInsert({ title: "t", body: "b", kind: "فريق", createdBy: "manager-1", companyId: "company-1", recipientId: "rep-1" });
     expect(row.recipient_id).toBe("rep-1");
     expect(row.kind).toBe("team");
   });
 });
 
 describe("team fan-out", () => {
-  const base = { title: " تنبيه ", body: " النص ", kind: "تنبيه" as const, createdBy: "sender-1" };
+  const base = { title: " تنبيه ", body: " النص ", kind: "تنبيه" as const, createdBy: "sender-1", companyId: "company-1" };
 
   it("addresses one row per recipient instead of a single untargeted broadcast", () => {
     const rows = buildTeamNotificationInserts({ ...base, recipientIds: ["a", "b", "c"] });
