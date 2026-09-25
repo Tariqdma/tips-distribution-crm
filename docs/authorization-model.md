@@ -2,7 +2,7 @@
 
 The settled specification for Tiers, Portals, Roles, Permissions, and Discipline. Vocabulary is defined in [`CONTEXT.md`](../CONTEXT.md); the reasoning behind the shape is in [ADR-0001](./adr/0001-membership-roles-and-permission-based-authorization.md). This document is the specification the implementation follows.
 
-Nothing here is implemented yet.
+Most of this is implemented and live. The membership schema, the integrity triggers, tenant isolation, and the app's own permission resolution are in production; what remains is listed under Sequencing.
 
 ## Structure
 
@@ -44,8 +44,10 @@ Closed and defined in code (`shared/auth/permissions.ts`). A Role may bundle the
 **Ownership (4)**
 `company.subscription.manage` · `company.billing.read` · `company.transfer` · `company.delete`
 
-**Company administration (7)**
-`company.profile.update` · `employee.manage` · `role.assign` · `role.custom.manage` · `territory.manage` · `team.assign` · `catalogue.manage`
+**Company administration (8)**
+`company.profile.update` · `employee.manage` · `employee.read.team` · `role.assign` · `role.custom.manage` · `territory.manage` · `team.assign` · `catalogue.manage`
+
+`employee.read.team` is held by Manager and Supervisor and gates the three "who is on my team" reads — profiles, territories, territory assignments. Seeing your roster is a different capability from managing employees: mapping it onto `employee.manage` would have left Supervisors able to review their team's plans and visits while unable to see the team itself.
 
 **Catalogue (1)**
 `catalogue.read`
@@ -84,7 +86,7 @@ The five System Roles ship with the product and are **immutable** — a Company 
 `portal.rep.enter` · `catalogue.read` · `account.read.assigned` · `account.create` · `account.update` · `plan.create.own` · `plan.read.own` · `visit.record` · `visit.read.own`
 
 ### supervisor
-`portal.supervisor.enter` · `catalogue.read` · `account.read.team` · `plan.read.team` · `plan.approve.team` · `visit.read.team` · `visit.review` · `telemetry.read.team` · `report.read.team`
+`portal.supervisor.enter` · `catalogue.read` · `employee.read.team` · `account.read.team` · `plan.read.team` · `plan.approve.team` · `visit.read.team` · `visit.review` · `telemetry.read.team` · `notification.send.team` · `report.read.team`
 
 A Supervisor cannot create employees, so the subset rule imposes nothing further on them.
 

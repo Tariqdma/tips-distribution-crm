@@ -5,9 +5,9 @@ import { SYSTEM_ROLE_NAMES, SYSTEM_ROLE_PERMISSIONS } from "../shared/auth/roles
 import { canGrant, landingPortal, resolvePermissions } from "../shared/auth/resolve";
 
 describe("permission vocabulary", () => {
-  it("defines exactly 46 permissions with no duplicates", () => {
-    expect(ALL_PERMISSIONS.length).toBe(46);
-    expect(new Set(ALL_PERMISSIONS).size).toBe(46);
+  it("defines exactly 47 permissions with no duplicates", () => {
+    expect(ALL_PERMISSIONS.length).toBe(47);
+    expect(new Set(ALL_PERMISSIONS).size).toBe(47);
   });
 
   it("defines exactly four portal entry permissions, each reachable by some role or the platform set", () => {
@@ -63,8 +63,8 @@ describe("manager superset property", () => {
   // Pinned deliberately. The test above mirrors the derivation rule, so a newly added permission
   // would flow into manager and still pass. This count fails instead, forcing whoever adds a
   // permission to decide explicitly whether managers get it.
-  it("grants manager exactly 36 of the 46 permissions", () => {
-    expect(SYSTEM_ROLE_PERMISSIONS.manager.length).toBe(36);
+  it("grants manager exactly 37 of the 47 permissions", () => {
+    expect(SYSTEM_ROLE_PERMISSIONS.manager.length).toBe(37);
   });
 
   it("keeps every system role a subset of manager, except owner", () => {

@@ -43,6 +43,7 @@ INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_syst
       'portal.rep.enter',
       'company.profile.update',
       'employee.manage',
+      'employee.read.team',
       'role.assign',
       'territory.manage',
       'team.assign',
@@ -85,6 +86,7 @@ INSERT INTO tips_crm.roles (key, display_name, description, permissions, is_syst
     ARRAY[
       'portal.supervisor.enter',
       'catalogue.read',
+      'employee.read.team',
       'account.read.team',
       'plan.read.team',
       'plan.approve.team',

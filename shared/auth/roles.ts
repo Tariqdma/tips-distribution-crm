@@ -15,6 +15,7 @@ const ownerPermissions = [
 const supervisorPermissions = [
   "portal.supervisor.enter",
   "catalogue.read",
+  "employee.read.team",
   "account.read.team",
   "plan.read.team",
   "plan.approve.team",

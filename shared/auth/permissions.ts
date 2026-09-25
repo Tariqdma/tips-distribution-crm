@@ -15,6 +15,7 @@ const ownershipPermissions = [
 const companyAdministrationPermissions = [
   "company.profile.update",
   "employee.manage",
+  "employee.read.team",
   "role.assign",
   "role.custom.manage",
   "territory.manage",
