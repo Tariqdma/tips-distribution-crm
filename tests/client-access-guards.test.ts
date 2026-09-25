@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { permissionsForLegacyRoleKey } from "@shared/auth/legacy-role-key";
 import type { Permission } from "@shared/auth/permissions";
-import { legacyPermissionsFor } from "@shared/auth/legacy";
-import { hasPermission } from "@shared/auth/resolve";
+import { hasPermission, resolvePermissions } from "@shared/auth/resolve";
+import { PLATFORM_ADMIN_PERMISSIONS } from "@shared/auth/roles";
+
+// Asserts the key maps, so a typo in a test fixture fails loudly instead of silently becoming an
+// empty set. The mapping itself is the production function, not a copy of it.
+function permissionsFor(roleKey: string): ReadonlySet<Permission> {
+  const permissions = permissionsForLegacyRoleKey(roleKey);
+  if (!permissions) throw new Error(`unmapped legacy role key in test fixture: ${roleKey}`);
+  return permissions;
+}
+
 
 const managerKeys = ["company_manager", "sales_manager"] as const;
 const nonManagerKeys = ["sales_rep", "medical_rep", "sales_supervisor", "medical_supervisor", "accountant"] as const;
@@ -22,7 +32,7 @@ const screenGuardPermissions: Record<string, Permission> = {
 describe("client access guard permission mapping", () => {
   it("lets every legacy manager key through every migrated screen guard", () => {
     for (const managerKey of managerKeys) {
-      const permissions = legacyPermissionsFor({ roleKey: managerKey });
+      const permissions = permissionsFor(managerKey);
       for (const permission of Object.values(screenGuardPermissions)) {
         expect(hasPermission(permissions, permission)).toBe(true);
       }
@@ -32,7 +42,7 @@ describe("client access guard permission mapping", () => {
   it("refuses a rep or supervisor key the manager-only screen guards", () => {
     const guarded: Permission[] = ["employee.manage", "territory.manage", "account.import"];
     for (const roleKey of nonManagerKeys) {
-      const permissions = legacyPermissionsFor({ roleKey });
+      const permissions = permissionsFor(roleKey);
       for (const permission of guarded) {
         expect(hasPermission(permissions, permission)).toBe(false);
       }
@@ -41,7 +51,7 @@ describe("client access guard permission mapping", () => {
 
   it("refuses a rep or supervisor key company.profile.update", () => {
     for (const roleKey of nonManagerKeys) {
-      const permissions = legacyPermissionsFor({ roleKey });
+      const permissions = permissionsFor(roleKey);
       expect(hasPermission(permissions, "company.profile.update")).toBe(false);
     }
   });
@@ -49,30 +59,30 @@ describe("client access guard permission mapping", () => {
 
 describe("supervisor portal link in the user menu", () => {
   it("grants a supervisor key portal.supervisor.enter", () => {
-    expect(hasPermission(legacyPermissionsFor({ roleKey: "sales_supervisor" }), "portal.supervisor.enter")).toBe(true);
-    expect(hasPermission(legacyPermissionsFor({ roleKey: "medical_supervisor" }), "portal.supervisor.enter")).toBe(true);
+    expect(hasPermission(permissionsFor("sales_supervisor"), "portal.supervisor.enter")).toBe(true);
+    expect(hasPermission(permissionsFor("medical_supervisor"), "portal.supervisor.enter")).toBe(true);
   });
 
   it("refuses a rep key portal.supervisor.enter", () => {
-    expect(hasPermission(legacyPermissionsFor({ roleKey: "sales_rep" }), "portal.supervisor.enter")).toBe(false);
-    expect(hasPermission(legacyPermissionsFor({ roleKey: "medical_rep" }), "portal.supervisor.enter")).toBe(false);
+    expect(hasPermission(permissionsFor("sales_rep"), "portal.supervisor.enter")).toBe(false);
+    expect(hasPermission(permissionsFor("medical_rep"), "portal.supervisor.enter")).toBe(false);
   });
 });
 
 describe("platform portal guard", () => {
   it("grants a platform admin portal.platform.enter", () => {
-    const permissions = legacyPermissionsFor({ isPlatformAdmin: true });
+    const permissions = new Set(PLATFORM_ADMIN_PERMISSIONS);
     expect(hasPermission(permissions, "portal.platform.enter")).toBe(true);
   });
 
   it("refuses a company manager portal.platform.enter", () => {
-    const permissions = legacyPermissionsFor({ roleKey: "company_manager" });
+    const permissions = permissionsFor("company_manager");
     expect(hasPermission(permissions, "portal.platform.enter")).toBe(false);
   });
 
   it("refuses every legacy key portal.platform.enter", () => {
     for (const roleKey of [...managerKeys, ...nonManagerKeys]) {
-      const permissions = legacyPermissionsFor({ roleKey });
+      const permissions = permissionsFor(roleKey);
       expect(hasPermission(permissions, "portal.platform.enter")).toBe(false);
     }
   });
@@ -84,13 +94,12 @@ describe("platform portal guard", () => {
 // even though the old string comparisons showed them. Real deployed rows must be checked before
 // this ships (docs/authorization-model.md "Migration from the legacy role keys").
 describe("bare system_admin key", () => {
-  it("resolves to no permissions at all", () => {
-    const permissions = legacyPermissionsFor({ roleKey: "system_admin", isPlatformAdmin: false });
-    expect(permissions.size).toBe(0);
+  it("maps to no role at all", () => {
+    expect(permissionsForLegacyRoleKey("system_admin")).toBeNull();
   });
 
   it("fails every migrated screen guard", () => {
-    const permissions = legacyPermissionsFor({ roleKey: "system_admin", isPlatformAdmin: false });
+    const permissions = permissionsForLegacyRoleKey("system_admin") ?? new Set();
     for (const permission of Object.values(screenGuardPermissions)) {
       expect(hasPermission(permissions, permission)).toBe(false);
     }

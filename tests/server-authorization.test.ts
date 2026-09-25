@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { permissionsForLegacyRoleKey } from "../shared/auth/legacy-role-key";
 import type { Permission } from "../shared/auth/permissions";
-import { legacyPermissionsFor } from "../shared/auth/legacy";
-import { canGrant, hasPermission } from "../shared/auth/resolve";
-import { SYSTEM_ROLE_PERMISSIONS } from "../shared/auth/roles";
+import { canGrant, hasPermission, resolvePermissions } from "../shared/auth/resolve";
+import { PLATFORM_ADMIN_PERMISSIONS, SYSTEM_ROLE_PERMISSIONS } from "../shared/auth/roles";
+
+// Asserts the key maps, so a typo in a test fixture fails loudly instead of silently becoming an
+// empty set. The mapping itself is the production function, not a copy of it.
+function permissionsFor(roleKey: string): ReadonlySet<Permission> {
+  const permissions = permissionsForLegacyRoleKey(roleKey);
+  if (!permissions) throw new Error(`unmapped legacy role key in test fixture: ${roleKey}`);
+  return permissions;
+}
+
 
 const managerKeys = ["company_manager", "sales_manager"] as const;
 const nonManagerKeys = ["sales_rep", "medical_rep", "sales_supervisor", "medical_supervisor"] as const;
@@ -17,7 +26,7 @@ const companyGuardPermissions: Record<string, Permission> = {
 describe("server guard permission mapping", () => {
   it("lets every legacy manager key through every migrated company guard", () => {
     for (const managerKey of managerKeys) {
-      const permissions = legacyPermissionsFor({ roleKey: managerKey });
+      const permissions = permissionsFor(managerKey);
       for (const permission of Object.values(companyGuardPermissions)) {
         expect(hasPermission(permissions, permission)).toBe(true);
       }
@@ -27,7 +36,7 @@ describe("server guard permission mapping", () => {
   it("refuses a rep or supervisor key employee.manage, territory.manage, and account.import", () => {
     const guarded: Permission[] = ["employee.manage", "territory.manage", "account.import"];
     for (const roleKey of nonManagerKeys) {
-      const permissions = legacyPermissionsFor({ roleKey });
+      const permissions = permissionsFor(roleKey);
       for (const permission of guarded) {
         expect(hasPermission(permissions, permission)).toBe(false);
       }
@@ -35,14 +44,14 @@ describe("server guard permission mapping", () => {
   });
 
   it("refuses a platform admin every company permission", () => {
-    const permissions = legacyPermissionsFor({ roleKey: "company_manager", isPlatformAdmin: true });
+    const permissions = new Set(PLATFORM_ADMIN_PERMISSIONS);
     for (const permission of Object.values(companyGuardPermissions)) {
       expect(hasPermission(permissions, permission)).toBe(false);
     }
   });
 
   it("grants a platform admin exactly the permissions the migrated platform-company.ts endpoints require", () => {
-    const permissions = legacyPermissionsFor({ isPlatformAdmin: true });
+    const permissions = new Set(PLATFORM_ADMIN_PERMISSIONS);
     expect(hasPermission(permissions, "platform.company.review")).toBe(true);
     expect(hasPermission(permissions, "platform.package.manage")).toBe(true);
   });
@@ -50,33 +59,29 @@ describe("server guard permission mapping", () => {
 
 describe("employee creation subset rule", () => {
   it("lets a legacy manager key create a rep, a supervisor, and an accountant", () => {
-    const managerPermissions = legacyPermissionsFor({ roleKey: "company_manager" });
+    const managerPermissions = permissionsFor("company_manager");
     for (const roleKey of ["sales_rep", "medical_rep", "sales_supervisor", "medical_supervisor", "accountant"]) {
-      const targetPermissions = Array.from(legacyPermissionsFor({ roleKey }));
+      const targetPermissions = Array.from(permissionsFor(roleKey));
       expect(canGrant(managerPermissions, targetPermissions)).toBe(true);
     }
   });
 
   it("blocks a legacy manager key from creating an owner", () => {
-    const managerPermissions = legacyPermissionsFor({ roleKey: "company_manager" });
+    const managerPermissions = permissionsFor("company_manager");
     expect(canGrant(managerPermissions, SYSTEM_ROLE_PERMISSIONS.owner)).toBe(false);
   });
 
   it("blocks a supervisor key from creating an accountant", () => {
-    const supervisorPermissions = legacyPermissionsFor({ roleKey: "sales_supervisor" });
-    const accountantPermissions = Array.from(legacyPermissionsFor({ roleKey: "accountant" }));
+    const supervisorPermissions = permissionsFor("sales_supervisor");
+    const accountantPermissions = Array.from(permissionsFor("accountant"));
     expect(canGrant(supervisorPermissions, accountantPermissions)).toBe(false);
   });
 
-  // DEPLOYMENT HAZARD, documented rather than worked around. Per the migration table,
-  // system_admin means platform admin, so on its own it resolves to nothing and can create
-  // no one. But company_manager is missing from the canonical roles seed
-  // (supabase/00_full_setup.sql) while profiles.role_key has an FK to roles(key), so a really
-  // deployed company manager may be stored exactly like this. Check the deployed profiles rows
-  // before shipping; if such accounts exist they need a transitional mapping to manager.
-  it("gives a bare system_admin key no permissions at all", () => {
-    const permissions = legacyPermissionsFor({ roleKey: "system_admin", isPlatformAdmin: false });
-    expect(permissions.size).toBe(0);
-    expect(canGrant(permissions, Array.from(legacyPermissionsFor({ roleKey: "sales_rep" })))).toBe(false);
+  // system_admin means platform admin (docs/authorization-model.md "Migration from the legacy
+  // role keys"), so on its own — no Membership, no is_platform_admin flag passed here — it
+  // resolves to no role and can create no one.
+  it("maps a bare system_admin key to no role, so no one can be created from it", () => {
+    expect(permissionsForLegacyRoleKey("system_admin")).toBeNull();
+    expect(canGrant(new Set(), Array.from(permissionsFor("sales_rep")))).toBe(false);
   });
 });

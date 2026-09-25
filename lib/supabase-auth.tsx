@@ -9,6 +9,7 @@ export type SupabaseProfile = {
   role_key: string;
   role_name: string;
   permissions: string[];
+  membership_permissions: string[];
   is_active: boolean;
   must_change_password: boolean;
   is_platform_admin?: boolean;
@@ -45,6 +46,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await supabase.rpc("tips_crm_my_profile");
       nextProfile = (data?.[0] as SupabaseProfile | undefined) ?? null;
+      if (nextProfile) nextProfile.membership_permissions = nextProfile.membership_permissions ?? [];
     } catch {
       // ignore
     }
@@ -80,6 +82,10 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         role_key: isPlatform ? "platform_admin" : "company_manager",
         role_name: isPlatform ? "مدير المنصة" : "مدير الشركة",
         permissions: isPlatform ? ["platform_admin"] : ["all"],
+        // No real Membership backs this synthetic profile, so membership_permissions stays
+        // empty even for the platform-admin branch — is_platform_admin is what grants the
+        // fixed platform set (shared/auth/permission-set.ts), not this array.
+        membership_permissions: [],
         is_active: true,
         must_change_password: false,
         is_platform_admin: isPlatform,

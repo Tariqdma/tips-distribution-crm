@@ -1,4 +1,4 @@
-import { legacyRolesFor } from "../shared/auth/legacy";
+import { legacyRoleMappingFor } from "../shared/auth/legacy-role-key";
 import { requireCompanyPermission } from "./_core/authorize";
 
 export type CompanyTeamSetupMember = {
@@ -68,8 +68,8 @@ export function buildCompanyTeamSetup(rows: TeamSetupRow[]): CompanyTeamSetup {
   const medicalRepresentatives = byRole("medical_rep");
   const eligibleForDiscipline = (discipline: "sales" | "medical") =>
     members.filter((member) => {
-      const { roles, disciplines } = legacyRolesFor({ roleKey: member.roleKey });
-      return roles.includes("manager") || (roles.includes("supervisor") && disciplines.includes(discipline));
+      const { role, disciplines } = legacyRoleMappingFor(member.roleKey);
+      return role === "manager" || (role === "supervisor" && disciplines.includes(discipline));
     });
   return {
     members,

@@ -1,4 +1,4 @@
-import type { Discipline } from "@shared/auth/legacy";
+import type { Discipline } from "@shared/auth/legacy-role-key";
 import type { AppRole } from "@/lib/crm-store";
 
 // Deliberately its own module rather than living beside AppRole in crm-store: that module pulls in

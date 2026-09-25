@@ -6,14 +6,14 @@ const data = { accounts: [{ id: "a1" }, { id: "a2" }], visits: [{ id: "v1", acco
 
 describe("field data scope", () => {
   it("limits a representative to plans, visits, and accounts assigned to their name", () => {
-    const scoped = getFieldDataScope(data, { full_name: "مندوب أول", permissions: [], id: "u1", email: null, role_key: "sales_rep", role_name: "مندوب", is_active: true, must_change_password: false });
+    const scoped = getFieldDataScope(data, { full_name: "مندوب أول", permissions: [], membership_permissions: [], id: "u1", email: null, role_key: "sales_rep", role_name: "مندوب", is_active: true, must_change_password: false });
     expect(scoped.plans.map((plan) => plan.id)).toEqual(["p1"]);
     expect(scoped.visits.map((visit) => visit.id)).toEqual(["v1"]);
     expect(scoped.accounts.map((account) => account.id)).toEqual(["a1"]);
   });
 
   it("keeps the full operational data available to a manager", () => {
-    const scoped = getFieldDataScope(data, { full_name: "مدير", permissions: ["view_team_data"], id: "u0", email: null, role_key: "sales_manager", role_name: "مدير", is_active: true, must_change_password: false });
+    const scoped = getFieldDataScope(data, { full_name: "مدير", permissions: ["view_team_data"], membership_permissions: [], id: "u0", email: null, role_key: "sales_manager", role_name: "مدير", is_active: true, must_change_password: false });
     expect(scoped.accounts).toHaveLength(2);
     expect(scoped.visits).toHaveLength(2);
   });

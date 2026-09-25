@@ -7,6 +7,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { sendPasswordRecoveryEmail, supabase } from "@/lib/supabase-client";
 import { getPasswordRecoveryRedirect } from "@/lib/auth-redirect";
+import { permissionsFromMembership } from "@shared/auth/permission-set";
 import { getPostLoginRoute } from "@shared/lib/post-login-route";
 
 function translateAuthError(error: unknown): string {
@@ -46,8 +47,9 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const routeToAccount = (roleKey?: string, mustChangePassword?: boolean, isPlatformAdmin?: boolean) => {
-    const destination = getPostLoginRoute({ roleKey, mustChangePassword, isPlatformAdmin, isWeb: Platform.OS === "web" });
+  const routeToAccount = (membershipPermissions: string[], mustChangePassword?: boolean, isPlatformAdmin?: boolean) => {
+    const permissions = permissionsFromMembership({ membershipPermissions, isPlatformAdmin });
+    const destination = getPostLoginRoute({ permissions, mustChangePassword, isWeb: Platform.OS === "web" });
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.location.href = destination;
       return;
@@ -58,7 +60,7 @@ export default function LoginScreen() {
   // Auto-redirect if already logged in
   useEffect(() => {
     if (session && !loading && profile) {
-      routeToAccount(profile.role_key, profile.must_change_password, profile.is_platform_admin);
+      routeToAccount(profile.membership_permissions, profile.must_change_password, profile.is_platform_admin);
     }
   }, [session, profile, loading]);
 
@@ -120,7 +122,7 @@ export default function LoginScreen() {
       }
 
       const updatedProfile = await refreshProfile();
-      routeToAccount(updatedProfile?.role_key, updatedProfile?.must_change_password, updatedProfile?.is_platform_admin);
+      routeToAccount(updatedProfile?.membership_permissions ?? [], updatedProfile?.must_change_password, updatedProfile?.is_platform_admin);
     } catch (error) {
       console.error("[LoginScreen] Catch block error:", error);
       const arabicMsg = translateAuthError(error);
@@ -212,7 +214,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           ) : null}
 
-          <TouchableOpacity onPress={() => routeToAccount(profile?.role_key, profile?.must_change_password, profile?.is_platform_admin)} style={styles.button}>
+          <TouchableOpacity onPress={() => routeToAccount(profile?.membership_permissions ?? [], profile?.must_change_password, profile?.is_platform_admin)} style={styles.button}>
             <Text style={styles.buttonText}>
               {profile?.must_change_password ? "تغيير كلمة المرور الآن" : "الانتقال إلى لوحة التحكم"}
             </Text>

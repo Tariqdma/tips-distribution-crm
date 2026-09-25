@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { legacyPermissionsFor } from "../../shared/auth/legacy";
+import { permissionsFromMembership } from "../../shared/auth/permission-set";
 import type { Permission } from "../../shared/auth/permissions";
 import { hasPermission } from "../../shared/auth/resolve";
 import { ENV } from "./env";
@@ -8,6 +8,7 @@ export type ActorProfileRow = {
   role_key?: string | null;
   is_platform_admin?: boolean;
   active_company_id?: string | null;
+  membership_permissions?: string[] | null;
   [key: string]: unknown;
 };
 
@@ -57,7 +58,10 @@ export async function resolveActor(authorization: string | undefined, messages?:
   const profile = rows[0] as ActorProfileRow | undefined;
   if (!profile) throw new Error(resolved.profileMissing);
 
-  const permissions = legacyPermissionsFor({ roleKey: profile.role_key, isPlatformAdmin: profile.is_platform_admin });
+  const permissions = permissionsFromMembership({
+    membershipPermissions: profile.membership_permissions,
+    isPlatformAdmin: profile.is_platform_admin,
+  });
   return { actorClient, profile, permissions };
 }
 

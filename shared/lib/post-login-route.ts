@@ -1,4 +1,4 @@
-import { legacyPermissionsFor } from "../auth/legacy";
+import type { Permission } from "../auth/permissions";
 import type { Portal } from "../auth/portals";
 import { landingPortal } from "../auth/resolve";
 
@@ -12,23 +12,23 @@ const PORTAL_HREF: Record<Exclude<Portal, "platform">, string> = {
 
 const NO_PORTAL_FALLBACK = "/";
 
-export function getPostLoginRoute(input: { roleKey?: string | null; mustChangePassword?: boolean; isPlatformAdmin?: boolean; isWeb: boolean }) {
+export function getPostLoginRoute(input: { permissions: ReadonlySet<Permission>; mustChangePassword?: boolean; isWeb: boolean }) {
   if (input.mustChangePassword) return "/change-password";
-  const portal = landingPortal(legacyPermissionsFor({ roleKey: input.roleKey, isPlatformAdmin: input.isPlatformAdmin }));
+  const portal = landingPortal(input.permissions);
   if (portal === "platform") return input.isWeb ? "/platform" : "/platform/login";
   if (!portal) return NO_PORTAL_FALLBACK;
   return PORTAL_HREF[portal];
 }
 
 /** The safe destination when a non-platform account opens the platform URL directly. */
-export function getPlatformPortalFallbackRoute(roleKey?: string | null) {
-  const portal = landingPortal(legacyPermissionsFor({ roleKey }));
+export function getPlatformPortalFallbackRoute(permissions: ReadonlySet<Permission>) {
+  const portal = landingPortal(permissions);
   return portal && portal !== "platform" ? PORTAL_HREF[portal] : NO_PORTAL_FALLBACK;
 }
 
-export function shouldRedirectManagerFromFieldHome(roleKey: string | null | undefined, pathname: string, isPlatformAdmin = false) {
+export function shouldRedirectManagerFromFieldHome(permissions: ReadonlySet<Permission>, pathname: string) {
   const isFieldHome = pathname === "/" || pathname === "/index" || pathname === "/(tabs)" || pathname === "/(tabs)/index";
   if (!isFieldHome) return false;
-  const portal = landingPortal(legacyPermissionsFor({ roleKey, isPlatformAdmin }));
+  const portal = landingPortal(permissions);
   return portal !== null && portal !== "rep";
 }
