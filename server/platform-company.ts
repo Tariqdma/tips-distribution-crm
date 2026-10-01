@@ -1,4 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Permission } from "../shared/auth/permissions";
+import { AppError } from "./_core/app-error";
+import { requirePermission } from "./_core/authorize";
 import { ENV } from "./_core/env";
 import { sendApprovalEmail, sendInfoRequestedEmail, sendManagerInvitationEmail, sendRejectionEmail, sendRequestReceivedEmail } from "./company-onboarding-email";
 
@@ -62,12 +65,6 @@ function requireConfig() {
   }
 }
 
-function tokenFromHeader(authorization?: string) {
-  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) throw new Error("جلسة مدير المنصة مطلوبة لتنفيذ هذا الإجراء.");
-  return token;
-}
-
 function validSlug(value: string) {
   return /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/.test(value);
 }
@@ -89,19 +86,20 @@ function validateApproval(input: ApproveCompanyRequestInput) {
   return null;
 }
 
-async function requirePlatformAdmin(authorization?: string) {
+async function requirePlatformPermission(authorization: string | undefined, permission: Permission) {
   requireConfig();
-  const actorClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-    global: { headers: { Authorization: `Bearer ${tokenFromHeader(authorization)}` } },
+  const deniedMessage = "هذه العملية مخصصة لمدير المنصة فقط.";
+  const actor = await requirePermission(authorization, permission, {
+    configMissing: "إعدادات إدارة المنصة غير مكتملة.",
+    sessionRequired: "جلسة مدير المنصة مطلوبة لتنفيذ هذا الإجراء.",
+    rpcError: () => deniedMessage,
+    profileMissing: deniedMessage,
+    permissionDenied: deniedMessage,
   });
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile_v2");
-  const profile = (data as Array<{ id: string; is_platform_admin?: boolean }> | null)?.[0];
-  if (error || !profile?.is_platform_admin) throw new Error("هذه العملية مخصصة لمدير المنصة فقط.");
   const adminClient = createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  return { actorClient, adminClient };
+  return { actorClient: actor.actorClient, adminClient };
 }
 
 async function getPlatformRequest(adminClient: SupabaseClient, requestId: string) {
@@ -140,7 +138,7 @@ async function sendManagerSetupInvitation(adminClient: SupabaseClient, request: 
 async function approvePreparedRequest(input: ApproveCompanyRequestInput, authorization?: string) {
   const validationError = validateApproval(input);
   if (validationError) throw new Error(validationError);
-  const { actorClient, adminClient } = await requirePlatformAdmin(authorization);
+  const { actorClient, adminClient } = await requirePlatformPermission(authorization, "platform.company.review");
   const email = input.managerEmail.trim().toLowerCase();
   const slug = normalizeSlug(input.companySlug);
   const { data: created, error: createError } = await adminClient.auth.admin.createUser({
@@ -206,7 +204,7 @@ export async function createCompanyDirect(input: CreateCompanyDirectInput, autho
     planKey: input.planKey,
   });
   if (approvalError) throw new Error(approvalError);
-  const { adminClient } = await requirePlatformAdmin(authorization);
+  const { adminClient } = await requirePlatformPermission(authorization, "platform.company.review");
   const { data: request, error: requestError } = await adminClient.schema("tips_crm").from("company_requests").insert({
     company_name: input.companyName.trim(),
     requested_slug: normalizeSlug(input.companySlug),
@@ -237,7 +235,7 @@ export async function createCompanyDirect(input: CreateCompanyDirectInput, autho
 export async function addRequestNote(input: AddRequestNoteInput, authorization?: string) {
   if (!input.requestId.trim()) throw new Error("معرّف طلب الشركة غير موجود.");
   if (input.noteText.trim().length < 1) throw new Error("اكتب الملاحظة أولاً.");
-  const { actorClient } = await requirePlatformAdmin(authorization);
+  const { actorClient } = await requirePlatformPermission(authorization, "platform.company.review");
   const { data, error } = await actorClient.rpc("tips_crm_add_company_request_note", {
     target_request_id: input.requestId,
     target_note_text: input.noteText.trim(),
@@ -250,7 +248,7 @@ export async function addRequestNote(input: AddRequestNoteInput, authorization?:
 export async function requestMoreInfo(input: RequestInformationInput, authorization?: string) {
   if (!input.requestId.trim()) throw new Error("معرّف طلب الشركة غير موجود.");
   if (input.informationNeeded.trim().length < 3) throw new Error("اكتب المعلومات المطلوبة بوضوح.");
-  const { actorClient, adminClient } = await requirePlatformAdmin(authorization);
+  const { actorClient, adminClient } = await requirePlatformPermission(authorization, "platform.company.review");
   const { data, error } = await actorClient.rpc("tips_crm_request_company_info", {
     target_request_id: input.requestId,
     information_needed: input.informationNeeded.trim(),
@@ -274,7 +272,7 @@ export async function requestMoreInfo(input: RequestInformationInput, authorizat
 
 export async function reviewCompanyRequest(input: ReviewCompanyRequestInput, authorization?: string) {
   if (!input.requestId.trim()) throw new Error("معرّف طلب الشركة غير موجود.");
-  const { actorClient, adminClient } = await requirePlatformAdmin(authorization);
+  const { actorClient, adminClient } = await requirePlatformPermission(authorization, "platform.company.review");
   const request = await getPlatformRequest(adminClient, input.requestId);
   const { data, error } = await actorClient.rpc("tips_crm_review_company_request", {
     target_request_id: input.requestId,
@@ -300,7 +298,7 @@ export async function reviewCompanyRequest(input: ReviewCompanyRequestInput, aut
 
 export async function resendManagerInvitation(companyId: string, authorization?: string) {
   if (!companyId.trim()) throw new Error("معرّف الشركة غير موجود.");
-  const { adminClient } = await requirePlatformAdmin(authorization);
+  const { adminClient } = await requirePlatformPermission(authorization, "platform.company.review");
   const { data, error } = await adminClient.schema("tips_crm").from("company_requests")
     .select("id,company_name,contact_name,contact_email,status,approved_company_id,manager_profile_id")
     .eq("approved_company_id", companyId)
@@ -372,7 +370,7 @@ export type UpdateCompanySubscriptionInput = {
 export async function updateCompanySubscription(input: UpdateCompanySubscriptionInput, authorization?: string) {
   if (!input.companyId?.trim()) throw new Error("معرّف الشركة غير موجود.");
   if (input.maxUserLimit < 1) throw new Error("حد الموظفين يجب أن يكون 1 على الأقل.");
-  const { adminClient } = await requirePlatformAdmin(authorization);
+  const { adminClient } = await requirePlatformPermission(authorization, "platform.package.manage");
   const { error } = await adminClient
     .schema("tips_crm")
     .from("companies")
@@ -385,3 +383,4 @@ export async function updateCompanySubscription(input: UpdateCompanySubscription
   if (error) throw new Error("تعذر تحديث باقة وسعة الشركة.");
   return { companyId: input.companyId, paymentTierKey: input.paymentTierKey, maxUserLimit: input.maxUserLimit };
 }
+
