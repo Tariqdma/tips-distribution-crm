@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import Constants from "expo-constants";
 import { Redirect, router } from "expo-router";
 import { MetricCard, PrimaryButton, palette } from "@/components/crm-ui";
 import { PlatformWebShell, type PlatformTabKey } from "@/components/platform-web-shell";
@@ -20,6 +21,10 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+
+const PUBLIC_APP_URL = String(
+  Constants.expoConfig?.extra?.publicAppUrl ?? "https://tipscrm-vevc4ncu.manus.space",
+).replace(/\/+$/, "");
 
 export type Company = {
   id: string;
@@ -599,7 +604,7 @@ export default function PlatformPortalScreen() {
         <PrimaryButton
           label="فتح بوابة المنصة في المتصفح"
           icon="open-in-new"
-          onPress={() => void Linking.openURL("https://tipscrm-vevc4ncu.manus.space/platform")}
+          onPress={() => void Linking.openURL(`${PUBLIC_APP_URL}/platform`)}
           style={{ alignSelf: "stretch", marginTop: 20 }}
         />
       </View>
@@ -2334,7 +2339,7 @@ const styles = StyleSheet.create({
 
   // Modal
   modalBackdrop: {
-    position: "fixed" as const,
+    position: "absolute" as const,
     top: 0,
     left: 0,
     right: 0,

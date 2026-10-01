@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Permission } from "../shared/auth/permissions";
+import { AppError } from "./_core/app-error";
 import { requirePermission } from "./_core/authorize";
 import { ENV } from "./_core/env";
 import { sendApprovalEmail, sendInfoRequestedEmail, sendManagerInvitationEmail, sendRejectionEmail, sendRequestReceivedEmail } from "./company-onboarding-email";

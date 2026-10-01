@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { AppError } from "../_core/app-error";
 import {
   addRequestNote,
   approveCompanyRequest,
@@ -18,7 +19,8 @@ platformRouter.post("/company-requests/:requestId/approve", async (req, res) => 
     res.status(201).json({ company });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر اعتماد طلب الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -28,7 +30,8 @@ platformRouter.post("/company-requests/:requestId/review", async (req, res) => {
     res.json({ ok: true, review });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر مراجعة طلب الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -38,7 +41,8 @@ platformRouter.post("/company-requests/:requestId/notes", async (req, res) => {
     res.status(201).json({ note });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر حفظ ملاحظة الطلب.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -48,7 +52,8 @@ platformRouter.post("/company-requests/:requestId/request-info", async (req, res
     res.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر طلب المعلومات من الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -58,7 +63,8 @@ platformRouter.post("/company-requests/:requestId/cancel-invitation", async (req
     res.json({ ok: true, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر إلغاء دعوة مدير الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -68,7 +74,8 @@ platformRouter.post("/companies", async (req, res) => {
     res.status(201).json({ company });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر إنشاء الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -78,7 +85,8 @@ platformRouter.post("/companies/:companyId/resend-invitation", async (req, res) 
     res.json({ ok: true, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر إعادة إرسال دعوة مدير الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });
 
@@ -95,6 +103,7 @@ platformRouter.put("/companies/:companyId/subscription", async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر تحديث اشتراك وسعة الشركة.";
-    res.status(message.includes("مدير المنصة") || message.includes("جلسة") ? 403 : 400).json({ message });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
   }
 });

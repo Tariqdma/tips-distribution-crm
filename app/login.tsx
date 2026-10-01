@@ -15,7 +15,7 @@ function translateAuthError(error: unknown): string {
   const msg = (error instanceof Error ? error.message : String(error)).toLowerCase();
 
   if (msg.includes("invalid login credentials") || msg.includes("invalid_credentials")) {
-    return "البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التأكد من البيانات والمحاولة مجدداً.";
+    return "البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التحقق من بياناتك والمحاولة مجدداً.";
   }
   if (msg.includes("email not confirmed")) {
     return "البريد الإلكتروني غير مفعل بعد. يرجى مراجعة بريدك أو التواصل مع مسؤول النظام.";
@@ -24,7 +24,7 @@ function translateAuthError(error: unknown): string {
     return "تمت محاولة تسجيل الدخول عدة مرات بشكل خاطئ. يرجى الانتظار قليلاً ثم المحاولة مجدداً.";
   }
   if (msg.includes("user not found")) {
-    return "بيانات الحساب غير مسجلة لدينا. يرجى التواصل مع مسؤول النظام لإنشاء حسابك.";
+    return "البريد الإلكتروني أو كلمة المرور غير صحيحة. يرجى التحقق من بياناتك والمحاولة مجدداً.";
   }
   if (msg.includes("database error") || msg.includes("schema") || msg.includes("500") || msg.includes("server_error")) {
     return "حدث خطأ أثناء الاتصال بالنظام. يرجى المحاولة لاحقاً أو التواصل مع الدعم الفني.";

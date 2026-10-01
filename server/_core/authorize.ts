@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { permissionsFromMembership } from "../../shared/auth/permission-set";
 import type { Permission } from "../../shared/auth/permissions";
 import { hasPermission } from "../../shared/auth/resolve";
+import { AppError } from "./app-error";
 import { ENV } from "./env";
 
 export type ActorProfileRow = {
@@ -38,7 +39,7 @@ const DEFAULT_MESSAGES: Required<AuthorizeMessages> = {
 
 function tokenFromHeader(authorization: string | undefined, message: string) {
   const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) throw new Error(message);
+  if (!token) throw new AppError(message, 401);
   return token;
 }
 
@@ -68,7 +69,7 @@ export async function resolveActor(authorization: string | undefined, messages?:
 export async function requirePermission(authorization: string | undefined, permission: Permission, messages?: AuthorizeMessages): Promise<Actor> {
   const resolved = { ...DEFAULT_MESSAGES, ...messages };
   const actor = await resolveActor(authorization, resolved);
-  if (!hasPermission(actor.permissions, permission)) throw new Error(resolved.permissionDenied);
+  if (!hasPermission(actor.permissions, permission)) throw new AppError(resolved.permissionDenied, 403);
   return actor;
 }
 

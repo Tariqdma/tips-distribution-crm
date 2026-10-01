@@ -59,9 +59,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
     const isPlatform =
       Boolean(meta.is_platform_admin) ||
-      currentEmail === "platform.admin@tips-sd.com" ||
-      currentEmail === "manager@tips.sd" ||
-      nextProfile?.role_key === "platform_admin";
+      nextProfile?.is_platform_admin === true;
 
     if (nextProfile) {
       nextProfile.is_platform_admin = isPlatform;
