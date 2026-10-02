@@ -173,7 +173,7 @@ export function PlatformWebShell({
                       <MaterialIcons
                         name={item.icon}
                         size={20}
-                        color={isActive ? "#FFFFFF" : "#8EA8A1"}
+                        color={isActive ? "#10B981" : "#9BB8AE"}
                       />
                       {!isSidebarCollapsed && (
                         <Text
@@ -216,7 +216,7 @@ export function PlatformWebShell({
             <MaterialIcons
               name={isSidebarCollapsed ? "chevron-left" : "chevron-right"}
               size={20}
-              color="#8EA8A1"
+              color="#9BB8AE"
             />
             {!isSidebarCollapsed && (
               <Text style={styles.collapseToggleText}>طي القائمة الجانبية</Text>
@@ -253,16 +253,16 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: "row-reverse",
-    backgroundColor: "#F4F7F6",
+    backgroundColor: "#F0F7F4",
     height: "100%",
     width: "100%",
   },
 
   // SIDEBAR
   sidebar: {
-    backgroundColor: "#0B1D19",
+    backgroundColor: "#071510",
     borderLeftWidth: 1,
-    borderLeftColor: "rgba(255, 255, 255, 0.07)",
+    borderLeftColor: "#1E3D33",
     flexDirection: "column",
     height: "100%",
     zIndex: 100,
@@ -280,15 +280,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     gap: 12,
+    backgroundColor: "#040F0C",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    borderBottomColor: "#1E3D33",
     ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null),
   },
   brandMark: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#14A687",
+    backgroundColor: "#059669",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -343,6 +344,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
+    backgroundColor: "transparent",
+    borderLeftWidth: 3,
+    borderLeftColor: "transparent",
     ...(Platform.OS === "web" ? ({ cursor: "pointer", userSelect: "none" } as any) : null),
   },
   navItemCollapsed: {
@@ -350,11 +354,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   navItemActive: {
-    backgroundColor: "#14A687",
+    backgroundColor: "#1E3D33",
+    borderLeftColor: "#10B981",
   },
   navItemLabel: {
     flex: 1,
-    color: "#9BB3AC",
+    color: "#9BB8AE",
     fontSize: 13,
     fontWeight: "700",
     textAlign: "right",
@@ -387,7 +392,7 @@ const styles = StyleSheet.create({
   sidebarFooter: {
     padding: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    borderTopColor: "#1E3D33",
     gap: 10,
   },
   collapseToggle: {
@@ -401,7 +406,7 @@ const styles = StyleSheet.create({
     ...(Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null),
   },
   collapseToggleText: {
-    color: "#8EA8A1",
+    color: "#9BB8AE",
     fontSize: 12,
     fontWeight: "700",
   },
@@ -434,7 +439,7 @@ const styles = StyleSheet.create({
     height: 68,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "#D4E8E0",
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
@@ -493,7 +498,7 @@ const styles = StyleSheet.create({
 
   pageBody: {
     flex: 1,
-    backgroundColor: "#F4F7F6",
+    backgroundColor: "#F0F7F4",
   },
 
   // Fallbacks
@@ -502,7 +507,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "#F4F7F6",
+    backgroundColor: "#F0F7F4",
   },
   mobileTitle: {
     fontSize: 18,

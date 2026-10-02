@@ -1,9 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { palette } from "@/components/crm-ui";
-import { ScreenContainer } from "@/components/screen-container";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { sendPasswordRecoveryEmail, supabase } from "@/lib/supabase-client";
 import { getPasswordRecoveryRedirect } from "@/lib/auth-redirect";
@@ -161,9 +160,9 @@ export default function LoginScreen() {
 
   if (loading) {
     return (
-      <ScreenContainer className="items-center justify-center">
+      <View style={[styles.wrap, { alignItems: "center", justifyContent: "center" }]}>
         <ActivityIndicator color={palette.primary} size="large" />
-      </ScreenContainer>
+      </View>
     );
   }
 
@@ -176,174 +175,229 @@ export default function LoginScreen() {
     }
   };
 
+
   if (session) {
     if (profile?.is_platform_admin) {
       return (
-        <ScreenContainer className="items-center justify-center px-6">
-          <View style={styles.card}>
-            <View style={styles.mark}>
-              <Text style={styles.markText}>T</Text>
-            </View>
-            <Text style={styles.title}>حساب مدير المنصة</Text>
-            <Text style={styles.copy}>
-              حساب مدير المنصة يُدار من بوابة المنصة عبر الويب.
-            </Text>
+        <View style={styles.wrap}>
+          <View style={styles.centerWrap}>
+            <View style={styles.statusCard}>
+              <View style={styles.statusHeader}>
+                <View style={styles.logoMark}>
+                  <Text style={styles.logoText}>ت</Text>
+                </View>
+                <Text style={styles.appName}>Tips CRM</Text>
+              </View>
+              <View style={styles.statusBody}>
+                <Text style={styles.statusTitle}>حساب مدير المنصة</Text>
+                <Text style={styles.statusCopy}>
+                  حساب مدير المنصة يُدار من بوابة المنصة عبر الويب.
+                </Text>
 
-            <TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={styles.button}>
-              <Text style={styles.buttonText}>فتح بوابة المنصة</Text>
-            </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={styles.button} activeOpacity={0.86}>
+                  <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+                  <Text style={styles.buttonText}>فتح بوابة المنصة</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
-        </ScreenContainer>
+        </View>
       );
     }
 
     return (
-      <ScreenContainer className="items-center justify-center px-6">
-        <View style={styles.card}>
-          <View style={styles.mark}>
-            <Text style={styles.markText}>T</Text>
+      <View style={styles.wrap}>
+        <View style={styles.centerWrap}>
+          <View style={styles.statusCard}>
+            <View style={styles.statusHeader}>
+              <View style={styles.logoMark}>
+                <Text style={styles.logoText}>ت</Text>
+              </View>
+              <Text style={styles.appName}>Tips CRM</Text>
+            </View>
+            <View style={styles.statusBody}>
+              <Text style={styles.statusTitle}>تم تسجيل الدخول بنجاح</Text>
+              <Text style={styles.statusCopy}>
+                {profile ? `مرحباً بك، ${profile.full_name} (${profile.role_name || profile.role_key}).` : "مرحباً بك في نظام Tips CRM."}
+              </Text>
+
+              {token ? (
+                <TouchableOpacity onPress={() => router.replace(`/invite?token=${token}` as never)} style={styles.claim}>
+                  <Text style={styles.claimText}>متابعة قبول الدعوة</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={() => routeToAccount(profile?.membership_permissions ?? [], profile?.must_change_password, profile?.is_platform_admin)}
+                style={styles.button}
+                activeOpacity={0.86}
+              >
+                <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+                <Text style={styles.buttonText}>
+                  {profile?.must_change_password ? "تغيير كلمة المرور الآن" : "الانتقال إلى لوحة التحكم"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.title}>تم تسجيل الدخول بنجاح</Text>
-          <Text style={styles.copy}>
-            {profile ? `مرحباً بك، ${profile.full_name} (${profile.role_name || profile.role_key}).` : "مرحباً بك في نظام Tips CRM."}
-          </Text>
-
-          {token ? (
-            <TouchableOpacity onPress={() => router.replace(`/invite?token=${token}` as never)} style={styles.claim}>
-              <Text style={styles.claimText}>متابعة قبول الدعوة</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          <TouchableOpacity onPress={() => routeToAccount(profile?.membership_permissions ?? [], profile?.must_change_password, profile?.is_platform_admin)} style={styles.button}>
-            <Text style={styles.buttonText}>
-              {profile?.must_change_password ? "تغيير كلمة المرور الآن" : "الانتقال إلى لوحة التحكم"}
-            </Text>
-          </TouchableOpacity>
         </View>
-      </ScreenContainer>
+      </View>
     );
   }
 
   return (
-    <ScreenContainer className="px-5" containerClassName="bg-background">
-      <View style={styles.wrap}>
+    <View style={styles.wrap}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.hero}>
-          <View style={styles.mark}>
-            <Text style={styles.markText}>T</Text>
+          <View style={styles.logoMark}>
+            <Text style={styles.logoText}>ت</Text>
           </View>
-          <Text style={styles.title}>Tips CRM</Text>
-          <Text style={styles.copy}>سجّل الدخول ببيانات الحساب التي أنشأها لك مسؤول النظام.</Text>
+          <Text style={styles.appName}>Tips CRM</Text>
+          <Text style={styles.tagline}>منصة الفرق الميدانية</Text>
         </View>
 
-        {errorMessage ? (
-          <View style={styles.bannerError}>
-            <MaterialIcons name="error-outline" size={20} color={palette.error} />
-            <Text style={styles.bannerErrorText}>{errorMessage}</Text>
-          </View>
-        ) : null}
+        <View style={styles.card}>
+          <View style={styles.form}>
+            <Text style={styles.sectionTitle}>أدخل بياناتك للمتابعة</Text>
 
-        <Text style={styles.label}>البريد الإلكتروني</Text>
-        <TextInput
-          value={email}
-          onChangeText={(text) => {
-            setEmail(text);
-            if (emailError) setEmailError(null);
-            if (errorMessage) setErrorMessage(null);
-          }}
-          onSubmitEditing={() => void submit()}
-          returnKeyType="next"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          autoComplete="email"
-          textContentType="username"
-          // @ts-ignore - React Native Web HTML Attributes
-          name="username"
-          id="username"
-          style={[styles.input, emailError ? styles.inputError : null]}
-          textAlign="right"
-          placeholder="admin@tips.sd"
-          placeholderTextColor="#94A39C"
-        />
-        {emailError ? <Text style={styles.fieldErrorText}>{emailError}</Text> : null}
+            {errorMessage ? (
+              <View style={styles.errorBanner}>
+                <MaterialIcons name="error-outline" size={20} color={palette.error} />
+                <Text style={styles.errorBannerText}>{errorMessage}</Text>
+              </View>
+            ) : null}
 
-        <Text style={styles.label}>كلمة المرور</Text>
-        <TextInput
-          value={password}
-          onChangeText={(text) => {
-            setPassword(text);
-            if (passwordError) setPasswordError(null);
-            if (errorMessage) setErrorMessage(null);
-          }}
-          onSubmitEditing={() => void submit()}
-          returnKeyType="go"
-          secureTextEntry
-          autoComplete="current-password"
-          textContentType="password"
-          // @ts-ignore - React Native Web HTML Attributes
-          name="password"
-          id="password"
-          style={[styles.input, passwordError ? styles.inputError : null]}
-          textAlign="right"
-          placeholder="أدخل كلمة المرور"
-          placeholderTextColor="#94A39C"
-        />
-        {passwordError ? <Text style={styles.fieldErrorText}>{passwordError}</Text> : null}
-
-        <TouchableOpacity disabled={submitting} onPress={() => void submit()} style={[styles.button, submitting && { opacity: 0.7 }]}>
-          {submitting ? (
-            <View style={styles.submittingRow}>
-              <ActivityIndicator color="#FFFFFF" size="small" />
-              <Text style={styles.buttonText}>جاري التحقق وتسجيل الدخول...</Text>
+            <Text style={styles.label}>البريد الإلكتروني</Text>
+            <View style={[styles.inputWrapper, emailError ? styles.inputError : null]}>
+              <Text style={styles.inputIcon}>✉</Text>
+              <TextInput
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (emailError) setEmailError(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                onSubmitEditing={() => void submit()}
+                returnKeyType="next"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                textContentType="username"
+                // @ts-ignore - React Native Web HTML Attributes
+                name="username"
+                id="username"
+                style={styles.input}
+                textAlign="right"
+                placeholder="admin@tips.sd"
+                placeholderTextColor="#94A39C"
+              />
             </View>
-          ) : (
-            <>
-              <MaterialIcons name="login" size={20} color="#FFFFFF" />
-              <Text style={styles.buttonText}>تسجيل الدخول</Text>
-            </>
-          )}
-        </TouchableOpacity>
+            {emailError ? <Text style={styles.fieldError}>{emailError}</Text> : null}
 
-        <TouchableOpacity disabled={resetting} onPress={() => void requestPasswordReset()} style={styles.recovery}>
-          <Text style={styles.recoveryText}>{resetting ? "جارٍ إرسال الرابط…" : "نسيت كلمة المرور؟"}</Text>
-        </TouchableOpacity>
+            <Text style={styles.label}>كلمة المرور</Text>
+            <View style={[styles.inputWrapper, passwordError ? styles.inputError : null]}>
+              <Text style={styles.inputIcon}>🔒</Text>
+              <TextInput
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (passwordError) setPasswordError(null);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                onSubmitEditing={() => void submit()}
+                returnKeyType="go"
+                secureTextEntry
+                autoComplete="current-password"
+                textContentType="password"
+                // @ts-ignore - React Native Web HTML Attributes
+                name="password"
+                id="password"
+                style={styles.input}
+                textAlign="right"
+                placeholder="أدخل كلمة المرور"
+                placeholderTextColor="#94A39C"
+              />
+            </View>
+            {passwordError ? <Text style={styles.fieldError}>{passwordError}</Text> : null}
 
-        <TouchableOpacity onPress={() => router.push("/company-request" as never)} style={styles.companyRequest}>
-          <MaterialIcons name="business" size={17} color={palette.primary} />
-          <Text style={styles.companyRequestText}>شركتك جديدة؟ قدّم طلب انضمام</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              disabled={submitting}
+              onPress={() => void submit()}
+              style={[styles.button, submitting && { opacity: 0.7 }]}
+              activeOpacity={0.86}
+            >
+              {submitting ? (
+                <View style={styles.submittingRow}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.buttonText}>جاري التحقق وتسجيل الدخول...</Text>
+                </View>
+              ) : (
+                <>
+                  <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+                  <Text style={styles.buttonText}>دخول</Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={{ alignSelf: "center", marginTop: 12, padding: 6 }}>
-          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>مدير المنصة؟ ادخل من بوابة المنصة</Text>
-        </TouchableOpacity>
+            <TouchableOpacity disabled={resetting} onPress={() => void requestPasswordReset()} style={styles.recovery}>
+              <Text style={styles.recoveryText}>{resetting ? "جارٍ إرسال الرابط…" : "نسيت كلمة المرور؟"}</Text>
+            </TouchableOpacity>
 
-        <Text style={styles.support}>الحسابات الفردية ينشئها مدير الشركة أو المشرف المسؤول.</Text>
-      </View>
-    </ScreenContainer>
+            <TouchableOpacity onPress={() => router.push("/company-request" as never)} style={styles.companyRequest}>
+              <MaterialIcons name="business" size={17} color={palette.primary} />
+              <Text style={styles.companyRequestText}>شركتك جديدة؟ قدّم طلب انضمام</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.support}>الحسابات الفردية ينشئها مدير الشركة أو المشرف المسؤول.</Text>
+
+            <TouchableOpacity onPress={() => router.push("/platform/login" as never)} style={styles.platformLink}>
+              <Text style={styles.platformLinkText}>مدير المنصة؟ ادخل من بوابة المنصة</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, justifyContent: "center", maxWidth: 420, width: "100%", alignSelf: "center" },
-  hero: { alignItems: "center", marginBottom: 20 },
-  mark: { width: 62, height: 62, borderRadius: 20, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center", marginBottom: 13 },
-  markText: { color: "#FFFFFF", fontSize: 30, fontWeight: "900" },
-  title: { color: palette.ink, fontSize: 25, fontWeight: "900", textAlign: "center" },
-  copy: { color: palette.muted, fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 7 },
-  label: { color: palette.ink, fontSize: 12, fontWeight: "900", textAlign: "right", marginBottom: 6, marginTop: 12 },
-  input: { height: 50, backgroundColor: "#FFFFFF", borderColor: "#DCE8E3", borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, color: palette.ink, fontSize: 14 },
-  inputError: { borderColor: palette.error, backgroundColor: "#FFF5F5" },
-  fieldErrorText: { color: palette.error, fontSize: 11, textAlign: "right", marginTop: 4 },
-  bannerError: { flexDirection: "row-reverse", alignItems: "center", gap: 9, backgroundColor: "#FDF2F2", borderColor: "#F8B4B4", borderWidth: 1, padding: 13, borderRadius: 14, marginBottom: 10 },
-  bannerErrorText: { color: palette.error, fontSize: 12, fontWeight: "700", flex: 1, textAlign: "right", lineHeight: 18 },
-  button: { height: 52, backgroundColor: palette.primary, borderRadius: 15, marginTop: 22, alignItems: "center", justifyContent: "center", flexDirection: "row-reverse", gap: 8 },
+  wrap: { flex: 1, backgroundColor: "#F0F7F4" },
+  centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
+  hero: { backgroundColor: "#0A1F1A", paddingTop: 60, paddingBottom: 50, alignItems: "center", justifyContent: "center" },
+  logoMark: { width: 72, height: 72, borderRadius: 22, backgroundColor: "#059669", alignItems: "center", justifyContent: "center", marginBottom: 16, shadowColor: "#059669", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 8 },
+  logoText: { color: "#FFFFFF", fontSize: 36, fontWeight: "900" },
+  appName: { color: "#FFFFFF", fontSize: 28, fontWeight: "900" },
+  tagline: { color: "#9BB8AE", fontSize: 14, marginTop: 6 },
+  card: { flex: 1, backgroundColor: "#F0F7F4", borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -24, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 },
+  form: { width: "100%", maxWidth: 420, alignSelf: "center" },
+  sectionTitle: { color: "#0D1F1A", fontSize: 20, fontWeight: "800", textAlign: "right", marginBottom: 24 },
+  label: { color: "#0D1F1A", fontSize: 12, fontWeight: "800", textAlign: "right", marginBottom: 8, marginTop: 16 },
+  inputWrapper: { flexDirection: "row-reverse", alignItems: "center", backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: "#D4E8E0", borderRadius: 16, height: 54, paddingHorizontal: 14, gap: 10, shadowColor: "#059669", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 1 },
+  inputIcon: { fontSize: 18, color: "#5A6E68" },
+  input: { flex: 1, height: "100%", color: "#0D1F1A", fontSize: 15, textAlign: "right", ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as any) : null) },
+  inputError: { borderColor: "#B63838", backgroundColor: "#FFF8F8" },
+  button: { height: 56, backgroundColor: "#059669", borderRadius: 16, marginTop: 28, alignItems: "center", justifyContent: "center", flexDirection: "row-reverse", gap: 10, paddingHorizontal: 18, shadowColor: "#059669", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 6 },
+  buttonText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  recovery: { alignItems: "center", paddingTop: 18 },
+  recoveryText: { color: "#059669", fontSize: 13, fontWeight: "800" },
+  companyRequest: { flexDirection: "row-reverse", alignSelf: "center", alignItems: "center", gap: 6, marginTop: 14, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: "#E6F7F1", borderRadius: 12 },
+  companyRequestText: { color: "#059669", fontSize: 13, fontWeight: "800" },
+  platformLink: { alignSelf: "center", marginTop: 16, padding: 8 },
+  platformLinkText: { color: "#5A6E68", fontSize: 11, fontWeight: "700" },
+  errorBanner: { flexDirection: "row-reverse", alignItems: "center", gap: 9, backgroundColor: "#FFF0F0", borderColor: "#F8B4B4", borderWidth: 1, padding: 13, borderRadius: 14, marginBottom: 14 },
+  errorBannerText: { color: "#B63838", fontSize: 12, fontWeight: "700", flex: 1, textAlign: "right", lineHeight: 18 },
+  fieldError: { color: "#B63838", fontSize: 11, textAlign: "right", marginTop: 4 },
   submittingRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
-  buttonText: { color: "#FFFFFF", fontSize: 14, fontWeight: "900" },
-  recovery: { alignItems: "center", paddingTop: 14 },
-  recoveryText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
-  companyRequest: { flexDirection: "row-reverse", alignSelf: "center", alignItems: "center", gap: 6, marginTop: 17, paddingVertical: 7, paddingHorizontal: 10 },
-  companyRequestText: { color: palette.primary, fontSize: 12, fontWeight: "900" },
-  claim: { marginTop: 16, padding: 11, borderRadius: 12, backgroundColor: "#FFF6E5" },
-  claimText: { color: palette.warning, fontSize: 11, fontWeight: "900", textAlign: "center" },
-  support: { color: palette.muted, fontSize: 11, textAlign: "center", lineHeight: 17, marginTop: 16 },
-  card: { width: "100%", maxWidth: 380, backgroundColor: "#FFFFFF", borderColor: "#E1EBE6", borderWidth: 1, borderRadius: 22, padding: 24, alignItems: "center" },
+  support: { color: "#5A6E68", fontSize: 11, textAlign: "center", marginTop: 20, lineHeight: 17 },
+  statusCard: { width: "100%", maxWidth: 380, backgroundColor: "#FFFFFF", borderColor: "#D4E8E0", borderWidth: 1, borderRadius: 24, overflow: "hidden", shadowColor: "#059669", shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 4 },
+  statusHeader: { backgroundColor: "#0A1F1A", alignItems: "center", justifyContent: "center", paddingTop: 32, paddingBottom: 24 },
+  statusBody: { padding: 24 },
+  statusTitle: { color: "#0D1F1A", fontSize: 20, fontWeight: "800", textAlign: "center" },
+  statusCopy: { color: "#5A6E68", fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 8 },
+  claim: { marginTop: 16, padding: 12, borderRadius: 14, backgroundColor: "#FFF6E5" },
+  claimText: { color: "#B86D08", fontSize: 12, fontWeight: "900", textAlign: "center" },
 });

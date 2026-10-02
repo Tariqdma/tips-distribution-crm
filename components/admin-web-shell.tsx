@@ -181,7 +181,7 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
                       <MaterialIcons
                         name={item.icon}
                         size={19}
-                        color={isActive ? "#FFFFFF" : "#8EA8A1"}
+                        color={isActive ? "#10B981" : "#9BB8AE"}
                       />
                       {!isSidebarCollapsed && (
                         <Text
@@ -217,7 +217,7 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
             <MaterialIcons
               name={isSidebarCollapsed ? "chevron-left" : "chevron-right"}
               size={20}
-              color="#8EA8A1"
+              color="#9BB8AE"
             />
             {!isSidebarCollapsed && (
               <Text style={styles.collapseToggleText}>طي القائمة الجانبية</Text>
@@ -254,16 +254,16 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: "row-reverse",
-    backgroundColor: "#F4F7F6",
+    backgroundColor: "#F0F7F4",
     height: "100%",
     width: "100%",
   },
 
   // SIDEBAR
   sidebar: {
-    backgroundColor: "#0B1D19",
+    backgroundColor: "#0A1F1A",
     borderLeftWidth: 1,
-    borderLeftColor: "rgba(255, 255, 255, 0.07)",
+    borderLeftColor: "#1E3D33",
     flexDirection: "column",
     zIndex: 100,
   },
@@ -280,8 +280,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     gap: 12,
+    backgroundColor: "#071510",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    borderBottomColor: "#1E3D33",
   },
   brandMark: {
     width: 38,
@@ -340,16 +341,20 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 12,
     borderRadius: 10,
+    backgroundColor: "transparent",
+    borderLeftWidth: 3,
+    borderLeftColor: "transparent",
   },
   navItemCollapsed: {
     justifyContent: "center",
     paddingHorizontal: 0,
   },
   navItemActive: {
-    backgroundColor: "#14A687",
+    backgroundColor: "#1E3D33",
+    borderLeftColor: "#10B981",
   },
   navItemLabel: {
-    color: "#C2D4CF",
+    color: "#9BB8AE",
     fontSize: 12,
     fontWeight: "700",
     textAlign: "right",
@@ -388,7 +393,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   collapseToggleText: {
-    color: "#8EA8A1",
+    color: "#9BB8AE",
     fontSize: 11,
     fontWeight: "700",
   },
@@ -423,7 +428,7 @@ const styles = StyleSheet.create({
     height: 68,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "#D4E8E0",
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
@@ -447,7 +452,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   pageTitle: {
-    color: "#0F172A",
+    color: "#0D1F1A",
     fontSize: 16,
     fontWeight: "900",
   },
@@ -475,7 +480,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "#F0F7F4",
   },
   mobileTitle: {
     color: palette.ink,
