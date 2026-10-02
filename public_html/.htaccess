@@ -4,7 +4,15 @@ Options -Indexes
   RewriteEngine On
   RewriteBase /
 
+  # Serve existing files and directories directly
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteRule ^ index.html [L]
+
+  # Send everything else to index.html
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Allow .htaccess in subdirectories
+<IfModule mod_access_compat.c>
+  Options +FollowSymLinks
 </IfModule>
