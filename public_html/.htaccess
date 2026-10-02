@@ -1,31 +1,10 @@
 Options -Indexes
 
-# Route all requests to index.html for SPA routing
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Don't rewrite existing files or directories
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
-
-  # Route everything else to index.html
   RewriteRule ^ index.html [L]
 </IfModule>
-
-# Cache static assets
-<IfModule mod_expires.c>
-  ExpiresActive On
-  ExpiresByType text/html "access plus 0 seconds"
-  ExpiresByType application/javascript "access plus 1 year"
-  ExpiresByType text/css "access plus 1 year"
-  ExpiresByType image/png "access plus 1 year"
-  ExpiresByType image/jpeg "access plus 1 year"
-  ExpiresByType image/svg+xml "access plus 1 year"
-  ExpiresByType font/ttf "access plus 1 year"
-  ExpiresByType font/woff2 "access plus 1 year"
-</IfModule>
-
-# Security headers
-Header always set X-Frame-Options "SAMEORIGIN"
-Header always set X-Content-Type-Options "nosniff"
