@@ -1,18 +1,13 @@
 Options -Indexes
+Options +FollowSymLinks
 
-<IfModule mod_rewrite.c>
-  RewriteEngine On
-  RewriteBase /
+RewriteEngine On
+RewriteBase /
 
-  # Serve existing files and directories directly
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+# If the request is for an existing file, serve it directly
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
 
-  # Send everything else to index.html
-  RewriteRule . /index.html [L]
-</IfModule>
-
-# Allow .htaccess in subdirectories
-<IfModule mod_access_compat.c>
-  Options +FollowSymLinks
-</IfModule>
+# Otherwise send to index.html
+RewriteRule ^ index.html [L]
