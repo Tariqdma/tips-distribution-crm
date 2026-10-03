@@ -194,11 +194,17 @@ async function startServer() {
     sendWebApplication(req, res);
   });
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  // In production the host (Hostinger/Passenger) assigns PORT, which may be a
+  // number or a socket path; bind to it exactly. Scan for a free port only in dev.
+  let port: number | string;
+  if (ENV.isProduction && process.env.PORT) {
+    port = /^\d+$/.test(process.env.PORT) ? Number(process.env.PORT) : process.env.PORT;
+  } else {
+    const preferredPort = parseInt(process.env.PORT || "3000");
+    port = await findAvailablePort(preferredPort);
+    if (port !== preferredPort) {
+      console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    }
   }
 
   server.listen(port, () => {

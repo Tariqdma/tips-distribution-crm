@@ -121,3 +121,46 @@ WHERE email = 'your-admin@email.com';
 - الموقع: `https://your-domain.com`
 - بوابة المنصة: `https://your-domain.com/platform`
 - Health check: `https://your-domain.com/api/health`
+
+---
+
+## 8. النشر على Hostinger (crm.tips-sd.com)
+
+الموقع يعمل كتطبيق **Node.js** (Express يخدم الواجهة `public-web/` وكل مسارات `/api/*`).
+واجهة الويب مبنية مسبقاً ومرفوعة في المستودع، لذلك البناء على Hostinger خفيف (السيرفر فقط).
+
+> لا ترفع ملفات المستودع يدوياً إلى مجلد الموقع — هذا يكشف الكود وملفات SQL للعامة.
+
+### إعدادات البناء (hPanel → Node.js Web App)
+
+| الإعداد | القيمة |
+|---|---|
+| المصدر | GitHub → `Tariqdma/tips-distribution-crm` → فرع `authorization-model` |
+| Framework | Express |
+| Node.js | 20 أو 22 |
+| Root directory | `.` |
+| Package manager | npm |
+| Build script | `build:server` |
+| Entry file | `dist/index.js` |
+
+### متغيرات البيئة
+
+```
+NODE_ENV=production
+TIPS_CRM_PUBLIC_URL=https://crm.tips-sd.com
+EXPO_PUBLIC_APP_URL=https://crm.tips-sd.com
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...   # سري
+RESEND_API_KEY=...              # سري
+RESEND_FROM_EMAIL=...
+```
+
+### عند تعديل الواجهة
+
+أعد بناء الواجهة محلياً وارفعها مع الكود:
+
+```bash
+EXPO_PUBLIC_APP_URL=https://crm.tips-sd.com npm run export:web
+git add public-web && git commit -m "deploy: rebuild web bundle" && git push
+```

@@ -5,7 +5,7 @@ export function getPublicAppUrl(): string {
   return (
     process.env.EXPO_PUBLIC_APP_URL ??
     process.env.TIPS_CRM_PUBLIC_URL ??
-    "https://tipscrm-vevc4ncu.manus.space"
+    "https://crm.tips-sd.com"
   ).replace(/\/+$/, "");
 }
 

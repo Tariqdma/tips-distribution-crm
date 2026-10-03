@@ -3,7 +3,7 @@ import { buildPasswordRecoveryRedirect } from "../lib/auth-redirect";
 
 describe("Password recovery redirect", () => {
   it("uses the published reset-password path", () => {
-    expect(buildPasswordRecoveryRedirect("https://tipscrm-vevc4ncu.manus.space")).toBe("https://tipscrm-vevc4ncu.manus.space/reset-password");
+    expect(buildPasswordRecoveryRedirect("https://crm.tips-sd.com")).toBe("https://crm.tips-sd.com/reset-password");
   });
 
   it("removes a trailing slash before appending the path", () => {

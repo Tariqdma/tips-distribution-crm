@@ -23,7 +23,7 @@ import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 
 const PUBLIC_APP_URL = String(
-  Constants.expoConfig?.extra?.publicAppUrl ?? "https://tipscrm-vevc4ncu.manus.space",
+  Constants.expoConfig?.extra?.publicAppUrl ?? "https://crm.tips-sd.com",
 ).replace(/\/+$/, "");
 
 export type Company = {
