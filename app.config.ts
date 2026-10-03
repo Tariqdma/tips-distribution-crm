@@ -44,6 +44,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
+  owner: "taritipss-team",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
@@ -102,7 +103,7 @@ const config: ExpoConfig = {
     supabaseUrl: env.supabaseUrl,
     supabaseAnonKey: env.supabaseAnonKey,
     eas: {
-      projectId: "a2cc57f0-b242-4131-b669-aee391a40871",
+      projectId: "cef9218e-ab48-4d4c-b22c-84dd475794d0",
     },
   },
   plugins: [
