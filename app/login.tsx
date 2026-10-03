@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { palette } from "@/components/crm-ui";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { sendPasswordRecoveryEmail, supabase } from "@/lib/supabase-client";
@@ -184,7 +184,7 @@ export default function LoginScreen() {
             <View style={styles.statusCard}>
               <View style={styles.statusHeader}>
                 <View style={styles.logoMark}>
-                  <Text style={styles.logoText}>ت</Text>
+                  <Image source={require("@/assets/images/icon.png")} style={styles.logoImage} resizeMode="contain" />
                 </View>
                 <Text style={styles.appName}>Tips CRM</Text>
               </View>
@@ -211,7 +211,7 @@ export default function LoginScreen() {
           <View style={styles.statusCard}>
             <View style={styles.statusHeader}>
               <View style={styles.logoMark}>
-                <Text style={styles.logoText}>ت</Text>
+                <Image source={require("@/assets/images/icon.png")} style={styles.logoImage} resizeMode="contain" />
               </View>
               <Text style={styles.appName}>Tips CRM</Text>
             </View>
@@ -254,7 +254,7 @@ export default function LoginScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.logoMark}>
-            <Text style={styles.logoText}>ت</Text>
+            <Image source={require("@/assets/images/icon.png")} style={styles.logoImage} resizeMode="contain" />
           </View>
           <Text style={styles.appName}>Tips CRM</Text>
           <Text style={styles.tagline}>منصة الفرق الميدانية</Text>
@@ -368,8 +368,8 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: "#F0F7F4" },
   centerWrap: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
   hero: { backgroundColor: "#0A1F1A", paddingTop: 60, paddingBottom: 50, alignItems: "center", justifyContent: "center" },
-  logoMark: { width: 72, height: 72, borderRadius: 22, backgroundColor: "#059669", alignItems: "center", justifyContent: "center", marginBottom: 16, shadowColor: "#059669", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 8 },
-  logoText: { color: "#FFFFFF", fontSize: 36, fontWeight: "900" },
+  logoMark: { width: 72, height: 72, borderRadius: 22, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", marginBottom: 16, shadowColor: "#059669", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 8 },
+  logoImage: { width: 56, height: 56 },
   appName: { color: "#FFFFFF", fontSize: 28, fontWeight: "900" },
   tagline: { color: "#9BB8AE", fontSize: 14, marginTop: 6 },
   card: { flex: 1, backgroundColor: "#F0F7F4", borderTopLeftRadius: 28, borderTopRightRadius: 28, marginTop: -24, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 },

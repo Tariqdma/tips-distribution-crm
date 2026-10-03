@@ -2,6 +2,7 @@ import React, { useState, type ReactNode } from "react";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import {
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -130,7 +131,7 @@ export function PlatformWebShell({
           activeOpacity={0.8}
         >
           <View style={styles.brandMark}>
-            <Text style={styles.brandMarkText}>T</Text>
+            <Image source={require("@/assets/images/icon.png")} style={styles.brandLogo} resizeMode="contain" />
           </View>
           {!isSidebarCollapsed && (
             <View style={styles.brandTextCol}>
@@ -289,14 +290,13 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#059669",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
-  brandMarkText: {
-    color: "#FFFFFF",
-    fontSize: 20,
-    fontWeight: "900",
+  brandLogo: {
+    width: 30,
+    height: 30,
   },
   brandTextCol: {
     flex: 1,
