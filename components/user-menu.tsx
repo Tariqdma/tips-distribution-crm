@@ -26,7 +26,7 @@ export function UserMenu() {
     const metaAvatar = (session?.user?.user_metadata as any)?.avatar_url;
     if (metaAvatar) {
       setAvatarUrl(metaAvatar);
-    } else if (profile?.id && typeof window !== "undefined") {
+    } else if (profile?.id && Platform.OS === "web") {
       const saved = localStorage.getItem(`tips-crm-avatar-${profile.id}`);
       setAvatarUrl(saved || null);
     }
@@ -34,7 +34,7 @@ export function UserMenu() {
 
   useEffect(() => {
     loadAvatar();
-    if (typeof window !== "undefined") {
+    if (Platform.OS === "web") {
       const handleUserUpdated = () => loadAvatar();
       window.addEventListener("tips-user-updated", handleUserUpdated);
       window.addEventListener("storage", handleUserUpdated);

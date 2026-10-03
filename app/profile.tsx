@@ -41,14 +41,14 @@ export default function ProfileScreen() {
   useEffect(() => {
     // 1. Initial name & phone from profile, metadata, or localStorage
     const savedName =
-      (profile?.id && typeof window !== "undefined" && localStorage.getItem(`tips-crm-name-${profile.id}`)) ||
+      (profile?.id && Platform.OS === "web" && localStorage.getItem(`tips-crm-name-${profile.id}`)) ||
       profile?.full_name ||
       (session?.user?.user_metadata as any)?.full_name ||
       "";
     setFullName(savedName);
 
     const savedPhone =
-      (profile?.id && typeof window !== "undefined" && localStorage.getItem(`tips-crm-phone-${profile.id}`)) ||
+      (profile?.id && Platform.OS === "web" && localStorage.getItem(`tips-crm-phone-${profile.id}`)) ||
       (session?.user?.user_metadata as any)?.phone ||
       "";
     setPhone(savedPhone);
@@ -57,7 +57,7 @@ export default function ProfileScreen() {
     const metaAvatar = (session?.user?.user_metadata as any)?.avatar_url;
     if (metaAvatar) {
       setAvatarUrl(metaAvatar);
-    } else if (profile?.id && typeof window !== "undefined") {
+    } else if (profile?.id && Platform.OS === "web") {
       const saved = localStorage.getItem(`tips-crm-avatar-${profile.id}`);
       if (saved) setAvatarUrl(saved);
     }
@@ -107,7 +107,7 @@ export default function ProfileScreen() {
     setUploadingAvatar(true);
     try {
       setAvatarUrl(url);
-      if (profile?.id && typeof window !== "undefined") {
+      if (profile?.id && Platform.OS === "web") {
         localStorage.setItem(`tips-crm-avatar-${profile.id}`, url);
       }
 
@@ -125,7 +125,7 @@ export default function ProfileScreen() {
         }
       }
 
-      if (typeof window !== "undefined") {
+      if (Platform.OS === "web") {
         window.dispatchEvent(
           new CustomEvent("tips-user-updated", { detail: { avatarUrl: url, fullName } })
         );
@@ -151,7 +151,7 @@ export default function ProfileScreen() {
     setProfileSuccessMsg("");
     try {
       // 1. Save to localStorage immediately
-      if (profile?.id && typeof window !== "undefined") {
+      if (profile?.id && Platform.OS === "web") {
         localStorage.setItem(`tips-crm-name-${profile.id}`, trimmedName);
         localStorage.setItem(`tips-crm-phone-${profile.id}`, phone.trim());
       }
@@ -181,7 +181,7 @@ export default function ProfileScreen() {
       }
 
       // 4. Notify app components
-      if (typeof window !== "undefined") {
+      if (Platform.OS === "web") {
         window.dispatchEvent(
           new CustomEvent("tips-user-updated", { detail: { fullName: trimmedName, phone } })
         );
