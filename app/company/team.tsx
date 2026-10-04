@@ -11,6 +11,7 @@ import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { useInvitationEmail } from "@/lib/use-invitation-email";
 import type { Discipline } from "@shared/auth/legacy-role-key";
+import { describeError } from "@/lib/error-message";
 
 type CreatableRole = "manager" | "rep";
 
@@ -69,7 +70,7 @@ export default function AdminTeamPage() {
       if (!response.ok) throw new Error(result.message ?? "تعذر إنشاء الحساب.");
       Alert.alert("تم إنشاء الحساب", `أُنشئ حساب ${result.account?.email ?? email.trim()} مع ${territoryLabels.length} منطقة/مناطق عمل.`);
       closeAccountForm();
-    } catch (error) { Alert.alert("تعذر إنشاء الحساب", error instanceof Error ? error.message : "حاول مرة أخرى."); }
+    } catch (error) { Alert.alert("تعذر إنشاء الحساب", describeError(error, "حاول مرة أخرى.")); }
     finally { setCreating(false); }
   };
 

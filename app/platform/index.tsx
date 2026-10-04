@@ -21,6 +21,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { describeError } from "@/lib/error-message";
 
 const PUBLIC_APP_URL = String(
   Constants.expoConfig?.extra?.publicAppUrl ?? "https://crm.tips-sd.com",
@@ -394,7 +395,7 @@ export default function PlatformPortalScreen() {
       setActiveApproval(null);
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر اعتماد الطلب.");
+      setError(describeError(reason, "تعذر اعتماد الطلب."));
     }
     setSubmitting(false);
   };
@@ -413,7 +414,7 @@ export default function PlatformPortalScreen() {
       setReviewNote("");
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر مراجعة الطلب.");
+      setError(describeError(reason, "تعذر مراجعة الطلب."));
     }
     setSubmitting(false);
   };
@@ -431,7 +432,7 @@ export default function PlatformPortalScreen() {
       setInfoNote("");
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر إرسال طلب المعلومات.");
+      setError(describeError(reason, "تعذر إرسال طلب المعلومات."));
     }
     setSubmitting(false);
   };
@@ -444,7 +445,7 @@ export default function PlatformPortalScreen() {
       setMessage(`تمت إعادة إرسال رابط تفعيل الحساب إلى ${req.contact_email}.`);
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر إعادة إرسال الدعوة.");
+      setError(describeError(reason, "تعذر إعادة إرسال الدعوة."));
     }
     setSubmitting(false);
   };
@@ -457,7 +458,7 @@ export default function PlatformPortalScreen() {
       setMessage(`تم إلغاء الدعوة المعلقة لشركة ${req.company_name}.`);
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر إلغاء الدعوة.");
+      setError(describeError(reason, "تعذر إلغاء الدعوة."));
     }
     setSubmitting(false);
   };
@@ -504,7 +505,7 @@ export default function PlatformPortalScreen() {
         setEditingCompanyPlan(null);
         await load();
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "تعذر تحديث الباقة والحدود.");
+        setError(describeError(reason, "تعذر تحديث الباقة والحدود."));
       }
     }
     setSubmitting(false);
@@ -553,7 +554,7 @@ export default function PlatformPortalScreen() {
       setActiveTab("companies");
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر إنشاء الشركة.");
+      setError(describeError(reason, "تعذر إنشاء الشركة."));
     }
     setSubmitting(false);
   };

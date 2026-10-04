@@ -6,6 +6,7 @@ import { palette } from "@/components/crm-ui";
 import { exportMedicalCoverageWorkbook } from "@/lib/report-export";
 import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { describeError } from "@/lib/error-message";
 
 type MedicalReportRow = { rep_id: string; rep_name: string; state: string; city: string; specialty: string; total_visits: number | string; completed_visits: number | string; in_person_visits: number | string; remote_visits: number | string; high_interest: number | string; requested_info: number | string; pending_follow_ups: number | string; promoted_products: string[] | null };
 const toNumber = (value: number | string | null | undefined) => Number(value) || 0;
@@ -16,7 +17,7 @@ export default function MedicalReportsPage() {
   const today = iso(new Date()); const initialStart = `${today.slice(0, 7)}-01`;
   const [startOn, setStartOn] = useState(initialStart); const [endOn, setEndOn] = useState(today); const [rows, setRows] = useState<MedicalReportRow[]>([]); const [loading, setLoading] = useState(false); const [selectedRep, setSelectedRep] = useState("الكل"); const [selectedSpecialty, setSelectedSpecialty] = useState("الكل");
   const canView = Boolean(profile?.permissions.includes("all") || profile?.permissions.includes("export_reports") || profile?.permissions.includes("view_team_data"));
-  const load = async () => { if (!supabase || !canView) return; setLoading(true); try { const { data, error } = await supabase.rpc("tips_crm_medical_visit_report", { start_on: startOn, end_on: endOn }); if (error) throw error; setRows((data ?? []) as MedicalReportRow[]); } catch (error) { Alert.alert("تعذر تحميل التقرير", error instanceof Error ? error.message : "تحقق من الصلاحية أو الفترة المحددة."); } finally { setLoading(false); } };
+  const load = async () => { if (!supabase || !canView) return; setLoading(true); try { const { data, error } = await supabase.rpc("tips_crm_medical_visit_report", { start_on: startOn, end_on: endOn }); if (error) throw error; setRows((data ?? []) as MedicalReportRow[]); } catch (error) { Alert.alert("تعذر تحميل التقرير", describeError(error, "تحقق من الصلاحية أو الفترة المحددة.")); } finally { setLoading(false); } };
   useEffect(() => { void load(); }, [canView]);
   const reps = ["الكل", ...Array.from(new Set(rows.map((row) => row.rep_name)))]; const specialties = ["الكل", ...Array.from(new Set(rows.map((row) => row.specialty)))];
   const filtered = useMemo(() => rows.filter((row) => (selectedRep === "الكل" || row.rep_name === selectedRep) && (selectedSpecialty === "الكل" || row.specialty === selectedSpecialty)), [rows, selectedRep, selectedSpecialty]);

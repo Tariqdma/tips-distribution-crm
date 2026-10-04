@@ -6,6 +6,7 @@ import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
 import { mapReceiptSearchRecord, type ReceiptSearchRecord, type RemoteReceiptSearchRecord } from "@/lib/receipt-search";
 import { supabase } from "@/lib/supabase-client";
+import { describeError } from "@/lib/error-message";
 
 const currency = (value: number) => `${new Intl.NumberFormat("ar").format(value)} ج.س`;
 const dateText = (value: string) =>
@@ -43,7 +44,7 @@ export default function ReceiptDetailPage() {
           setRecord(match);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "تعذر تحميل بيانات الإيصال.");
+        setError(describeError(err, "تعذر تحميل بيانات الإيصال."));
       } finally {
         setLoading(false);
       }

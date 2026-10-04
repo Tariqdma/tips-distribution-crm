@@ -55,11 +55,20 @@ async function startServer() {
     res.status(503).type("text/plain").send("واجهة Tips CRM قيد التجهيز. أعد المحاولة بعد لحظات.");
   };
 
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // CORS: only the CRM's own web origins may call the API with credentials.
+  // The mobile app sends no Origin header and is unaffected.
+  const allowedOrigins = new Set(
+    [ENV.crmPublicUrl, "https://crm.tips-sd.com", ...(process.env.CORS_EXTRA_ORIGINS ?? "").split(",")]
+      .map((origin) => origin.trim().replace(/\/+$/, ""))
+      .filter(Boolean),
+  );
+  const isAllowedOrigin = (origin: string) =>
+    allowedOrigins.has(origin) || (!ENV.isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
+    if (origin && isAllowedOrigin(origin)) {
       res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
     }
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header(

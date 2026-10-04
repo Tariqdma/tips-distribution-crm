@@ -7,6 +7,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { describeError } from "@/lib/error-message";
 
 const DAYS = [{ key: "saturday", label: "السبت" }, { key: "sunday", label: "الأحد" }, { key: "monday", label: "الاثنين" }, { key: "tuesday", label: "الثلاثاء" }, { key: "wednesday", label: "الأربعاء" }, { key: "thursday", label: "الخميس" }, { key: "friday", label: "الجمعة" }];
 
@@ -36,11 +37,11 @@ export default function CompanySetupScreen() {
     return payload.setup;
   }, [session?.access_token]);
 
-  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); setError(null); setSetup(await request("GET")); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر تحميل الإعدادات."); } finally { setLoading(false); } })(); }, [isManager, request, session]);
+  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); setError(null); setSetup(await request("GET")); } catch (reason) { setError(describeError(reason, "تعذر تحميل الإعدادات.")); } finally { setLoading(false); } })(); }, [isManager, request, session]);
 
   const basicCompleted = useMemo(() => [setup.companyName.trim().length > 1, setup.activityType.trim().length > 1, setup.workingDays.length > 0, Boolean(setup.workdayStartsAt && setup.workdayEndsAt)].filter(Boolean).length, [setup]);
   const toggleDay = (day: string) => setSetup((current) => ({ ...current, workingDays: current.workingDays.includes(day) ? current.workingDays.filter((item) => item !== day) : [...current.workingDays, day] }));
-  const save = async () => { try { setSaving(true); setError(null); setSuccess(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(reason instanceof Error ? reason.message : "تعذر حفظ الإعدادات."); } finally { setSaving(false); } };
+  const save = async () => { try { setSaving(true); setError(null); setSuccess(null); const saved = await request("PUT", setup); setSetup(saved); setSuccess("تم حفظ إعدادات الشركة وأصبحت جاهزة لبدء التشغيل."); } catch (reason) { setError(describeError(reason, "تعذر حفظ الإعدادات.")); } finally { setSaving(false); } };
 
   if (!session) return <Redirect href={"/login" as never} />;
   if (!isManager) return <Redirect href={"/company" as never} />;

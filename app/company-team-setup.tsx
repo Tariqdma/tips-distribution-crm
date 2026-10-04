@@ -11,6 +11,7 @@ import { employeeRoleLabel } from "@/lib/employee-role-label";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { legacyRoleMappingFor, type Discipline } from "@shared/auth/legacy-role-key";
+import { describeError } from "@/lib/error-message";
 
 type TeamMember = { profileId: string; fullName: string; email: string; roleKey: string; reportsToProfileId: string | null; reportsToName: string | null; isActive: boolean };
 type TeamSetup = { members: TeamMember[]; salesSupervisors: TeamMember[]; medicalSupervisors: TeamMember[]; accountants: TeamMember[]; salesRepresentatives: TeamMember[]; medicalRepresentatives: TeamMember[]; eligibleSalesManagers: TeamMember[]; eligibleMedicalManagers: TeamMember[]; isTeamSetupStarted: boolean };
@@ -76,7 +77,7 @@ export default function CompanyTeamSetupScreen() {
     return payload.setup;
   }, [session?.access_token]);
 
-  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر تحميل فريق الشركة." }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
+  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر تحميل فريق الشركة.") }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
 
   const supervisors = useMemo(() => setup ? [...setup.salesSupervisors, ...setup.medicalSupervisors] : [], [setup]);
   const directManagers = role === "rep" && discipline
@@ -105,7 +106,7 @@ export default function CompanyTeamSetupScreen() {
       await Promise.all([load(), refreshSharedCatalog()]);
       setFeedback({ tone: "success", text: `تم إنشاء حساب ${result.account?.email || email.trim()} وربطه بهيكل الشركة.` });
       resetForm();
-    } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر إنشاء الحساب." }); }
+    } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر إنشاء الحساب.") }); }
     finally { setSaving(false); }
   };
 

@@ -13,6 +13,7 @@ import { uploadVisitAttachments, type VisitAttachment } from "@/lib/visit-attach
 import { notifyOfflineVisitSyncSuccess, scheduleFollowUpReminder } from "@/lib/mobile-notifications";
 import { buildInviteAcceptUrl } from "@/lib/auth-redirect";
 import { createOfflineVisitDraft, listOfflineVisitDrafts, listVisitSyncHistory, markOfflineVisitDraftFailed, recordVisitSyncHistory, removeOfflineVisitDraft, saveOfflineVisitDraft, type OfflineVisitDraft, type OfflineVisitPayload, type VisitSyncHistoryEntry } from "@/lib/offline-visit-drafts";
+import { describeError } from "@/lib/error-message";
 
 export type AccountType = "طبيب" | "صيدلية" | "مستشفى" | "موزع";
 export type VisitStatus = "مجدولة" | "مكتملة" | "تحتاج مراجعة";
@@ -30,7 +31,7 @@ export type MonthlyPerformance = { monthStart: string; targetType: MonthlyTarget
 export type OfflineVisitSyncNotice = { count: number; syncedAt: string };
 
 export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
-export type Visit = { id: string; accountId: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; checkedInAt?: string; completedAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean; collectionAmount?: number; revenueAmount?: number; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string };
+export type Visit = { id: string; accountId: string; repId?: string; repName?: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; checkedInAt?: string; completedAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean; collectionAmount?: number; revenueAmount?: number; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string };
 export type PlanScheduleDay = { id: string; label: string; dateLabel: string; visitIds: string[] };
 export type PlanVisitDetail = { id: string; accountId?: string; accountName: string; scheduledFor: string };
 export type PlanRepSnapshot = { completedVisits: number; needsReviewVisits: number; lastVisitName?: string; lastVisitAt?: string };
@@ -107,6 +108,37 @@ type RemoteNotification = { id: string; title: string; body: string; kind: "plan
 type RemoteMonthlyTarget = { id: string; month_start: string; target_type: "rep" | "territory"; target_key: string; target_value: number | string; metric: TargetMetric; alert_threshold: number | string; updated_at: string };
 type RemoteMonthlyPerformance = { month_start: string; target_type: "rep" | "territory"; target_key: string; metric: TargetMetric; actual_value: number | string };
 type RemotePlan = { id: string; title: string; plan_type: "weekly" | "monthly"; starts_on: string; ends_on: string; status: "pending" | "approved" | "returned"; manager_note: string | null; created_at: string; owner_name: string; owner_territory: string | null; completed_visits: number | string; needs_review_visits: number | string; last_visit_name: string | null; last_visit_at: string | null; scheduled_visits?: Array<{ id: string; account_id: string; account_name: string; scheduled_for: string }> };
+type RemoteTeamVisit = { id: string; offline_client_ref: string | null; account_id: string; account_local_ref: string | null; account_name: string; rep_id: string; rep_name: string; status: string; outcome: string | null; notes: string | null; checked_in_at: string | null; created_at: string; follow_up_action: string | null; follow_up_on: string | null; visit_priority: string | null; check_in_latitude: number | string | null; check_in_longitude: number | string | null; location_accuracy_meters: number | null; collection_amount: number | string | null; revenue_amount: number | string | null; receipt_reference: string | null };
+// Offline drafts are sent with offline_client_ref = "offline-visit-<localVisitId>-<ms>-<rand>",
+// which lets a server visit replace the phone's copy of the same visit.
+const localVisitIdFromOfflineRef = (ref: string | null) => ref?.match(/^offline-visit-(.+)-\d{10,}-[a-z0-9]+$/)?.[1] ?? null;
+const visitFromRemote = (visit: RemoteTeamVisit): Visit => {
+  const at = new Date(visit.checked_in_at ?? visit.created_at);
+  const latitude = visit.check_in_latitude == null ? null : Number(visit.check_in_latitude);
+  const longitude = visit.check_in_longitude == null ? null : Number(visit.check_in_longitude);
+  return {
+    id: localVisitIdFromOfflineRef(visit.offline_client_ref) ?? `remote-visit-${visit.id}`,
+    accountId: visit.account_local_ref || `remote-${visit.account_id}`,
+    repId: visit.rep_id,
+    repName: visit.rep_name,
+    date: at.toLocaleDateString("ar"),
+    time: at.toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit" }),
+    status: visit.status === "completed" ? "مكتملة" : visit.status === "needs_review" ? "تحتاج مراجعة" : "مجدولة",
+    result: visit.outcome ?? undefined,
+    note: visit.notes ?? undefined,
+    followUpAction: visit.follow_up_action ?? undefined,
+    followUpDate: visit.follow_up_on ?? undefined,
+    checkedInAt: visit.checked_in_at ?? undefined,
+    completedAt: visit.status === "scheduled" ? undefined : (visit.checked_in_at ?? visit.created_at),
+    location: latitude != null && longitude != null && Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude, accuracy: visit.location_accuracy_meters } : undefined,
+    isInsideTerritory: visit.status === "completed",
+    collectionAmount: visit.collection_amount == null ? undefined : Number(visit.collection_amount),
+    revenueAmount: visit.revenue_amount == null ? undefined : Number(visit.revenue_amount),
+    receiptReference: visit.receipt_reference ?? undefined,
+  } as Visit;
+};
+// The bundled sample visits (v1, v2, ...) must not mix with a signed-in company's real data.
+const isSampleVisitId = (id: string) => /^v\d+$/.test(id);
 
 function polygonPointsFromRemote(value: RemoteTerritory["boundary_geojson"]) {
   const points = value?.polygon_points;
@@ -193,15 +225,16 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const refreshSharedCatalog = useCallback(async () => {
     if (!supabase || !user || !isReady) return;
     const historyStart = new Date(); historyStart.setMonth(historyStart.getMonth() - 5); const historyMonthStart = `${historyStart.toISOString().slice(0, 7)}-01`;
-    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse, monthlyPerformanceResponse, plansResponse] = await Promise.all([
+    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse, monthlyPerformanceResponse, plansResponse, teamVisitsResponse] = await Promise.all([
       supabase.rpc("tips_crm_list_accounts"),
       supabase.rpc("tips_crm_list_visit_outcomes"),
       supabase.rpc("tips_crm_list_invites"),
       supabase.rpc("tips_crm_list_territories"),
       supabase.rpc("tips_crm_list_my_notifications"),
-      supabase.schema("tips_crm").from("monthly_targets").select("*").gte("month_start", historyMonthStart).lte("month_start", `${new Date().toISOString().slice(0, 7)}-01`),
+      supabase.rpc("tips_crm_list_monthly_targets", { from_month: historyMonthStart }),
       supabase.rpc("tips_crm_list_monthly_target_performance", { months_back: 6 }),
       supabase.rpc("tips_crm_list_plans"),
+      supabase.rpc("tips_crm_list_team_visits", { from_on: historyMonthStart, to_on: new Date().toISOString().slice(0, 10) }),
     ]);
     const remoteAccounts = accountsResponse.error ? null : (accountsResponse.data ?? []) as RemoteAccount[];
     const remoteOutcomes = outcomesResponse.error ? null : (outcomesResponse.data ?? []) as RemoteOutcome[];
@@ -211,6 +244,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const remoteMonthlyTargets = monthlyTargetsResponse.error ? null : (monthlyTargetsResponse.data ?? []) as RemoteMonthlyTarget[];
     const remoteMonthlyPerformance = monthlyPerformanceResponse.error ? null : (monthlyPerformanceResponse.data ?? []) as RemoteMonthlyPerformance[];
     const remotePlans = plansResponse.error ? null : (plansResponse.data ?? []) as RemotePlan[];
+    const remoteVisits = teamVisitsResponse.error ? null : ((teamVisitsResponse.data ?? []) as RemoteTeamVisit[]).map(visitFromRemote);
     remoteAccounts?.forEach((account) => { if (account.local_ref) remoteAccountIds.current[account.local_ref] = account.id; });
     setData((current) => {
       const sharedAccounts = remoteAccounts?.map((account) => {
@@ -252,6 +286,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         monthlyTargets: remoteMonthlyTargets ? remoteMonthlyTargets.map((target) => ({ id: target.id, monthStart: target.month_start, targetType: target.target_type === "rep" ? "مندوب" : "منطقة", targetKey: target.target_key, targetValue: Number(target.target_value), metric: target.metric === "collection" || target.metric === "revenue" ? target.metric : "visits", alertThreshold: Math.min(100, Math.max(1, Number(target.alert_threshold) || 70)), updatedAt: target.updated_at } satisfies MonthlyTarget)) : current.monthlyTargets,
         monthlyPerformance: remoteMonthlyPerformance ? remoteMonthlyPerformance.map((item) => ({ monthStart: item.month_start, targetType: item.target_type === "rep" ? "مندوب" : "منطقة", targetKey: item.target_key, metric: item.metric === "collection" || item.metric === "revenue" ? item.metric : "visits", actualValue: Number(item.actual_value) || 0 } satisfies MonthlyPerformance)) : current.monthlyPerformance,
         plans: sharedPlans ? [...sharedPlans, ...unsyncedCurrentPlans] : current.plans,
+        // Server visits are the source of truth; keep only local visits the server does not have yet
+        // (scheduled plan visits and offline drafts still waiting to sync).
+        visits: remoteVisits ? [...remoteVisits, ...current.visits.filter((visit) => !isSampleVisitId(visit.id) && !visit.id.startsWith("remote-visit-") && !remoteVisits.some((item) => item.id === visit.id))] : current.visits,
       };
       void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -299,7 +336,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         if (history) setOfflineVisitSyncHistory(history);
         if (synced.attachments.length) commit((current) => ({ ...current, visits: current.visits.map((visit) => visit.id === draft.visitId ? { ...visit, attachments: synced.attachments } : visit) }));
       } catch (error) {
-        const message = error instanceof Error ? error.message : "تعذر الاتصال بخدمة المزامنة.";
+        const message = describeError(error, "تعذر الاتصال بخدمة المزامنة.");
         await markOfflineVisitDraftFailed(profileId, draft.id, message);
         const history = await recordVisitSyncHistory({ profileId, draft, status: "failed", attempt: draft.attempts + 1, message }).catch(() => null);
         if (history) setOfflineVisitSyncHistory(history);
@@ -412,7 +449,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       const targetValue = Math.max(0, input.metric === "visits" ? Math.floor(input.targetValue) : Math.round(input.targetValue * 100) / 100);
       const alertThreshold = Math.min(100, Math.max(1, Math.round(input.alertThreshold)));
       if (supabase && user) {
-        const { error } = await supabase.schema("tips_crm").from("monthly_targets").upsert({ month_start: input.monthStart, target_type: input.targetType === "مندوب" ? "rep" : "territory", target_key: input.targetKey, target_value: targetValue, metric: input.metric, alert_threshold: alertThreshold, created_by: user.id, updated_at: new Date().toISOString() }, { onConflict: "month_start,target_type,target_key,metric" });
+        const { error } = await supabase.rpc("tips_crm_save_monthly_target", { month_start_input: input.monthStart, target_type_input: input.targetType === "مندوب" ? "rep" : "territory", target_key_input: input.targetKey, target_value_input: targetValue, metric_input: input.metric, alert_threshold_input: alertThreshold });
         if (error) return false;
       }
       const localTarget: MonthlyTarget = { ...input, targetValue, alertThreshold, id: `${input.monthStart}-${input.targetType}-${input.targetKey}-${input.metric}`, updatedAt: new Date().toISOString() };

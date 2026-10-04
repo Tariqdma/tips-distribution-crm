@@ -5,6 +5,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { describeError } from "@/lib/error-message";
 
 export default function CompanyRequestScreen() {
   const [companyName, setCompanyName] = useState("");
@@ -44,7 +45,7 @@ export default function CompanyRequestScreen() {
       if (!response.ok || !payload.request?.requestId) throw new Error(payload.message || "تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى.");
       setRequestId(payload.request.requestId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى.");
+      setError(describeError(reason, "تعذر إرسال الطلب الآن. تأكد من البيانات وحاول مرة أخرى."));
     } finally {
       setSubmitting(false);
     }

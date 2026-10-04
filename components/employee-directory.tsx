@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Switch, Text, 
 import { palette } from "@/components/crm-ui";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { employeeRoleLabel } from "@/lib/employee-role-label";
+import { describeError } from "@/lib/error-message";
 
 type DirectoryEmployee = { id: string; fullName: string; email: string; roleKey: string; mustChangePassword: boolean; temporaryPasswordIssuedAt: string | null; lastSignedInAt: string | null; emailConfirmed: boolean };
 
@@ -26,7 +27,7 @@ export function EmployeeDirectory({ accessToken }: { accessToken?: string }) {
       const result = await response.json() as { accounts?: DirectoryEmployee[]; message?: string };
       if (!response.ok) throw new Error(result.message ?? "تعذر تحميل دليل الحسابات.");
       setEmployees(result.accounts ?? []);
-    } catch (loadError) { setError(loadError instanceof Error ? loadError.message : "تعذر تحميل دليل الحسابات."); }
+    } catch (loadError) { setError(describeError(loadError, "تعذر تحميل دليل الحسابات.")); }
     finally { setLoading(false); }
   }, [accessToken]);
   useEffect(() => { void load(); }, [load]);
@@ -43,7 +44,7 @@ export function EmployeeDirectory({ accessToken }: { accessToken?: string }) {
       if (!response.ok) throw new Error(result.message ?? "تعذر إعادة تعيين كلمة المرور.");
       Alert.alert("تمت إعادة التعيين", `تم إصدار كلمة مرور مؤقتة جديدة لـ ${target.fullName}. سلّمها عبر قناة آمنة.`);
       setTarget(null); void load();
-    } catch (resetError) { Alert.alert("تعذر إعادة التعيين", resetError instanceof Error ? resetError.message : "حاول مرة أخرى."); }
+    } catch (resetError) { Alert.alert("تعذر إعادة التعيين", describeError(resetError, "حاول مرة أخرى.")); }
     finally { setResetting(false); }
   };
 

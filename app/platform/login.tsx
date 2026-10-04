@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpac
 import { ScreenContainer } from "@/components/screen-container";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { supabase } from "@/lib/supabase-client";
+import { describeError } from "@/lib/error-message";
 
 export default function PlatformLoginScreen() {
   const { session, profile, loading, refreshProfile, signOut } = useSupabaseAuth();
@@ -75,7 +76,7 @@ export default function PlatformLoginScreen() {
 
       window.location.href = "/platform";
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "تعذر تسجيل الدخول ببوابة المنصة.");
+      setErrorMessage(describeError(error, "تعذر تسجيل الدخول ببوابة المنصة."));
     } finally {
       setSubmitting(false);
     }

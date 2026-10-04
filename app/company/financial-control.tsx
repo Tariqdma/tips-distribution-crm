@@ -5,6 +5,7 @@ import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { describeError } from "@/lib/error-message";
 
 type FinancialSnapshot = {
   source: { spreadsheetId: string; refreshedAt: string };
@@ -38,7 +39,7 @@ export default function FinancialControlPage() {
       const result = await response.json() as { snapshot?: FinancialSnapshot; message?: string };
       if (!response.ok || !result.snapshot) throw new Error(result.message ?? "تعذر تحديث البيانات المالية.");
       setSnapshot(result.snapshot);
-    } catch (error) { Alert.alert("تعذر التحديث", error instanceof Error ? error.message : "حاول مرة أخرى."); }
+    } catch (error) { Alert.alert("تعذر التحديث", describeError(error, "حاول مرة أخرى.")); }
     finally { setLoading(false); }
   };
 
@@ -50,7 +51,7 @@ export default function FinancialControlPage() {
       const result = await response.json() as { message?: string };
       if (!response.ok) throw new Error(result.message ?? "تعذر حفظ المطابقة.");
       setMappingCode(""); setMappingAccountId(""); await refresh(); Alert.alert("تم الربط", "أصبح كود العميل مرتبطاً بهذه الجهة في CRM.");
-    } catch (error) { Alert.alert("تعذر الحفظ", error instanceof Error ? error.message : "حاول مرة أخرى."); }
+    } catch (error) { Alert.alert("تعذر الحفظ", describeError(error, "حاول مرة أخرى.")); }
     finally { setSavingMapping(false); }
   };
 

@@ -5,6 +5,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { AppHeader, PrimaryButton, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { describeError } from "@/lib/error-message";
 
 type PublicRequest = { reference_number: string; company_name: string; status: string; submitted_at: string; updated_at: string };
 
@@ -52,7 +53,7 @@ export default function RequestStatusScreen() {
       }
     } catch (reason) {
       setRequest(null);
-      setError(reason instanceof Error ? reason.message : "تعذر التحقق من الحالة الآن.");
+      setError(describeError(reason, "تعذر التحقق من الحالة الآن."));
     } finally {
       setLoading(false);
     }

@@ -12,6 +12,7 @@ import { getApiBaseUrl } from "@/constants/oauth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useCrm } from "@/lib/crm-store";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { describeError } from "@/lib/error-message";
 
 type AccountSetup = { accountCount: number; doctorCount: number; pharmacyCount: number; hospitalCount: number; distributorCount: number; territoryChoices: Array<{ clientKey: string; name: string; state: string; city: string }>; isAccountSetupStarted: boolean };
 type ImportOutcome = { itemKey: string; status: "created" | "updated" | "duplicate" | "rejected"; accountId?: string; accountName: string; message: string };
@@ -62,7 +63,7 @@ export default function CompanyAccountSetupScreen() {
     return payload.setup;
   }, [session?.access_token]);
 
-  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر تحميل جهات الشركة." }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
+  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر تحميل جهات الشركة.") }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
 
   const previewRawRows = (rows: Array<Record<string, unknown>>) => {
     if (!setup) return;
@@ -78,7 +79,7 @@ export default function CompanyAccountSetupScreen() {
     } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? `تعذر قراءة الملف: ${reason.message}` : "تعذر قراءة الملف." }); }
     finally { setParsing(false); }
   };
-  const previewPastedData = () => { try { previewRawRows(rowsFromPastedText(pastedText)); setPasteOpen(false); } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر قراءة البيانات الملصقة." }); } };
+  const previewPastedData = () => { try { previewRawRows(rowsFromPastedText(pastedText)); setPasteOpen(false); } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر قراءة البيانات الملصقة.") }); } };
   const importRows = async () => {
     if (!session?.access_token || !validPreviewRows.length) return;
     setImporting(true); setFeedback(null);
@@ -89,7 +90,7 @@ export default function CompanyAccountSetupScreen() {
       setOutcomes(payload.results); setSummary({ ...payload.summary, rejectedCount: payload.summary.rejectedCount + invalidPreviewRows.length });
       await Promise.all([load(), refreshSharedCatalog()]);
       setFeedback({ tone: "success", text: `تمت معالجة ${payload.results.length} جهة. راجع النتيجة أدناه قبل البدء في التخطيط.` });
-    } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر استيراد الجهات." }); }
+    } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر استيراد الجهات.") }); }
     finally { setImporting(false); }
   };
   const metrics = useMemo(() => setup ? [{ key: "doctor", value: setup.doctorCount }, { key: "pharmacy", value: setup.pharmacyCount }, { key: "hospital", value: setup.hospitalCount }, { key: "distributor", value: setup.distributorCount }] as const : [], [setup]);

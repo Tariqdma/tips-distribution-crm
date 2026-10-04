@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacit
 import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
 import { supabase } from "@/lib/supabase-client";
+import { describeError } from "@/lib/error-message";
 
 type RemoteEvent = {
   event_id: string;
@@ -86,7 +87,7 @@ export default function MedicalEventDetailPage() {
         })),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذر تحميل بيانات الفعالية.");
+      setError(describeError(err, "تعذر تحميل بيانات الفعالية."));
     } finally {
       setLoading(false);
     }
@@ -110,7 +111,7 @@ export default function MedicalEventDetailPage() {
         current.map((item) => (item.id === invitationId ? { ...item, invitation_status: nextStatus } : item)),
       );
     } catch (err) {
-      Alert.alert("تعذر تحديث الحالة", err instanceof Error ? err.message : "حاول مرة أخرى.");
+      Alert.alert("تعذر تحديث الحالة", describeError(err, "حاول مرة أخرى."));
     } finally {
       setUpdatingId(null);
     }

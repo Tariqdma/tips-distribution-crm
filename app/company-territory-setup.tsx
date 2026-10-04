@@ -10,6 +10,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { type TerritoryBoundary, useCrm } from "@/lib/crm-store";
 import { citiesForState, SUDAN_STATES } from "@/lib/sudan-locations";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
+import { describeError } from "@/lib/error-message";
 
 type Point = { latitude: number; longitude: number };
 type Territory = { clientKey: string; name: string; state: string; city: string; centerLatitude: number; centerLongitude: number; radiusMeters: number; polygonPoints: Point[]; assignedMemberCount: number; isBoundaryComplete: boolean };
@@ -49,7 +50,7 @@ export default function CompanyTerritorySetupScreen() {
     return payload.setup;
   }, [session?.access_token]);
 
-  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر تحميل مناطق العمل." }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
+  useEffect(() => { if (!session || !isManager) return; void (async () => { try { setLoading(true); await load(); } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر تحميل مناطق العمل.") }); } finally { setLoading(false); } })(); }, [isManager, load, session]);
 
   const draftBoundary = useMemo<TerritoryBoundary>(() => ({ territoryId: clientKey ?? "draft-territory", name: name.trim() || "منطقة جديدة", state, city, centerLatitude: String(center.latitude), centerLongitude: String(center.longitude), radiusMeters, polygonPoints: polygonPoints.length >= 3 ? polygonPoints : undefined, updatedAt: "الآن" }), [center.latitude, center.longitude, city, clientKey, name, polygonPoints, radiusMeters, state]);
   const options = picker === "state" ? SUDAN_STATES.map((item) => item.name) : cities;
@@ -70,7 +71,7 @@ export default function CompanyTerritorySetupScreen() {
       await Promise.all([load(), refreshSharedCatalog()]);
       selectTerritory(payload.territory);
       setFeedback({ tone: "success", text: `تم حفظ منطقة ${payload.territory.name} وربط حدودها بالشركة.` });
-    } catch (reason) { setFeedback({ tone: "error", text: reason instanceof Error ? reason.message : "تعذر حفظ منطقة العمل." }); }
+    } catch (reason) { setFeedback({ tone: "error", text: describeError(reason, "تعذر حفظ منطقة العمل.") }); }
     finally { setSaving(false); }
   };
 

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase-client";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { permissionsFromMembership } from "@shared/auth/permission-set";
 import { getPostLoginRoute } from "@shared/lib/post-login-route";
+import { describeError } from "@/lib/error-message";
 
 export default function ChangePasswordScreen() {
   const { profile, refreshProfile, signOut } = useSupabaseAuth();
@@ -16,7 +17,7 @@ export default function ChangePasswordScreen() {
     const validation = validateNewPassword(password, confirmation); if (validation) { Alert.alert("تحقق من كلمة المرور", validation); return; }
     if (!supabase) return; setSaving(true);
     try { const { error } = await supabase.auth.updateUser({ password }); if (error) throw error; const { error: profileError } = await supabase.rpc("tips_crm_mark_password_changed"); if (profileError) throw profileError; const updated = await refreshProfile(); const permissions = permissionsFromMembership({ membershipPermissions: updated?.membership_permissions, isPlatformAdmin: updated?.is_platform_admin }); Alert.alert("تم الحفظ", "تم تغيير كلمة المرور بنجاح."); router.replace(getPostLoginRoute({ permissions, isWeb: false }) as never); }
-    catch (error) { Alert.alert("تعذر الحفظ", error instanceof Error ? error.message : "حاول مرة أخرى."); }
+    catch (error) { Alert.alert("تعذر الحفظ", describeError(error, "حاول مرة أخرى.")); }
     finally { setSaving(false); }
   };
   return <ScreenContainer className="items-center justify-center px-5"><View style={styles.card}><View style={styles.mark}><Text style={styles.markText}>T</Text></View><Text style={styles.title}>غيّر كلمة المرور المؤقتة</Text><Text style={styles.copy}>مرحباً {profile?.full_name ?? "بك"}. اختر كلمة مرور خاصة بك قبل متابعة استخدام النظام.</Text><Text style={styles.label}>كلمة المرور الجديدة</Text><TextInput value={password} onChangeText={setPassword} secureTextEntry style={styles.input} textAlign="right" placeholder="ثمانية أحرف على الأقل" placeholderTextColor="#94A39C" /><Text style={styles.label}>تأكيد كلمة المرور</Text><TextInput value={confirmation} onChangeText={setConfirmation} secureTextEntry style={styles.input} textAlign="right" placeholder="أعد كتابة كلمة المرور" placeholderTextColor="#94A39C" /><TouchableOpacity disabled={saving} onPress={() => void save()} style={[styles.button, saving && { opacity: .6 }]}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>حفظ كلمة المرور والمتابعة</Text>}</TouchableOpacity><TouchableOpacity onPress={() => void signOut()} style={styles.signOut}><Text style={styles.signOutText}>تسجيل الخروج</Text></TouchableOpacity></View></ScreenContainer>;
