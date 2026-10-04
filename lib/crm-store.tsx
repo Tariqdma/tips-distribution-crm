@@ -30,7 +30,7 @@ export type MonthlyTarget = { id: string; monthStart: string; targetType: "من�
 export type MonthlyPerformance = { monthStart: string; targetType: MonthlyTarget["targetType"]; targetKey: string; metric: TargetMetric; actualValue: number };
 export type OfflineVisitSyncNotice = { count: number; syncedAt: string };
 
-export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string };
+export type Account = { id: string; name: string; type: AccountType; specialty?: string; state: string; area: string; city: string; address: string; contact: string; lastVisit: string; priority: "عالية" | "متوسطة" | "اعتيادية"; initials: string; accent: string; latitude?: number; longitude?: number };
 export type Visit = { id: string; accountId: string; repId?: string; repName?: string; date: string; time: string; status: VisitStatus; result?: VisitResult; note?: string; followUpAction?: string; followUpDate?: string; reportPriority?: FollowUpPriority; attachments?: VisitAttachment[]; checkedInAt?: string; completedAt?: string; location?: { latitude: number; longitude: number; accuracy?: number | null }; isInsideTerritory?: boolean; collectionAmount?: number; revenueAmount?: number; receiptReference?: string; medicalInteractionType?: MedicalInteractionType; medicalVisitGoal?: MedicalVisitGoal; promotedProduct?: string; scientificMessage?: string; doctorInterest?: DoctorInterest; medicalFeedback?: string };
 export type PlanScheduleDay = { id: string; label: string; dateLabel: string; visitIds: string[] };
 export type PlanVisitDetail = { id: string; accountId?: string; accountName: string; scheduledFor: string };
@@ -108,6 +108,21 @@ type RemoteNotification = { id: string; title: string; body: string; kind: "plan
 type RemoteMonthlyTarget = { id: string; month_start: string; target_type: "rep" | "territory"; target_key: string; target_value: number | string; metric: TargetMetric; alert_threshold: number | string; updated_at: string };
 type RemoteMonthlyPerformance = { month_start: string; target_type: "rep" | "territory"; target_key: string; metric: TargetMetric; actual_value: number | string };
 type RemotePlan = { id: string; title: string; plan_type: "weekly" | "monthly"; starts_on: string; ends_on: string; status: "pending" | "approved" | "returned"; manager_note: string | null; created_at: string; owner_name: string; owner_territory: string | null; completed_visits: number | string; needs_review_visits: number | string; last_visit_name: string | null; last_visit_at: string | null; scheduled_visits?: Array<{ id: string; account_id: string; account_name: string; scheduled_for: string }> };
+type RemoteTeamMember = { id: string; full_name: string; email: string | null; phone: string | null; role_key: string | null; role_name: string | null; role_keys: string[] | null; disciplines: string[] | null; reports_to_profile_id: string | null; is_active: boolean; territory_keys: string[] | null; territory_labels: string[] | null };
+type RemoteTeamDuty = { profile_id: string; full_name: string; is_on_duty: boolean; session_started_at: string | null; last_point: DutyTrackPoint | null; path: DutyTrackPoint[] | null };
+const memberFromRemote = (member: RemoteTeamMember): TeamMember => {
+  const territoryIds = member.territory_keys ?? [];
+  const territories = member.territory_labels ?? [];
+  return { id: member.id, name: member.full_name, initials: initialsFor(member.full_name), role: roleFromRemote[member.role_key ?? ""] ?? "مندوب مبيعات", type: member.role_name ?? "", territory: territories.join("، ") || "حسب التعيين", territoryId: territoryIds[0], territoryIds, territories };
+};
+const dutyFromRemote = (duty: RemoteTeamDuty, members: TeamMember[], boundaries: TerritoryBoundary[]): RepDutyStatus => {
+  const member = members.find((item) => item.id === duty.profile_id);
+  const territoryIds = member?.territoryIds ?? [];
+  const assigned = boundaries.filter((boundary) => territoryIds.includes(boundary.territoryId));
+  const lastPoint = duty.last_point ?? undefined;
+  const isOutsideTerritory = Boolean(lastPoint && assigned.length && !assigned.some((boundary) => isInsideTerritory(lastPoint, boundary)));
+  return { memberId: duty.profile_id, isOnDuty: duty.is_on_duty, lastPoint, path: duty.path ?? [], isOutsideTerritory };
+};
 type RemoteTeamVisit = { id: string; offline_client_ref: string | null; account_id: string; account_local_ref: string | null; account_name: string; rep_id: string; rep_name: string; status: string; outcome: string | null; notes: string | null; checked_in_at: string | null; created_at: string; follow_up_action: string | null; follow_up_on: string | null; visit_priority: string | null; check_in_latitude: number | string | null; check_in_longitude: number | string | null; location_accuracy_meters: number | null; collection_amount: number | string | null; revenue_amount: number | string | null; receipt_reference: string | null };
 // Offline drafts are sent with offline_client_ref = "offline-visit-<localVisitId>-<ms>-<rand>",
 // which lets a server visit replace the phone's copy of the same visit.
@@ -225,7 +240,7 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const refreshSharedCatalog = useCallback(async () => {
     if (!supabase || !user || !isReady) return;
     const historyStart = new Date(); historyStart.setMonth(historyStart.getMonth() - 5); const historyMonthStart = `${historyStart.toISOString().slice(0, 7)}-01`;
-    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse, monthlyPerformanceResponse, plansResponse, teamVisitsResponse] = await Promise.all([
+    const [accountsResponse, outcomesResponse, invitesResponse, territoriesResponse, notificationsResponse, monthlyTargetsResponse, monthlyPerformanceResponse, plansResponse, teamVisitsResponse, teamMembersResponse, teamDutyResponse, accountLocationsResponse] = await Promise.all([
       supabase.rpc("tips_crm_list_accounts"),
       supabase.rpc("tips_crm_list_visit_outcomes"),
       supabase.rpc("tips_crm_list_invites"),
@@ -235,6 +250,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
       supabase.rpc("tips_crm_list_monthly_target_performance", { months_back: 6 }),
       supabase.rpc("tips_crm_list_plans"),
       supabase.rpc("tips_crm_list_team_visits", { from_on: historyMonthStart, to_on: new Date().toISOString().slice(0, 10) }),
+      supabase.rpc("tips_crm_list_team_members"),
+      supabase.rpc("tips_crm_list_team_duty", { since_at: null, max_points: 60 }),
+      supabase.rpc("tips_crm_list_account_locations"),
     ]);
     const remoteAccounts = accountsResponse.error ? null : (accountsResponse.data ?? []) as RemoteAccount[];
     const remoteOutcomes = outcomesResponse.error ? null : (outcomesResponse.data ?? []) as RemoteOutcome[];
@@ -245,13 +263,18 @@ export function CrmProvider({ children }: { children: ReactNode }) {
     const remoteMonthlyPerformance = monthlyPerformanceResponse.error ? null : (monthlyPerformanceResponse.data ?? []) as RemoteMonthlyPerformance[];
     const remotePlans = plansResponse.error ? null : (plansResponse.data ?? []) as RemotePlan[];
     const remoteVisits = teamVisitsResponse.error ? null : ((teamVisitsResponse.data ?? []) as RemoteTeamVisit[]).map(visitFromRemote);
+    const remoteMembers = teamMembersResponse.error ? null : ((teamMembersResponse.data ?? []) as RemoteTeamMember[]).filter((member) => member.is_active).map(memberFromRemote);
+    const accountLocations = new Map<string, { latitude: number; longitude: number }>();
+    if (!accountLocationsResponse.error) ((accountLocationsResponse.data ?? []) as Array<{ id: string; latitude: number; longitude: number }>).forEach((item) => accountLocations.set(item.id, { latitude: Number(item.latitude), longitude: Number(item.longitude) }));
+    const remoteDuty = teamDutyResponse.error ? null : (teamDutyResponse.data ?? []) as RemoteTeamDuty[];
     remoteAccounts?.forEach((account) => { if (account.local_ref) remoteAccountIds.current[account.local_ref] = account.id; });
     setData((current) => {
       const sharedAccounts = remoteAccounts?.map((account) => {
         const type = accountTypeFromRemote[account.account_type] ?? "موزع";
         const localId = account.local_ref || `remote-${account.id}`;
         const cached = current.accounts.find((item) => item.id === localId);
-        return { ...cached, id: localId, name: account.name, type, specialty: account.specialty ?? undefined, state: account.state, city: account.city, area: account.area ?? "", address: account.address ?? "", contact: account.phone ?? "", lastVisit: cached?.lastVisit ?? "لم تتم زيارة", priority: cached?.priority ?? "اعتيادية", initials: initialsFor(account.name), accent: accentForAccountType[type] } as Account;
+        const location = accountLocations.get(account.id);
+        return { ...cached, ...location, id: localId, name: account.name, type, specialty: account.specialty ?? undefined, state: account.state, city: account.city, area: account.area ?? "", address: account.address ?? "", contact: account.phone ?? "", lastVisit: cached?.lastVisit ?? "لم تتم زيارة", priority: cached?.priority ?? "اعتيادية", initials: initialsFor(account.name), accent: accentForAccountType[type] } as Account;
       });
       const pendingLocalAccounts = current.accounts.filter((account) => account.id.startsWith("a-") && !sharedAccounts?.some((item) => item.id === account.id));
       const sharedBoundaries = remoteTerritories?.flatMap((territory) => {
@@ -275,8 +298,19 @@ export function CrmProvider({ children }: { children: ReactNode }) {
         return { id: localPlan?.id ?? `remote-plan-${plan.id}`, remoteId: plan.id, title: plan.title, period: planPeriodFromRemote(plan), kind: plan.plan_type === "monthly" ? "شهرية" : "أسبوعية", status: planStatusFromRemote[plan.status], repName: plan.owner_name, territory: plan.owner_territory ?? "غير محددة", startsOn: plan.starts_on, endsOn: plan.ends_on, visitIds: details.map((visit) => visit.id), schedule, scheduledVisitDetails: details.map((visit) => ({ id: visit.id, accountId: visit.account_id, accountName: visit.account_name, scheduledFor: visit.scheduled_for })), repSnapshot: { completedVisits: Number(plan.completed_visits) || 0, needsReviewVisits: Number(plan.needs_review_visits) || 0, lastVisitName: plan.last_visit_name ?? undefined, lastVisitAt: plan.last_visit_at ?? undefined }, managerNote: plan.manager_note ?? undefined, submittedAt: new Date(plan.created_at).toLocaleDateString("ar-SD") } satisfies Plan;
       });
       const unsyncedCurrentPlans = current.plans.filter((plan) => !plan.remoteId && plan.id.startsWith("p-") && plan.submittedAt === "الآن");
+      const nextBoundaries = sharedBoundaries?.length ? sharedBoundaries : current.boundaries;
+      const nextMembers = remoteMembers ?? current.teamMembers;
+      // The device's own latest point can be newer than the last refresh; keep whichever is newer.
+      const nextDuty = remoteDuty ? remoteDuty.map((duty) => {
+        const remote = dutyFromRemote(duty, nextMembers, nextBoundaries);
+        const local = current.dutyStatuses.find((status) => status.memberId === duty.profile_id);
+        return local?.lastPoint && remote.lastPoint && local.lastPoint.capturedAt > remote.lastPoint.capturedAt ? { ...remote, ...local } : remote;
+      }) : current.dutyStatuses;
+      const ownLocalDuty = remoteDuty ? current.dutyStatuses.filter((status) => status.memberId === user.id && !remoteDuty.some((duty) => duty.profile_id === user.id)) : [];
       const next: CrmData = {
         ...current,
+        teamMembers: nextMembers,
+        dutyStatuses: [...nextDuty, ...ownLocalDuty],
         accounts: sharedAccounts ? [...sharedAccounts, ...pendingLocalAccounts] : current.accounts,
         visitResults: remoteOutcomes ? remoteOutcomes.filter((outcome) => outcome.is_active).map((outcome) => outcome.label) : current.visitResults,
         invites: remoteInvites ? remoteInvites.map((invite) => ({ id: invite.id, email: invite.email, role: roleFromRemote[invite.role_key] ?? "مندوب مبيعات", territory: invite.territory_label ?? "غير محددة", territoryId: invite.territory_key ?? undefined, territoryIds: invite.territory_keys ?? (invite.territory_key ? [invite.territory_key] : []), territories: invite.territory_label?.split("، ") ?? [], status: inviteStatusFromRemote[invite.status] ?? "بانتظار الرد", sentAt: "", expiresAt: new Date(invite.expires_at).toLocaleDateString("ar"), acceptUrl: buildInviteAcceptUrl(invite.invite_token) })) : current.invites,

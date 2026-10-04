@@ -1,7 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import * as Location from "expo-location";
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AppHeader, AccountAvatar, MetricCard, SectionTitle, StatusBadge, palette } from "@/components/crm-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useCrm } from "@/lib/crm-store";
@@ -12,12 +13,16 @@ import { isFollowUpDue } from "@/lib/operational-insights";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { enableMobileNotifications, getMobileNotificationPermission, isMobileNotificationsAvailable } from "@/lib/mobile-notifications";
 import { usePermissions } from "@/hooks/use-permissions";
+import { distanceInMeters, type GeoPoint } from "@/lib/duty-logic";
+import { directionsUrl, formatDistance, locationOf, orderByDistance } from "@/lib/route-planning";
 
 const priorityWeight = { عالية: 0, متوسطة: 1, اعتيادية: 2 } as const;
 const isoToday = () => new Date().toISOString().slice(0, 10);
 
 export default function TodayScreen() {
   const [notificationPermission, setNotificationPermission] = useState<string>("unknown");
+  const [origin, setOrigin] = useState<GeoPoint | null>(null);
+  const [locating, setLocating] = useState(false);
   const { data, accountById, unreadNotificationCount, recordDutyPoint, isOnline, offlineVisitDrafts } = useCrm();
   const { profile, signOut } = useSupabaseAuth();
   const scope = getFieldDataScope(data, profile);
@@ -36,7 +41,7 @@ export default function TodayScreen() {
     );
   };
 
-  const todayVisits = scope.visits
+  const prioritisedVisits = scope.visits
     .filter((visit) => visit.date === "اليوم")
     .sort((first, second) => {
       if (first.status === "مكتملة" && second.status !== "مكتملة") return 1;
@@ -46,6 +51,30 @@ export default function TodayScreen() {
         priorityWeight[accountById(second.accountId)?.priority ?? "اعتيادية"]
       );
     });
+
+  // Nearest-first once the rep shares their position; priority order otherwise.
+  const todayVisits = origin
+    ? orderByDistance(prioritisedVisits, origin, (visit) => accountById(visit.accountId), (visit) => visit.status === "مكتملة")
+    : prioritisedVisits;
+
+  const sortByNearest = async () => {
+    if (origin) { setOrigin(null); return; }
+    setLocating(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") throw new Error("permission");
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setOrigin({ latitude: current.coords.latitude, longitude: current.coords.longitude });
+    } catch {
+      Alert.alert("تعذر تحديد موقعك", "فعّل GPS واسمح للتطبيق بالوصول إلى الموقع ثم حاول مرة أخرى.");
+    } finally {
+      setLocating(false);
+    }
+  };
+
+  const openDirections = (place: GeoPoint) => {
+    void Linking.openURL(directionsUrl(place)).catch(() => Alert.alert("تعذر فتح الخريطة", "لا يوجد تطبيق خرائط على الجهاز."));
+  };
 
   const completed = todayVisits.filter((visit) => visit.status === "مكتملة").length;
   const needsReview = todayVisits.filter((visit) => visit.status === "تحتاج مراجعة").length;
@@ -192,10 +221,18 @@ export default function TodayScreen() {
 
         {/* Schedule List */}
         <SectionTitle title="جدول الزيارات" action="عرض الخطة" onPress={() => router.push("/(tabs)/plans" as never)} />
+        {todayVisits.length > 1 ? (
+          <TouchableOpacity onPress={() => void sortByNearest()} disabled={locating} style={[styles.nearestButton, origin && styles.nearestButtonOn]}>
+            {locating ? <ActivityIndicator size="small" color={palette.primary} /> : <MaterialIcons name={origin ? "close" : "near-me"} size={16} color={palette.primary} />}
+            <Text style={styles.nearestText}>{origin ? "إلغاء الترتيب حسب المسافة" : "رتّب حسب الأقرب لموقعي"}</Text>
+          </TouchableOpacity>
+        ) : null}
         <View style={styles.scheduleCard}>
           {todayVisits.map((visit, index) => {
             const account = accountById(visit.accountId);
             if (!account) return null;
+            const place = locationOf(account);
+            const distance = origin && place ? formatDistance(distanceInMeters(origin, place)) : "";
             return (
               <TouchableOpacity
                 key={visit.id}
@@ -214,6 +251,12 @@ export default function TodayScreen() {
                     {account.type}
                     {account.specialty ? ` · ${account.specialty}` : ""} · {account.area}
                   </Text>
+                  {place && visit.status !== "مكتملة" ? (
+                    <TouchableOpacity onPress={() => openDirections(place)} style={styles.directions} hitSlop={8}>
+                      <MaterialIcons name="directions" size={14} color={palette.info} />
+                      <Text style={styles.directionsText}>{distance ? `${distance} · الاتجاهات` : "الاتجاهات"}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
                 <View style={styles.timeCol}>
                   <Text style={styles.time}>{visit.time}</Text>
@@ -265,6 +308,11 @@ export default function TodayScreen() {
 }
 
 const styles = StyleSheet.create({
+  nearestButton: { flexDirection: "row-reverse", alignItems: "center", alignSelf: "flex-end", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: "#CFE3DC", backgroundColor: "#FFFFFF", marginBottom: 10 },
+  nearestButtonOn: { backgroundColor: "#E9F8F2" },
+  nearestText: { color: palette.primary, fontSize: 12, fontWeight: "800" },
+  directions: { flexDirection: "row-reverse", alignItems: "center", alignSelf: "flex-end", gap: 4, marginTop: 5 },
+  directionsText: { color: palette.info, fontSize: 11, fontWeight: "700" },
   content: { paddingTop: 10, paddingBottom: 28 },
   headerActions: { flexDirection: "row-reverse", gap: 8, alignItems: "center" },
   profile: { height: 38, width: 38, borderRadius: 19, backgroundColor: "#DFF2EC", alignItems: "center", justifyContent: "center" },
