@@ -4,6 +4,8 @@ import { Redirect, router, usePathname } from "expo-router";
 import {
   Platform,
   Image,
+  Modal,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +13,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { palette } from "@/components/crm-ui";
 import { UserMenu } from "@/components/user-menu";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -92,7 +95,12 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
   const { can } = usePermissions();
   const { width } = useWindowDimensions();
   const [collapsed, setCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const insets = useSafeAreaInsets();
 
+  // Phones get a top bar with a drawer instead of the permanent sidebar,
+  // which leaves no room for page content at phone widths.
+  const isPhone = Platform.OS !== "web" || (width > 0 && width < 700);
   const isSmallScreen = width < 900 && width > 0;
   const isSidebarCollapsed = collapsed || isSmallScreen;
 
@@ -130,6 +138,96 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
     return <Redirect href={"/platform" as never} />;
   }
 
+  const renderNavList = (compact: boolean, onNavigate?: () => void) => (
+    <View style={styles.navCategoryList}>
+      {currentNavCategories.map((category, catIdx) => (
+        <View key={catIdx} style={styles.categoryBlock}>
+          {!compact && <Text style={styles.categoryHeader}>{category.title}</Text>}
+          {category.items.map((item) => {
+            const isExactActive = pathname === item.href;
+            const isSubActive = item.href !== "/company" && item.href !== "/platform" && pathname.startsWith(item.href);
+            const isActive = isExactActive || isSubActive;
+            return (
+              <TouchableOpacity
+                key={item.href}
+                onPress={() => {
+                  onNavigate?.();
+                  router.replace(item.href as never);
+                }}
+                style={[styles.navItem, compact && styles.navItemCollapsed, isActive && styles.navItemActive]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons name={item.icon} size={19} color={isActive ? "#10B981" : "#9BB8AE"} />
+                {!compact && (
+                  <Text style={[styles.navItemLabel, isActive && styles.navItemLabelActive]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                )}
+                {!compact && item.badge && (
+                  <View style={styles.navBadge}>
+                    <Text style={styles.navBadgeText}>{item.badge}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+
+  const brandSubtitle = profile?.is_platform_admin ? "بوابة مدير المنصة" : (profile?.active_company_name || "بوابة الإدارة الشاملة");
+
+  if (isPhone) {
+    return (
+      <View style={[styles.root, styles.phoneRoot]}>
+        <View style={[styles.topbar, styles.phoneTopbar, { paddingTop: insets.top, height: 60 + insets.top }]}>
+          <View style={styles.topbarRight}>
+            <TouchableOpacity
+              style={styles.sidebarToggleButton}
+              onPress={() => setDrawerOpen(true)}
+              accessibilityLabel="فتح القائمة"
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="menu" size={22} color="#0D1F1A" />
+            </TouchableOpacity>
+            <View style={styles.titleWrapper}>
+              <Text style={styles.pageTitle} numberOfLines={1}>{title}</Text>
+            </View>
+          </View>
+          <View style={styles.topbarLeft}>
+            <UserMenu />
+          </View>
+        </View>
+
+        <View style={styles.pageBody}>{children}</View>
+
+        <Modal visible={drawerOpen} transparent animationType="fade" onRequestClose={() => setDrawerOpen(false)}>
+          <View style={styles.drawerOverlay}>
+            <View style={[styles.drawer, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
+              <View style={styles.brandHeader}>
+                <View style={styles.brandMark}>
+                  <Image source={require("@/assets/images/icon.png")} style={styles.brandLogo} resizeMode="contain" />
+                </View>
+                <View style={styles.brandTextCol}>
+                  <Text style={styles.brandTitle}>Tips CRM</Text>
+                  <Text style={styles.brandSubtitle} numberOfLines={1}>{brandSubtitle}</Text>
+                </View>
+                <TouchableOpacity onPress={() => setDrawerOpen(false)} accessibilityLabel="إغلاق القائمة" style={styles.drawerClose}>
+                  <MaterialIcons name="close" size={22} color="#9BB8AE" />
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
+                {renderNavList(false, () => setDrawerOpen(false))}
+              </ScrollView>
+            </View>
+            <Pressable style={styles.drawerBackdrop} onPress={() => setDrawerOpen(false)} accessibilityLabel="إغلاق القائمة" />
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       {/* SIDEBAR */}
@@ -146,65 +244,14 @@ export function AdminWebShell({ children, title }: { children: ReactNode; title:
           {!isSidebarCollapsed && (
             <View style={styles.brandTextCol}>
               <Text style={styles.brandTitle}>Tips CRM</Text>
-              <Text style={styles.brandSubtitle}>
-                {profile?.is_platform_admin ? "بوابة مدير المنصة" : (profile?.active_company_name || "بوابة الإدارة الشاملة")}
-              </Text>
+              <Text style={styles.brandSubtitle}>{brandSubtitle}</Text>
             </View>
           )}
         </TouchableOpacity>
 
         {/* Navigation Links List */}
         <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
-          <View style={styles.navCategoryList}>
-            {currentNavCategories.map((category, catIdx) => (
-              <View key={catIdx} style={styles.categoryBlock}>
-                {!isSidebarCollapsed && (
-                  <Text style={styles.categoryHeader}>{category.title}</Text>
-                )}
-                {category.items.map((item) => {
-                  const isExactActive = pathname === item.href;
-                  const isSubActive =
-                    item.href !== "/company" && item.href !== "/platform" && pathname.startsWith(item.href);
-                  const isActive = isExactActive || isSubActive;
-
-                  return (
-                    <TouchableOpacity
-                      key={item.href}
-                      onPress={() => router.replace(item.href as never)}
-                      style={[
-                        styles.navItem,
-                        isSidebarCollapsed && styles.navItemCollapsed,
-                        isActive && styles.navItemActive,
-                      ]}
-                      activeOpacity={0.7}
-                    >
-                      <MaterialIcons
-                        name={item.icon}
-                        size={19}
-                        color={isActive ? "#10B981" : "#9BB8AE"}
-                      />
-                      {!isSidebarCollapsed && (
-                        <Text
-                          style={[
-                            styles.navItemLabel,
-                            isActive && styles.navItemLabelActive,
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {item.label}
-                        </Text>
-                      )}
-                      {!isSidebarCollapsed && item.badge && (
-                        <View style={styles.navBadge}>
-                          <Text style={styles.navBadgeText}>{item.badge}</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
+          {renderNavList(isSidebarCollapsed)}
         </ScrollView>
 
         {/* Sidebar Footer */}
@@ -466,6 +513,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+
+  // PHONE LAYOUT
+  phoneRoot: {
+    flexDirection: "column",
+  },
+  phoneTopbar: {
+    paddingHorizontal: 14,
+  },
+  drawerOverlay: {
+    flex: 1,
+    flexDirection: "row-reverse",
+  },
+  drawer: {
+    width: "82%",
+    maxWidth: 320,
+    backgroundColor: "#0A1F1A",
+    paddingHorizontal: 10,
+  },
+  drawerBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+  },
+  drawerClose: {
+    padding: 6,
   },
 
   // PAGE BODY
