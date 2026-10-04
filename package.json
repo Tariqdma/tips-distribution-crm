@@ -15,6 +15,7 @@
     "lint": "expo lint",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:integration": "cross-env RUN_INTEGRATION_TESTS=1 vitest run",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "qr": "node scripts/generate_qr.mjs",

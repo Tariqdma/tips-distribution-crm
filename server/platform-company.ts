@@ -12,6 +12,7 @@ export type ApproveCompanyRequestInput = {
   managerEmail: string;
   managerPassword: string;
   planKey?: string;
+  maxUserLimit?: number;
 };
 
 export type CreateCompanyDirectInput = {
@@ -81,7 +82,7 @@ function validateApproval(input: ApproveCompanyRequestInput) {
   if (!input.requestId.trim()) return "معرّف طلب الشركة غير موجود.";
   if (input.managerFullName.trim().length < 2) return "اكتب الاسم الكامل لمدير الشركة.";
   if (!/^\S+@\S+\.\S+$/.test(input.managerEmail.trim())) return "اكتب بريداً إلكترونياً صحيحاً لمدير الشركة.";
-  if (input.managerPassword.length < 8) return "كلمة المرور المؤقتة يجب أن تتكون من 8 أحرف على الأقل.";
+  if ((input.managerPassword ?? "").length < 8) return "كلمة المرور المؤقتة يجب أن تتكون من 8 أحرف على الأقل.";
   if (!validSlug(normalizeSlug(input.companySlug))) return "رمز الشركة يجب أن يتكون من أحرف إنجليزية صغيرة أو أرقام أو شرطات.";
   return null;
 }
@@ -162,6 +163,15 @@ async function approvePreparedRequest(input: ApproveCompanyRequestInput, authori
   if (approvalError || !companyId) {
     await adminClient.auth.admin.deleteUser(created.user.id);
     throw new Error("تعذر اعتماد الشركة وربط مديرها؛ لم يُحتفظ بحساب المدير.");
+  }
+  const maxUserLimit = Math.floor(Number(input.maxUserLimit));
+  if (Number.isFinite(maxUserLimit) && maxUserLimit >= 1) {
+    const { error: limitError } = await adminClient
+      .schema("tips_crm")
+      .from("companies")
+      .update({ max_user_limit: maxUserLimit, updated_at: new Date().toISOString() })
+      .eq("id", String(companyId));
+    if (limitError) throw new Error("تم اعتماد الشركة لكن تعذر حفظ حد الموظفين. عدّله من صفحة الشركات.");
   }
 
   const request = await getPlatformRequest(adminClient, input.requestId);

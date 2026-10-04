@@ -303,7 +303,7 @@ export default function PlatformPortalScreen() {
     if (session) void load();
   }, [session, load]);
 
-  const requestApi = async (path: string, payload?: unknown, method: "POST" | "GET" = "POST") => {
+  const requestApi = async (path: string, payload?: unknown, method: "POST" | "GET" | "PUT" = "POST") => {
     const token = session?.access_token;
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
       method,
@@ -359,28 +359,6 @@ export default function PlatformPortalScreen() {
     setError(null);
 
     const limitNum = Number.parseInt(approval.maxUserLimit, 10) || 20;
-
-    try {
-      if (supabase) {
-        const { error: rpcErr } = await supabase.rpc("tips_crm_approve_company_request", {
-          p_request_id: activeApproval.id,
-          p_company_slug: approval.companySlug.trim(),
-          p_manager_name: approval.managerFullName.trim(),
-          p_manager_email: approval.managerEmail.trim(),
-          p_temporary_password: approval.managerPassword || undefined,
-          p_plan_key: approval.planKey,
-          p_max_user_limit: limitNum,
-        });
-        if (rpcErr) throw rpcErr;
-        setMessage(`تم اعتماد طلب شركة «${activeApproval.company_name}» بنجاح وتعيين خطة ${PLAN_TIERS[approval.planKey]?.name || approval.planKey}.`);
-        setActiveApproval(null);
-        await load();
-        setSubmitting(false);
-        return;
-      }
-    } catch {
-      // fallback to API
-    }
 
     try {
       await requestApi(`/api/platform/company-requests/${activeApproval.id}/approve`, {
@@ -497,10 +475,10 @@ export default function PlatformPortalScreen() {
       }
     } catch (rpcErr) {
       try {
-        await requestApi(`/api/platform/companies/${editingCompanyPlan.id}/plan-limit`, {
-          planKey: selectedPlanKey,
+        await requestApi(`/api/platform/companies/${editingCompanyPlan.id}/subscription`, {
+          paymentTierKey: selectedPlanKey,
           maxUserLimit: limitNum,
-        });
+        }, "PUT");
         setMessage(`تم تحديث باقة «${editingCompanyPlan.name}» بنجاح.`);
         setEditingCompanyPlan(null);
         await load();
@@ -517,14 +495,16 @@ export default function PlatformPortalScreen() {
     setError(null);
     try {
       if (supabase) {
-        await supabase.schema("tips_crm").from("companies").update({
-          status: newStatus,
-        }).eq("id", company.id);
+        const { error: statusError } = await supabase.rpc("tips_crm_set_company_status", {
+          p_company_id: company.id,
+          p_status: newStatus,
+        });
+        if (statusError) throw statusError;
         setMessage(`تم تغيير حالة شركة «${company.name}» إلى (${newStatus === "active" ? "نشطة" : "موقوفة"}).`);
         await load();
       }
-    } catch {
-      setError("تعذر تحديث حالة الشركة.");
+    } catch (reason) {
+      setError(describeError(reason, "تعذر تحديث حالة الشركة."));
     }
     setSubmitting(false);
   };
