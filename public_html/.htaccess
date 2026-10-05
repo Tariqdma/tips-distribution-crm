@@ -11,3 +11,12 @@ RewriteRule ^ - [L]
 
 # Otherwise send to index.html
 RewriteRule ^ index.html [L]
+
+# The page must never be cached: it names the current script bundle, and a
+# stale copy keeps users on an old version after a deploy. Script bundles carry
+# a content hash in their file name, so they are safe to cache.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-store, max-age=0"
+  </FilesMatch>
+</IfModule>
