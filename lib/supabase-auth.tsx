@@ -46,7 +46,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return null;
     let nextProfile: SupabaseProfile | null = null;
     try {
-      const { data } = await supabase.rpc("tips_crm_my_profile");
+      const { data, error } = await supabase.rpc("tips_crm_my_profile");
+      // A failure here drops the user onto a fallback profile; make it visible.
+      if (error) console.error("[auth] tips_crm_my_profile failed", error);
       nextProfile = (data?.[0] as SupabaseProfile | undefined) ?? null;
       if (nextProfile) nextProfile.membership_permissions = nextProfile.membership_permissions ?? [];
     } catch {

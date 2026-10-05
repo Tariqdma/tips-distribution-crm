@@ -6,6 +6,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { router } from "expo-router";
+import { safeAvatarUrl } from "@/lib/avatar-upload";
 
 type MenuItem = {
   icon: keyof typeof MaterialIcons.glyphMap;
@@ -23,12 +24,11 @@ export function UserMenu() {
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
 
   const loadAvatar = useCallback(() => {
-    const metaAvatar = (session?.user?.user_metadata as any)?.avatar_url;
+    const metaAvatar = safeAvatarUrl((session?.user?.user_metadata as any)?.avatar_url);
     if (metaAvatar) {
       setAvatarUrl(metaAvatar);
     } else if (profile?.id && Platform.OS === "web") {
-      const saved = localStorage.getItem(`tips-crm-avatar-${profile.id}`);
-      setAvatarUrl(saved || null);
+      setAvatarUrl(safeAvatarUrl(localStorage.getItem(`tips-crm-avatar-${profile.id}`)));
     }
   }, [session, profile?.id]);
 

@@ -18,6 +18,7 @@ import { palette } from "@/components/crm-ui";
 import { UserAvatar } from "@/components/user-avatar";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { supabase } from "@/lib/supabase-client";
+import { safeAvatarUrl, uploadAvatar } from "@/lib/avatar-upload";
 
 export default function ProfileScreen() {
   const { profile, session, refreshProfile, signOut } = useSupabaseAuth();
@@ -54,11 +55,11 @@ export default function ProfileScreen() {
     setPhone(savedPhone);
 
     // 2. Initial avatar
-    const metaAvatar = (session?.user?.user_metadata as any)?.avatar_url;
+    const metaAvatar = safeAvatarUrl((session?.user?.user_metadata as any)?.avatar_url);
     if (metaAvatar) {
       setAvatarUrl(metaAvatar);
     } else if (profile?.id && Platform.OS === "web") {
-      const saved = localStorage.getItem(`tips-crm-avatar-${profile.id}`);
+      const saved = safeAvatarUrl(localStorage.getItem(`tips-crm-avatar-${profile.id}`));
       if (saved) setAvatarUrl(saved);
     }
   }, [profile, session]);
@@ -74,7 +75,7 @@ export default function ProfileScreen() {
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.5,
         base64: true,
       });
 
@@ -103,9 +104,11 @@ export default function ProfileScreen() {
     reader.readAsDataURL(file);
   };
 
-  const saveAvatarUrl = async (url: string) => {
+  const saveAvatarUrl = async (dataUrl: string) => {
     setUploadingAvatar(true);
     try {
+      if (!profile?.id) throw new Error("سجّل الدخول أولاً.");
+      const url = await uploadAvatar(profile.id, dataUrl);
       setAvatarUrl(url);
       if (profile?.id && Platform.OS === "web") {
         localStorage.setItem(`tips-crm-avatar-${profile.id}`, url);
@@ -166,7 +169,7 @@ export default function ProfileScreen() {
         try {
           await supabase.rpc("tips_crm_update_my_profile", {
             new_full_name: trimmedName,
-            new_avatar_url: avatarUrl || undefined,
+            new_avatar_url: safeAvatarUrl(avatarUrl) ?? undefined,
           });
         } catch {
           // fallback
