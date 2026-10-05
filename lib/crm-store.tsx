@@ -11,6 +11,8 @@ import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { getApiBaseUrl } from "@/constants/oauth";
 import { uploadVisitAttachments, type VisitAttachment } from "@/lib/visit-attachments";
 import { notifyOfflineVisitSyncSuccess, scheduleFollowUpReminder } from "@/lib/mobile-notifications";
+import { identifySentryUser } from "@/lib/sentry";
+import { handleNotificationTaps, registerPushToken } from "@/lib/push-registration";
 import { buildInviteAcceptUrl } from "@/lib/auth-redirect";
 import { createOfflineVisitDraft, listOfflineVisitDrafts, listVisitSyncHistory, markOfflineVisitDraftFailed, recordVisitSyncHistory, removeOfflineVisitDraft, saveOfflineVisitDraft, type OfflineVisitDraft, type OfflineVisitPayload, type VisitSyncHistoryEntry } from "@/lib/offline-visit-drafts";
 import { describeError } from "@/lib/error-message";
@@ -183,6 +185,9 @@ export function CrmProvider({ children }: { children: ReactNode }) {
   const { user, profile, session } = useSupabaseAuth();
   const remoteAccountIds = useRef<Record<string, string>>({});
   const lastAccountSyncError = useRef<string | null>(null);
+  useEffect(() => { if (profile?.id) void registerPushToken({ prompt: true }); }, [profile?.id]);
+  useEffect(() => handleNotificationTaps(), []);
+  useEffect(() => { identifySentryUser(profile ? { id: profile.id, companyId: profile.active_company_id } : null); }, [profile?.id, profile?.active_company_id]);
   useEffect(() => {
     if (!profile) return;
     setActiveMemberId(profile.id);

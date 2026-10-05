@@ -1,3 +1,4 @@
+import fs from "node:fs";
 // Load environment variables with proper priority (system > .env)
 import "./scripts/load-env.js";
 import type { ExpoConfig } from "expo/config";
@@ -41,6 +42,16 @@ const env = {
   supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1cXJyamh2YXJlbXJvbmZjdmFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MzM2MzgsImV4cCI6MjA3NjMwOTYzOH0.8g_QSxyxra1uVVJFboe45Dilq3X1CCdgHoZTY3UPESk",
 };
 
+const googleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON || (fs.existsSync("./google-services.json") ? "./google-services.json" : undefined);
+
+// Uploads source maps to Sentry during EAS builds. Without an auth token the
+// upload would fail the build, so the plugin is only added when one is set.
+const sentryPlugin: [string, Record<string, string>][] =
+  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+    ? [["@sentry/react-native/expo", { url: "https://sentry.io/", organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT }]]
+    : [];
+
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
@@ -68,6 +79,9 @@ const config: ExpoConfig = {
     },
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
+    // Firebase config for push notifications. On EAS it comes from the file
+    // environment variable GOOGLE_SERVICES_JSON; locally from ./google-services.json.
+    ...(googleServicesFile ? { googleServicesFile } : {}),
     permissions: ["POST_NOTIFICATIONS"],
     intentFilters: [
       {
@@ -167,6 +181,7 @@ const config: ExpoConfig = {
         },
       },
     ],
+    ...sentryPlugin,
   ],
   experiments: {
     typedRoutes: true,

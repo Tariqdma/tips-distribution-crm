@@ -1,6 +1,7 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase-client";
+import { unregisterPushToken } from "@/lib/push-registration";
 
 export type SupabaseProfile = {
   id: string;
@@ -151,6 +152,7 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
       claimFirstSystemAdmin,
       signOut: async () => {
+        await unregisterPushToken();
         await supabase?.auth.signOut();
         setSession(null);
         setProfile(null);

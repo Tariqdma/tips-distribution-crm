@@ -27,6 +27,8 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.9.2",
     "@react-navigation/native": "^7.1.8",
+    "@sentry/node": "^11.4.0",
+    "@sentry/react-native": "~7.2.0",
     "@supabase/supabase-js": "^2.112.3",
     "@tanstack/react-query": "^5.90.12",
     "@trpc/client": "11.7.2",

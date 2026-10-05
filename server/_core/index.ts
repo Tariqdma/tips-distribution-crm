@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { Sentry, sentryEnabled } from "./instrument";
 import express from "express";
 import { createServer } from "http";
 import fs from "fs";
@@ -202,6 +203,8 @@ async function startServer() {
     }
     sendWebApplication(req, res);
   });
+
+  if (sentryEnabled) Sentry.setupExpressErrorHandler(app);
 
   // In production the host (Hostinger/Passenger) assigns PORT, which may be a
   // number or a socket path; bind to it exactly. Scan for a free port only in dev.

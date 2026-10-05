@@ -16,7 +16,7 @@ export function isMobileNotificationsAvailable() {
   return Platform.OS !== "web";
 }
 
-async function ensureOperationalNotificationChannel() {
+export async function ensureOperationalNotificationChannel() {
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync(channelId, {
     name: "تنبيهات Tips CRM",

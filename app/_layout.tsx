@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { CrmProvider, useCrm } from "@/lib/crm-store";
 import { SupabaseAuthProvider } from "@/lib/supabase-auth";
 import "@/lib/duty-tracker";
+import { Sentry } from "@/lib/sentry";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -43,7 +44,7 @@ function OfflineVisitSyncToast() {
   return <View style={toastStyles.container} accessibilityLiveRegion="polite"><View style={toastStyles.icon}><Text style={toastStyles.iconText}>✓</Text></View><TouchableOpacity onPress={() => router.push("/visit-sync-history" as never)} style={toastStyles.copy} accessibilityLabel="فتح سجل المزامنات"><Text style={toastStyles.title}>اكتملت مزامنة التقارير</Text><Text style={toastStyles.body}>{message} · عرض السجل</Text></TouchableOpacity><TouchableOpacity onPress={clearOfflineVisitSyncNotice} style={toastStyles.close} accessibilityLabel="إغلاق التنبيه"><Text style={toastStyles.closeText}>×</Text></TouchableOpacity></View>;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
 
@@ -156,3 +157,5 @@ export default function RootLayout() {
 }
 
 const toastStyles = StyleSheet.create({ container: { position: "absolute", top: Platform.OS === "web" ? 18 : 58, left: 18, right: 18, zIndex: 1000, minHeight: 66, borderRadius: 16, padding: 11, backgroundColor: "#0F766E", borderWidth: 1, borderColor: "#0A5F58", flexDirection: "row-reverse", alignItems: "center", gap: 9, shadowColor: "#063F3A", shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 8 }, icon: { width: 31, height: 31, borderRadius: 11, backgroundColor: "#DDF8EE", alignItems: "center", justifyContent: "center" }, iconText: { color: "#0F766E", fontSize: 18, fontWeight: "900", lineHeight: 21 }, copy: { flex: 1, alignItems: "flex-end" }, title: { color: "#FFFFFF", fontSize: 12, fontWeight: "900", textAlign: "right" }, body: { color: "#DDF8EE", fontSize: 10, lineHeight: 15, textAlign: "right", marginTop: 2 }, close: { width: 28, height: 28, alignItems: "center", justifyContent: "center" }, closeText: { color: "#DDF8EE", fontSize: 23, fontWeight: "400", lineHeight: 25 } });
+
+export default Sentry.wrap(RootLayout);

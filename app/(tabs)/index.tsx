@@ -13,6 +13,7 @@ import { isFollowUpDue } from "@/lib/operational-insights";
 import { useSupabaseAuth } from "@/lib/supabase-auth";
 import { enableMobileNotifications, getMobileNotificationPermission, isMobileNotificationsAvailable } from "@/lib/mobile-notifications";
 import { usePermissions } from "@/hooks/use-permissions";
+import { registerPushToken } from "@/lib/push-registration";
 import { distanceInMeters, type GeoPoint } from "@/lib/duty-logic";
 import { directionsUrl, formatDistance, locationOf, orderByDistance } from "@/lib/route-planning";
 
@@ -35,6 +36,7 @@ export default function TodayScreen() {
   const enableFollowUpNotifications = async () => {
     const granted = await enableMobileNotifications();
     setNotificationPermission(granted ? "granted" : "denied");
+    if (granted) void registerPushToken();
     Alert.alert(
       granted ? "تم تفعيل التنبيهات" : "لم يتم تفعيل التنبيهات",
       granted ? "ستظهر لك تذكيرات المتابعات على الهاتف في موعدها." : "يمكنك تفعيلها لاحقاً من إعدادات الهاتف."
