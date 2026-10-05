@@ -22,15 +22,13 @@ trigger through the Expo push service. Android delivery goes through Firebase.
 
 ## Sentry
 
-| Where | Variable | Value |
-|---|---|---|
-| expo.dev → Environment variables (and `eas.json` env) | `EXPO_PUBLIC_SENTRY_DSN` | the React Native project's DSN |
-| expo.dev → Environment variables, *secret* | `SENTRY_AUTH_TOKEN` | Sentry → Settings → Auth Tokens |
-| expo.dev → Environment variables | `SENTRY_ORG`, `SENTRY_PROJECT` | organization and project slugs |
-| hPanel → Node.js → Environment variables | `SENTRY_DSN` | the server (Node) project's DSN |
+Project `tips-crm` (React Native). Its DSN is in `shared/sentry.ts` and is used
+by the app, the website and the server (tagged `platform`: android / web /
+server). Reporting is off in development. `EXPO_PUBLIC_SENTRY_DSN` (app) and
+`SENTRY_DSN` (server, hPanel) override it.
 
-- Without `EXPO_PUBLIC_SENTRY_DSN` the app reports nothing.
-- Without `SENTRY_AUTH_TOKEN` (plus org and project) builds still work, but
-  stack traces are not readable because source maps are not uploaded.
-- Without `SENTRY_DSN` the server reports nothing.
-- Only the account id and company id are attached to errors, never names or emails.
+Optional, for readable stack traces from the APK: add on expo.dev →
+Environment variables `SENTRY_AUTH_TOKEN` (secret; Sentry → Settings → Auth
+Tokens), `SENTRY_ORG` and `SENTRY_PROJECT` (`tips-crm`). Builds work without them.
+
+Only the account id and company id are attached to errors, never names or emails.

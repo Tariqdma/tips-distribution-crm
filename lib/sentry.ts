@@ -1,9 +1,11 @@
 import * as Sentry from "@sentry/react-native";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
+import { DEFAULT_SENTRY_DSN } from "@shared/sentry";
 
-// Crash and error reporting. Off unless EXPO_PUBLIC_SENTRY_DSN is set at build
-// time, and off in development so local errors do not reach the dashboard.
-const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+// Crash and error reporting. Off in development so local errors do not reach
+// the dashboard.
+const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN || DEFAULT_SENTRY_DSN;
 
 if (dsn) {
   Sentry.init({
@@ -14,6 +16,7 @@ if (dsn) {
     sendDefaultPii: false,
     tracesSampleRate: 0.1,
   });
+  Sentry.setTag("platform", Platform.OS);
 }
 
 /** Tags errors with the account and company, never with name or email. */
