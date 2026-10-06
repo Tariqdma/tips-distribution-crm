@@ -165,22 +165,12 @@ export default function ProfileScreen() {
           data: { full_name: trimmedName, phone: phone.trim() },
         });
 
-        // 3. Try RPC or Direct Table Update
-        try {
-          await supabase.rpc("tips_crm_update_my_profile", {
-            new_full_name: trimmedName,
-            new_avatar_url: safeAvatarUrl(avatarUrl) ?? undefined,
-          });
-        } catch {
-          // fallback
-          try {
-            await (supabase as any)
-              .schema("tips_crm")
-              .from("profiles")
-              .update({ full_name: trimmedName })
-              .eq("id", profile?.id);
-          } catch {}
-        }
+        // 3. Save the name on the profile row
+        const { error: profileError } = await supabase.rpc("tips_crm_update_my_profile", {
+          new_full_name: trimmedName,
+          new_avatar_url: safeAvatarUrl(avatarUrl) ?? undefined,
+        });
+        if (profileError) throw profileError;
       }
 
       // 4. Notify app components

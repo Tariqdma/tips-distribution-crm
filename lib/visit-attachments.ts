@@ -23,7 +23,7 @@ export async function uploadVisitAttachments({ visitId, profileId, attachments }
       const path = `${profileId}/${visitId}/${Date.now()}-${sanitizeAttachmentName(attachment.name)}`;
       const { error } = await supabase.storage.from("visit-attachments").upload(path, body, { contentType: attachment.mimeType, upsert: false });
       if (error) { uploaded.push(attachment); continue; }
-      const { error: metadataError } = await supabase.schema("tips_crm").from("visit_attachments").insert({ visit_id: visitId, profile_id: profileId, bucket_path: path, file_name: attachment.name, mime_type: attachment.mimeType, file_size: attachment.size ?? null });
+      const { error: metadataError } = await supabase.rpc("tips_crm_add_visit_attachment", { target_visit_id: visitId, bucket_path_input: path, file_name_input: attachment.name, mime_type_input: attachment.mimeType, file_size_input: attachment.size ?? null });
       uploaded.push({ ...attachment, remotePath: metadataError ? undefined : path });
     } catch {
       uploaded.push(attachment);

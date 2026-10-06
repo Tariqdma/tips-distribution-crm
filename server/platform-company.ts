@@ -60,6 +60,14 @@ type PlatformRequest = {
 
 type ManagerProfile = { full_name: string; email: string };
 
+// Public flows (submitting a join request, checking its status) only call
+// anon-callable functions, so they must not depend on the secret service key.
+function requirePublicConfig() {
+  if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) {
+    throw new Error("إعدادات الاتصال بالخادم غير مكتملة.");
+  }
+}
+
 function requireConfig() {
   if (!ENV.supabaseUrl || !ENV.supabaseAnonKey || !ENV.supabaseServiceRoleKey) {
     throw new Error("إعدادات إدارة المنصة غير مكتملة.");
@@ -327,7 +335,7 @@ export async function cancelManagerInvitation(requestId: string, authorization?:
 }
 
 export async function getPublicCompanyRequestStatus(referenceId: string) {
-  requireConfig();
+  requirePublicConfig();
   const normalizedReference = referenceId.trim().toLowerCase();
   if (!/^[a-f0-9]{8}$/.test(normalizedReference)) return null;
   const publicClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -337,7 +345,7 @@ export async function getPublicCompanyRequestStatus(referenceId: string) {
 }
 
 export async function createPublicCompanyRequest(input: PublicCompanyRequestInput) {
-  requireConfig();
+  requirePublicConfig();
   const companyName = input.companyName.trim();
   const contactName = input.contactName.trim();
   const contactEmail = input.contactEmail.trim().toLowerCase();

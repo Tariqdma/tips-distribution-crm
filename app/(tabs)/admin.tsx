@@ -104,15 +104,19 @@ export function AdminDashboard() {
     queryFn: async () => {
       if (!supabase) return [] as DutyPointRow[];
       const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-      const { data: rows, error } = await supabase
-        .schema("tips_crm")
-        .from("duty_location_points")
-        .select("profile_id,latitude,longitude,captured_at,profiles(full_name,role_key,territory_label)")
-        .gte("captured_at", since)
-        .order("captured_at", { ascending: false })
-        .limit(300);
+      const { data: rows, error } = await supabase.rpc("tips_crm_list_team_duty", { since_at: since, max_points: 1 });
       if (error) throw error;
-      return (rows ?? []) as unknown as DutyPointRow[];
+      // One row per employee with their latest position, newest first.
+      return ((rows ?? []) as Array<{ profile_id: string; full_name: string; last_point: { latitude: number; longitude: number; capturedAt: string } | null }>)
+        .filter((row) => row.last_point)
+        .map((row) => ({
+          profile_id: row.profile_id,
+          latitude: row.last_point!.latitude,
+          longitude: row.last_point!.longitude,
+          captured_at: row.last_point!.capturedAt,
+          profiles: { full_name: row.full_name, role_key: null, territory_label: null },
+        }))
+        .sort((a, b) => b.captured_at.localeCompare(a.captured_at)) satisfies DutyPointRow[];
     },
     enabled: canViewTeamTelemetry,
     refetchInterval: 30000,

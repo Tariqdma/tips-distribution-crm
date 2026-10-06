@@ -6,6 +6,7 @@ import { AdminWebShell } from "@/components/admin-web-shell";
 import { palette } from "@/components/crm-ui";
 import { supabase } from "@/lib/supabase-client";
 import { describeError } from "@/lib/error-message";
+import { listMedicalInvitations } from "@/lib/medical-invitations";
 
 type RemoteEvent = {
   event_id: string;
@@ -51,11 +52,7 @@ export default function MedicalEventDetailPage() {
     try {
       const [eventsResult, invitationsResult] = await Promise.all([
         supabase.rpc("tips_crm_medical_event_overview"),
-        supabase
-          .schema("tips_crm")
-          .from("medical_event_invitations")
-          .select("id,event_id,account_id,invitation_status,notes,accounts(name,specialty)")
-          .eq("event_id", id),
+        listMedicalInvitations(id),
       ]);
 
       if (eventsResult.error) throw eventsResult.error;
@@ -68,22 +65,14 @@ export default function MedicalEventDetailPage() {
       }
 
       if (invitationsResult.error) throw invitationsResult.error;
-      const rawInvitations = (invitationsResult.data ?? []) as Array<{
-        id: string;
-        event_id: string;
-        account_id: string;
-        invitation_status: string;
-        notes: string | null;
-        accounts?: { name: string; specialty: string | null } | Array<{ name: string; specialty: string | null }> | null;
-      }>;
       setInvitations(
-        rawInvitations.map((item) => ({
+        invitationsResult.data.map((item) => ({
           id: item.id,
           event_id: item.event_id,
-          account_id: item.account_id,
+          account_id: item.account_id ?? "",
           invitation_status: item.invitation_status,
           notes: item.notes,
-          accounts: Array.isArray(item.accounts) ? item.accounts[0] ?? null : item.accounts ?? null,
+          accounts: item.accounts ? { name: item.accounts.name ?? "", specialty: item.accounts.specialty } : null,
         })),
       );
     } catch (err) {

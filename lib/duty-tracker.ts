@@ -3,7 +3,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 import { supabase } from "@/lib/supabase-client";
-import { isReusableDutySession, toDutyLocationPointInsert, type DutyPoint, type DutySessionRow } from "@/lib/duty-tracking-payload";
+import type { DutyPoint } from "@/lib/duty-tracking-payload";
 
 export const DUTY_LOCATION_TASK = "tips-crm-duty-location";
 const DUTY_STATE_KEY = "tips-crm-duty-tracking-state";
@@ -15,62 +15,24 @@ export type DutyTrackingState = { enabled: boolean; startedAt?: string; lastPoin
 let foregroundSubscription: Location.LocationSubscription | null = null;
 const listeners = new Set<(point: DutyPoint) => void>();
 
-type DutyActor = { profileId: string; companyId: string };
-
-let cachedActor: DutyActor | null = null;
 let cachedSessionId: string | null = null;
 let sessionPromise: Promise<string> | null = null;
 
-// duty_sessions and duty_location_points both declare company_id NOT NULL with no default, so
-// the company has to be resolved alongside the profile rather than left to the database.
-async function getActor(): Promise<DutyActor | null> {
-  if (cachedActor) return cachedActor;
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getUser();
-  const profileId = data.user?.id;
-  if (!profileId) return null;
-  const { data: profile } = await supabase
-    .schema("tips_crm")
-    .from("profiles")
-    .select("active_company_id")
-    .eq("id", profileId)
-    .maybeSingle();
-  const companyId = (profile as { active_company_id: string | null } | null)?.active_company_id;
-  if (!companyId) return null;
-  cachedActor = { profileId, companyId };
-  return cachedActor;
-}
-
-async function resolveDutySessionId(profileId: string, companyId: string): Promise<string> {
+// The session and its points go through RPCs: tips_crm is not exposed over the
+// REST API, and the server resolves the company from the caller's membership.
+async function startDutySession(): Promise<string> {
   if (!supabase) throw new Error("Supabase غير مهيأ.");
-  const { data: existing } = await supabase
-    .schema("tips_crm")
-    .from("duty_sessions")
-    .select("id,is_active,ended_at")
-    .eq("profile_id", profileId)
-    .eq("is_active", true)
-    .is("ended_at", null)
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (isReusableDutySession(existing as DutySessionRow | null)) return (existing as DutySessionRow).id;
-  const { data: created, error } = await supabase
-    .schema("tips_crm")
-    .from("duty_sessions")
-    .insert({ profile_id: profileId, company_id: companyId })
-    .select("id")
-    .single();
-  if (error || !created) throw error ?? new Error("تعذر إنشاء جلسة دوام.");
-  return created.id as string;
+  const { data, error } = await supabase.rpc("tips_crm_start_duty_session");
+  if (error || !data) throw error ?? new Error("تعذر إنشاء جلسة دوام.");
+  return data as string;
 }
 
-// Cached for the life of the tracking session so GPS points, which arrive frequently, never
-// query duty_sessions per point — only the first point (or the eager call from
-// startDirectDutyTracking, whichever resolves first) does.
-function ensureDutySessionId(actor: DutyActor): Promise<string> {
+// Cached for the life of the tracking session so GPS points, which arrive frequently, do not
+// each ask for the session first.
+function ensureDutySessionId(): Promise<string> {
   if (cachedSessionId) return Promise.resolve(cachedSessionId);
   if (!sessionPromise) {
-    sessionPromise = resolveDutySessionId(actor.profileId, actor.companyId)
+    sessionPromise = startDutySession()
       .then((id) => { cachedSessionId = id; return id; })
       .finally(() => { sessionPromise = null; });
   }
@@ -78,12 +40,11 @@ function ensureDutySessionId(actor: DutyActor): Promise<string> {
 }
 
 async function closeDutySession() {
-  const sessionId = cachedSessionId;
+  const hadSession = Boolean(cachedSessionId);
   cachedSessionId = null;
-  cachedActor = null;
-  if (!sessionId || !supabase) return;
+  if (!hadSession || !supabase) return;
   try {
-    await supabase.schema("tips_crm").from("duty_sessions").update({ is_active: false, ended_at: new Date().toISOString() }).eq("id", sessionId);
+    await supabase.rpc("tips_crm_end_duty_session");
   } catch {
     // تبقى الجلسة نشطة في القاعدة وستُعاد تهيئتها عند بدء الدوام التالي.
   }
@@ -102,12 +63,15 @@ export async function getDutyTrackingState(): Promise<DutyTrackingState> {
   return raw ? JSON.parse(raw) as DutyTrackingState : { enabled: false, backgroundEnabled: false };
 }
 
-async function insertDutyPoint(point: DutyPoint) {
-  const actor = await getActor();
-  if (!actor || !supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
-  const sessionId = await ensureDutySessionId(actor);
-  const { error } = await supabase.schema("tips_crm").from("duty_location_points").insert(toDutyLocationPointInsert(sessionId, actor.profileId, actor.companyId, point));
+async function recordDutyPoints(points: DutyPoint[]) {
+  if (!supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
+  await ensureDutySessionId();
+  const { error } = await supabase.rpc("tips_crm_record_duty_points", { points });
   if (error) throw error;
+}
+
+async function insertDutyPoint(point: DutyPoint) {
+  await recordDutyPoints([point]);
 }
 
 async function uploadPoint(point: DutyPoint) {
@@ -127,12 +91,7 @@ export async function flushQueuedDutyPoints() {
   const queued = JSON.parse((await AsyncStorage.getItem(DUTY_QUEUE_KEY)) ?? "[]") as DutyPoint[];
   if (!queued.length) return;
   try {
-    const actor = await getActor();
-    if (!actor || !supabase) throw new Error("لا توجد جلسة مستخدم نشطة.");
-    const sessionId = await ensureDutySessionId(actor);
-    const rows = queued.map((point) => toDutyLocationPointInsert(sessionId, actor.profileId, actor.companyId, point));
-    const { error } = await supabase.schema("tips_crm").from("duty_location_points").insert(rows);
-    if (error) throw error;
+    await recordDutyPoints(queued);
     await AsyncStorage.removeItem(DUTY_QUEUE_KEY);
   } catch {
     // تبقى النقاط محفوظة محلياً لإرسالها عند الاتصال التالي.
@@ -182,8 +141,7 @@ export async function startDirectDutyTracking() {
     }
   }
 
-  const actor = await getActor();
-  if (actor) void ensureDutySessionId(actor).catch(() => undefined);
+  void ensureDutySessionId().catch(() => undefined);
 
   if (!foregroundSubscription) {
     foregroundSubscription = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, timeInterval: 30000, distanceInterval: 40 }, (location) => { void publishPoint(normalise(location, "foreground")); });
