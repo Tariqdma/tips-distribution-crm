@@ -323,8 +323,10 @@ export default function PlatformPortalScreen() {
 
   const loadNotes = async (requestId: string) => {
     try {
-      const data = await requestApi(`/api/platform/company-requests/${requestId}/notes`, undefined, "GET");
-      setNotesByRequest((prev) => ({ ...prev, [requestId]: data.notes || [] }));
+      if (!supabase) return;
+      const { data, error: notesError } = await supabase.rpc("tips_crm_list_company_request_notes", { target_request_id: requestId });
+      if (notesError) throw notesError;
+      setNotesByRequest((prev) => ({ ...prev, [requestId]: (data ?? []) as RequestNote[] }));
     } catch {
       // ignore
     }
@@ -336,8 +338,8 @@ export default function PlatformPortalScreen() {
       await requestApi(`/api/platform/company-requests/${requestId}/notes`, { noteText: noteDraft.trim() });
       setNoteDraft("");
       await loadNotes(requestId);
-    } catch {
-      Alert.alert("خطأ", "تعذر إضافة الملاحظة.");
+    } catch (reason) {
+      setError(describeError(reason, "تعذر إضافة الملاحظة."));
     }
   };
 
@@ -1409,6 +1411,8 @@ export default function PlatformPortalScreen() {
               style={styles.fieldInput}
             />
 
+            {error ? <Text style={styles.modalError}>{error}</Text> : null}
+
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setEditingCompanyPlan(null)} style={styles.modalCancelBtn}>
                 <Text style={styles.modalCancelBtnText}>إلغاء</Text>
@@ -1520,6 +1524,8 @@ export default function PlatformPortalScreen() {
                 textAlign="right"
               />
 
+              {error ? <Text style={styles.modalError}>{error}</Text> : null}
+
               <View style={styles.modalActions}>
                 <TouchableOpacity onPress={() => setActiveApproval(null)} style={styles.modalCancelBtn}>
                   <Text style={styles.modalCancelBtnText}>إلغاء</Text>
@@ -1569,6 +1575,8 @@ export default function PlatformPortalScreen() {
               style={[styles.fieldInput, { height: 100, textAlignVertical: "top" }]}
             />
 
+            {error ? <Text style={styles.modalError}>{error}</Text> : null}
+
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setInfoRequest(null)} style={styles.modalCancelBtn}>
                 <Text style={styles.modalCancelBtnText}>إلغاء</Text>
@@ -1616,6 +1624,8 @@ export default function PlatformPortalScreen() {
               textAlign="right"
               style={[styles.fieldInput, { height: 80, textAlignVertical: "top" }]}
             />
+
+            {error ? <Text style={styles.modalError}>{error}</Text> : null}
 
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setReviewRequest(null)} style={styles.modalCancelBtn}>
@@ -2368,6 +2378,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
     textAlign: "right",
+  },
+  modalError: {
+    color: palette.error,
+    backgroundColor: "#FDECEC",
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "right",
+    marginTop: 12,
   },
   modalActions: {
     flexDirection: "row-reverse",

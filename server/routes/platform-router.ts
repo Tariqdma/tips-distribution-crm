@@ -3,6 +3,7 @@ import { AppError } from "../_core/app-error";
 import {
   addRequestNote,
   approveCompanyRequest,
+  resendInvitationForRequest,
   cancelManagerInvitation,
   createCompanyDirect,
   requestMoreInfo,
@@ -26,7 +27,7 @@ platformRouter.post("/company-requests/:requestId/approve", async (req, res) => 
 
 platformRouter.post("/company-requests/:requestId/review", async (req, res) => {
   try {
-    const review = await reviewCompanyRequest({ requestId: req.params.requestId, status: req.body?.status, reviewNote: req.body?.reviewNote }, req.header("authorization"));
+    const review = await reviewCompanyRequest({ requestId: req.params.requestId, status: req.body?.status ?? req.body?.decision, reviewNote: req.body?.reviewNote }, req.header("authorization"));
     res.json({ ok: true, review });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر مراجعة طلب الشركة.";
@@ -48,10 +49,22 @@ platformRouter.post("/company-requests/:requestId/notes", async (req, res) => {
 
 platformRouter.post("/company-requests/:requestId/request-info", async (req, res) => {
   try {
-    const result = await requestMoreInfo({ requestId: req.params.requestId, informationNeeded: String(req.body?.informationNeeded ?? "") }, req.header("authorization"));
+    const result = await requestMoreInfo({ requestId: req.params.requestId, informationNeeded: String(req.body?.informationNeeded ?? req.body?.requestedInfo ?? "") }, req.header("authorization"));
     res.json({ ok: true, ...result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر طلب المعلومات من الشركة.";
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
+  }
+});
+
+// The platform page works with request ids; resolve the approved company here.
+platformRouter.post("/company-requests/:requestId/resend-invitation", async (req, res) => {
+  try {
+    const result = await resendInvitationForRequest(req.params.requestId, req.header("authorization"));
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "تعذر إعادة إرسال دعوة مدير الشركة.";
     const statusCode = error instanceof AppError ? error.statusCode : 400;
     res.status(statusCode).json({ message });
   }

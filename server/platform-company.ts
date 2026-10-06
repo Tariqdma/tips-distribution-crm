@@ -330,6 +330,14 @@ export async function resendManagerInvitation(companyId: string, authorization?:
   return { delivery, requestId: request.id };
 }
 
+export async function resendInvitationForRequest(requestId: string, authorization?: string) {
+  if (!requestId.trim()) throw new Error("معرّف طلب الشركة غير موجود.");
+  const { adminClient } = await requirePlatformPermission(authorization, "platform.company.review");
+  const request = await getPlatformRequest(adminClient, requestId);
+  if (!request.approved_company_id) throw new Error("لم يُعتمد هذا الطلب بعد، فلا توجد دعوة لإعادة إرسالها.");
+  return resendManagerInvitation(request.approved_company_id, authorization);
+}
+
 export async function cancelManagerInvitation(requestId: string, authorization?: string) {
   return reviewCompanyRequest({ requestId, status: "cancelled", reviewNote: "تم إلغاء دعوة إعداد حساب مدير الشركة بواسطة مدير المنصة." }, authorization);
 }
