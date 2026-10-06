@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
   back: { width: 38, height: 38, borderRadius: 13, backgroundColor: "#E9F8F2", alignItems: "center", justifyContent: "center" },
   intro: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 12, backgroundColor: "#143D35", padding: 17, borderRadius: 20, marginBottom: 18 },
   introTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", textAlign: "right" }, introText: { color: "#C6E6DD", fontSize: 12, lineHeight: 18, textAlign: "right", marginTop: 4 },
-  label: { color: "#E9F8F2", fontSize: 12, fontWeight: "900", textAlign: "right", marginBottom: 7 }, searchRow: { flexDirection: "row-reverse", gap: 8 },
+  label: { color: palette.ink, fontSize: 12, fontWeight: "900", textAlign: "right", marginBottom: 7 }, searchRow: { flexDirection: "row-reverse", gap: 8 },
   input: { flex: 1, height: 52, backgroundColor: "#FFFFFF", borderRadius: 14, borderColor: "#DCE8E3", borderWidth: 1, color: palette.ink, fontSize: 16, letterSpacing: 2, fontWeight: "800" },
   searchButton: { width: 54, height: 52, borderRadius: 14, backgroundColor: palette.primary, alignItems: "center", justifyContent: "center" }, dimmed: { opacity: 0.55 },
   error: { flexDirection: "row-reverse", alignItems: "center", gap: 7, backgroundColor: "#FFF0F0", borderColor: "#F2C1C1", borderWidth: 1, borderRadius: 13, padding: 11, marginTop: 14 }, errorText: { color: palette.error, fontSize: 12, fontWeight: "700", flex: 1, textAlign: "right" },
