@@ -52,7 +52,7 @@ export function buildCompanyTerritorySetup(rows: TerritoryRow[]): CompanyTerrito
 
 export async function getCompanyTerritorySetup(authorization?: string) {
   const actorClient = await requireCompanyManager(authorization);
-  const { data, error } = await actorClient.schema("tips_crm").rpc("get_company_territory_setup");
+  const { data, error } = await actorClient.rpc("tips_crm_get_company_territory_setup");
   if (error) throw new Error("تعذر تحميل مناطق العمل. حدّث الصفحة ثم أعد المحاولة.");
   return buildCompanyTerritorySetup((data ?? []) as TerritoryRow[]);
 }
@@ -61,7 +61,7 @@ export async function saveCompanyTerritory(input: SaveCompanyTerritoryInput, aut
   const validationError = validateCompanyTerritory(input);
   if (validationError) throw new Error(validationError);
   const actorClient = await requireCompanyManager(authorization);
-  const { data, error } = await actorClient.schema("tips_crm").rpc("save_company_territory", { input_client_key: input.clientKey?.trim() || null, input_name: input.name.trim(), input_state: input.state.trim(), input_city: input.city.trim(), input_center_latitude: input.centerLatitude, input_center_longitude: input.centerLongitude, input_radius_meters: input.radiusMeters, input_polygon_points: input.polygonPoints ?? [] });
+  const { data, error } = await actorClient.rpc("tips_crm_save_company_territory", { input_client_key: input.clientKey?.trim() || null, input_name: input.name.trim(), input_state: input.state.trim(), input_city: input.city.trim(), input_center_latitude: input.centerLatitude, input_center_longitude: input.centerLongitude, input_radius_meters: input.radiusMeters, input_polygon_points: input.polygonPoints ?? [] });
   const row = (data as TerritoryRow[] | null)?.[0];
   if (error || !row) throw new Error(error?.message.includes("already exists") ? "هذه المنطقة مسجلة بالفعل في المدينة المختارة." : "تعذر حفظ منطقة العمل. تحقق من البيانات ثم أعد المحاولة.");
   return mapTerritory(row);

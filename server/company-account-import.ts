@@ -62,7 +62,7 @@ export async function importCompanyAccounts(input: { rows?: unknown }, authoriza
   if (!prepared.rows.length) throw new Error(prepared.errors[0] ?? "لا توجد جهات صالحة للاستيراد.");
   const actorClient = await requireCompanyManager(authorization);
   const payload = prepared.rows.map((item) => ({ local_ref: item.localRef, name: item.name, account_type: item.accountType, specialty: item.specialty ?? "", state: item.state, city: item.city, area: item.area ?? "", address: item.address ?? "", phone: item.phone ?? "", territory_key: item.territoryKey ?? "" }));
-  const { data, error } = await actorClient.schema("tips_crm").rpc("import_company_accounts", { input_accounts: payload });
+  const { data, error } = await actorClient.rpc("tips_crm_import_company_accounts", { input_accounts: payload });
   if (error) throw new Error(error.message.includes("permission") ? "لا تملك صلاحية استيراد الجهات." : "تعذر استيراد الجهات. راجع الملف ثم أعد المحاولة.");
   const results: CompanyAccountImportResult[] = (data as RawImportResult[] ?? []).map((item) => ({ itemKey: item.item_key, status: item.status === "created" || item.status === "updated" || item.status === "duplicate" ? item.status : "rejected", accountId: item.account_id ?? undefined, accountName: item.account_name, message: item.message }));
   return { results: [...results, ...prepared.errors.map((message, index) => ({ itemKey: `invalid-${index + 1}`, status: "rejected" as const, accountName: "", message }))], summary: summarizeCompanyAccountImport(results) };

@@ -86,7 +86,7 @@ export function buildCompanyTeamSetup(rows: TeamSetupRow[]): CompanyTeamSetup {
 
 export async function getCompanyTeamSetup(authorization?: string): Promise<CompanyTeamSetup> {
   const actorClient = await requireCompanyManager(authorization);
-  const { data, error } = await actorClient.schema("tips_crm").rpc("get_company_team_setup");
+  const { data, error } = await actorClient.rpc("tips_crm_get_company_team_setup");
   if (error) throw new Error("تعذر تحميل هيكل فريق الشركة. حدّث الصفحة ثم أعد المحاولة.");
   return buildCompanyTeamSetup((data ?? []) as TeamSetupRow[]);
 }
