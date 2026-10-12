@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { AppError } from "../_core/app-error";
+import { requirePermission } from "../_core/authorize";
 import {
   addRequestNote,
   approveCompanyRequest,
@@ -85,6 +86,44 @@ platformRouter.post("/companies/:companyId/resend-invitation", async (req, res) 
     res.json({ ok: true, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "تعذر إعادة إرسال دعوة مدير الشركة.";
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
+  }
+});
+
+platformRouter.post("/companies/:companyId/status", async (req, res) => {
+  try {
+    const newStatus = req.body?.status as string;
+    if (!["active", "suspended"].includes(newStatus)) {
+      res.status(400).json({ message: "حالة غير صحيحة." });
+      return;
+    }
+    const { actorClient } = await requirePermission(req.header("authorization"), "platform.company.suspend");
+    const { error } = await actorClient.schema("tips_crm").from("companies")
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq("id", req.params.companyId);
+    if (error) throw new AppError("تعذر تحديث حالة الشركة.", 400);
+    res.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "تعذر تحديث حالة الشركة.";
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
+  }
+});
+
+platformRouter.post("/companies/:companyId/plan-limit", async (req, res) => {
+  try {
+    const result = await updateCompanySubscription(
+      {
+        companyId: req.params.companyId,
+        paymentTierKey: String(req.body?.planKey ?? "standard"),
+        maxUserLimit: Number(req.body?.maxUserLimit) || 20,
+      },
+      req.header("authorization"),
+    );
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "تعذر تحديث باقة الشركة.";
     const statusCode = error instanceof AppError ? error.statusCode : 400;
     res.status(statusCode).json({ message });
   }

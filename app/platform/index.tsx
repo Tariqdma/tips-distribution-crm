@@ -360,28 +360,6 @@ export default function PlatformPortalScreen() {
     const limitNum = Number.parseInt(approval.maxUserLimit, 10) || 20;
 
     try {
-      if (supabase) {
-        const { error: rpcErr } = await supabase.rpc("tips_crm_approve_company_request", {
-          p_request_id: activeApproval.id,
-          p_company_slug: approval.companySlug.trim(),
-          p_manager_name: approval.managerFullName.trim(),
-          p_manager_email: approval.managerEmail.trim(),
-          p_temporary_password: approval.managerPassword || undefined,
-          p_plan_key: approval.planKey,
-          p_max_user_limit: limitNum,
-        });
-        if (rpcErr) throw rpcErr;
-        setMessage(`تم اعتماد طلب شركة «${activeApproval.company_name}» بنجاح وتعيين خطة ${PLAN_TIERS[approval.planKey]?.name || approval.planKey}.`);
-        setActiveApproval(null);
-        await load();
-        setSubmitting(false);
-        return;
-      }
-    } catch {
-      // fallback to API
-    }
-
-    try {
       await requestApi(`/api/platform/company-requests/${activeApproval.id}/approve`, {
         companySlug: approval.companySlug.trim(),
         managerFullName: approval.managerFullName.trim(),
@@ -390,7 +368,7 @@ export default function PlatformPortalScreen() {
         planKey: approval.planKey,
         maxUserLimit: limitNum,
       });
-      setMessage(`تم اعتماد طلب شركة «${activeApproval.company_name}» بنجاح.`);
+      setMessage(`تم اعتماد طلب شركة «${activeApproval.company_name}» بنجاح وتعيين خطة ${PLAN_TIERS[approval.planKey]?.name || approval.planKey}.`);
       setActiveApproval(null);
       await load();
     } catch (reason) {
@@ -481,31 +459,15 @@ export default function PlatformPortalScreen() {
     }
 
     try {
-      if (supabase) {
-        const { error: rpcErr } = await supabase.rpc("tips_crm_update_company_plan_limit", {
-          p_company_id: editingCompanyPlan.id,
-          p_plan_key: selectedPlanKey,
-          p_max_user_limit: limitNum,
-        });
-        if (rpcErr) throw rpcErr;
-        setMessage(`تم تحديث باقة «${editingCompanyPlan.name}» إلى ${PLAN_TIERS[selectedPlanKey]?.name} بحد ${limitNum} مستخدم.`);
-        setEditingCompanyPlan(null);
-        await load();
-        setSubmitting(false);
-        return;
-      }
-    } catch (rpcErr) {
-      try {
-        await requestApi(`/api/platform/companies/${editingCompanyPlan.id}/plan-limit`, {
-          planKey: selectedPlanKey,
-          maxUserLimit: limitNum,
-        });
-        setMessage(`تم تحديث باقة «${editingCompanyPlan.name}» بنجاح.`);
-        setEditingCompanyPlan(null);
-        await load();
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : "تعذر تحديث الباقة والحدود.");
-      }
+      await requestApi(`/api/platform/companies/${editingCompanyPlan.id}/plan-limit`, {
+        planKey: selectedPlanKey,
+        maxUserLimit: limitNum,
+      });
+      setMessage(`تم تحديث باقة «${editingCompanyPlan.name}» إلى ${PLAN_TIERS[selectedPlanKey]?.name} بحد ${limitNum} مستخدم.`);
+      setEditingCompanyPlan(null);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "تعذر تحديث الباقة والحدود.");
     }
     setSubmitting(false);
   };
@@ -515,13 +477,11 @@ export default function PlatformPortalScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      if (supabase) {
-        await supabase.schema("tips_crm").from("companies").update({
-          status: newStatus,
-        }).eq("id", company.id);
-        setMessage(`تم تغيير حالة شركة «${company.name}» إلى (${newStatus === "active" ? "نشطة" : "موقوفة"}).`);
-        await load();
-      }
+      await requestApi(`/api/platform/companies/${company.id}/status`, {
+        status: newStatus,
+      });
+      setMessage(`تم تغيير حالة شركة «${company.name}» إلى (${newStatus === "active" ? "نشطة" : "موقوفة"}).`);
+      await load();
     } catch {
       setError("تعذر تحديث حالة الشركة.");
     }
