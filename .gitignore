@@ -5,7 +5,8 @@ node_modules/
 
 # Expo
 .expo/
-dist/
+# dist/ is committed so Hostinger has a pre-built server bundle
+# dist/
 web-build/
 expo-env.d.ts
 
