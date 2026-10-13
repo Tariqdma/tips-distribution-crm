@@ -151,6 +151,24 @@ async function approvePreparedRequest(input: ApproveCompanyRequestInput, authori
     if (createError?.message?.toLowerCase().includes("already")) throw new Error("يوجد حساب مسجل بهذا البريد الإلكتروني.");
     throw new Error("تعذر إنشاء حساب مدير الشركة.");
   }
+
+  // Ensure profile row exists in tips_crm.profiles before calling the RPC
+  // (the RPC checks IF NOT EXISTS in profiles; auth trigger may not have fired yet)
+  const { error: profileError } = await adminClient
+    .schema("tips_crm")
+    .from("profiles")
+    .upsert({
+      id: created.user.id,
+      full_name: input.managerFullName.trim(),
+      email: email,
+      role_key: "company_manager",
+      is_active: true,
+    }, { onConflict: "id" });
+  if (profileError) {
+    await adminClient.auth.admin.deleteUser(created.user.id);
+    throw new Error("تعذر تجهيز ملف مدير الشركة.");
+  }
+
   const { data: companyId, error: approvalError } = await actorClient.rpc("tips_crm_approve_company_request", {
     target_request_id: input.requestId,
     target_profile_id: created.user.id,

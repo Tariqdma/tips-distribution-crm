@@ -948,6 +948,17 @@ async function approvePreparedRequest(input, authorization) {
     if (createError?.message?.toLowerCase().includes("already")) throw new Error("\u064A\u0648\u062C\u062F \u062D\u0633\u0627\u0628 \u0645\u0633\u062C\u0644 \u0628\u0647\u0630\u0627 \u0627\u0644\u0628\u0631\u064A\u062F \u0627\u0644\u0625\u0644\u0643\u062A\u0631\u0648\u0646\u064A.");
     throw new Error("\u062A\u0639\u0630\u0631 \u0625\u0646\u0634\u0627\u0621 \u062D\u0633\u0627\u0628 \u0645\u062F\u064A\u0631 \u0627\u0644\u0634\u0631\u0643\u0629.");
   }
+  const { error: profileError } = await adminClient.schema("tips_crm").from("profiles").upsert({
+    id: created.user.id,
+    full_name: input.managerFullName.trim(),
+    email,
+    role_key: "company_manager",
+    is_active: true
+  }, { onConflict: "id" });
+  if (profileError) {
+    await adminClient.auth.admin.deleteUser(created.user.id);
+    throw new Error("\u062A\u0639\u0630\u0631 \u062A\u062C\u0647\u064A\u0632 \u0645\u0644\u0641 \u0645\u062F\u064A\u0631 \u0627\u0644\u0634\u0631\u0643\u0629.");
+  }
   const { data: companyId, error: approvalError } = await actorClient.rpc("tips_crm_approve_company_request", {
     target_request_id: input.requestId,
     target_profile_id: created.user.id,
