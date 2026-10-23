@@ -40,7 +40,7 @@ BEGIN
     RAISE EXCEPTION 'Company request not found: %', target_request_id;
   END IF;
 
-  IF v_request.status NOT IN ('submitted', 'info_requested') THEN
+  IF v_request.status NOT IN ('submitted', 'awaiting_info', 'info_requested') THEN
     RAISE EXCEPTION 'Request is not in an approvable state (current: %)', v_request.status;
   END IF;
 

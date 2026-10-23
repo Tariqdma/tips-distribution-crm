@@ -161,12 +161,12 @@ async function approvePreparedRequest(input: ApproveCompanyRequestInput, authori
       id: created.user.id,
       full_name: input.managerFullName.trim(),
       email: email,
-      role_key: "company_manager",
+      role_key: "manager",
       is_active: true,
     }, { onConflict: "id" });
   if (profileError) {
     await adminClient.auth.admin.deleteUser(created.user.id);
-    throw new Error("تعذر تجهيز ملف مدير الشركة.");
+    throw new Error(`تعذر تجهيز ملف مدير الشركة: ${profileError.message}`);
   }
 
   const { data: companyId, error: approvalError } = await actorClient.rpc("tips_crm_approve_company_request", {
@@ -179,7 +179,7 @@ async function approvePreparedRequest(input: ApproveCompanyRequestInput, authori
   });
   if (approvalError || !companyId) {
     await adminClient.auth.admin.deleteUser(created.user.id);
-    throw new Error("تعذر اعتماد الشركة وربط مديرها؛ لم يُحتفظ بحساب المدير.");
+    throw new Error(`تعذر اعتماد الشركة وربط مديرها: ${approvalError?.message ?? "لم يُحتفظ بحساب المدير"}`);
   }
 
   const request = await getPlatformRequest(adminClient, input.requestId);
