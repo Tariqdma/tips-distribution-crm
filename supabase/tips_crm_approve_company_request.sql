@@ -83,14 +83,13 @@ BEGIN
   WHERE id = target_profile_id;
 
   -- 7. إنشاء company_membership للمدير
-  -- role_key is a legacy nullable column; the new model stores roles in membership_roles.
-  -- We intentionally omit role_key here to avoid the live FK constraint
-  -- company_memberships_company_id_role_key_fkey which references a composite key
-  -- not present in the local SQL files (added directly to the live DB).
-  INSERT INTO tips_crm.company_memberships (company_id, profile_id, is_active)
-  VALUES (v_company_id, target_profile_id, true)
+  -- role_key uses the legacy value 'company_manager' that the live DB constraint expects.
+  -- The new authorization model stores roles in membership_roles (step 8 below).
+  INSERT INTO tips_crm.company_memberships (company_id, profile_id, role_key, is_active)
+  VALUES (v_company_id, target_profile_id, 'company_manager', true)
   ON CONFLICT (company_id, profile_id) DO UPDATE
-    SET is_active = true;
+    SET role_key  = 'company_manager',
+        is_active = true;
 
   -- 8. إضافة membership_role بدور 'manager' (النموذج الجديد)
   INSERT INTO tips_crm.membership_roles (company_id, profile_id, role_key, granted_by)
