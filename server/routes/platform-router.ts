@@ -91,6 +91,33 @@ platformRouter.post("/companies/:companyId/resend-invitation", async (req, res) 
   }
 });
 
+// Frontend sends to /company-requests/:requestId/resend-invitation — resolve company from request then delegate
+platformRouter.post("/company-requests/:requestId/resend-invitation", async (req, res) => {
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const { ENV } = await import("../_core/env");
+    const adminClient = createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data, error } = await adminClient
+      .schema("tips_crm")
+      .from("company_requests")
+      .select("approved_company_id")
+      .eq("id", req.params.requestId)
+      .maybeSingle();
+    if (error || !data?.approved_company_id) {
+      res.status(400).json({ message: "لا توجد شركة معتمدة مرتبطة بهذا الطلب." });
+      return;
+    }
+    const result = await resendManagerInvitation(data.approved_company_id, req.header("authorization"));
+    res.json({ ok: true, result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "تعذر إعادة إرسال دعوة مدير الشركة.";
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message });
+  }
+});
+
 platformRouter.post("/companies/:companyId/status", async (req, res) => {
   try {
     const newStatus = req.body?.status as string;
