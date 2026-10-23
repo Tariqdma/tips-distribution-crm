@@ -1,10 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { resolveActor } from "./_core/authorize";
 import { ENV } from "./_core/env";
+import { hasPermission } from "../shared/auth/resolve";
 import { getGoogleSheetsAccessToken } from "./google-sheets";
 
 type Cell = string | number | boolean | null | undefined;
 type SheetRows = Record<string, string>[];
-type FinancialActor = { id: string; permissions: string[] };
+type FinancialActor = { id: string; activeCompanyId: string };
 
 export type FinancialSnapshot = {
   source: { spreadsheetId: string; refreshedAt: string };
@@ -62,21 +64,21 @@ export function buildFinancialSnapshot({ spreadsheetId, customers, invoices, col
   };
 }
 
-function accessTokenFromHeader(authorization?: string) {
-  const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) throw new Error("جلسة الإدارة مطلوبة لعرض البيانات المالية.");
-  return token;
-}
-
 async function requireFinancialAccess(authorization?: string) {
   if (!ENV.supabaseUrl || !ENV.supabaseAnonKey || !ENV.supabaseServiceRoleKey) throw new Error("إعدادات الخادم المالي غير مكتملة.");
-  const token = accessTokenFromHeader(authorization);
-  const actorClient = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, { auth: { autoRefreshToken: false, persistSession: false }, global: { headers: { Authorization: `Bearer ${token}` } } });
-  const { data, error } = await actorClient.rpc("tips_crm_my_profile");
-  if (error) throw new Error("تعذر التحقق من صلاحية الإدارة المالية.");
-  const profile = (data as FinancialActor[] | null)?.[0];
-  if (!profile || !profile.permissions.some((permission) => permission === "all" || permission === "export_reports")) throw new Error("لا تملك صلاحية عرض البيانات المالية.");
-  return { actor: profile, adminClient: createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } }) };
+  const actor = await resolveActor(authorization, {
+    sessionRequired: "جلسة الإدارة مطلوبة لعرض البيانات المالية.",
+    permissionDenied: "لا تملك صلاحية عرض البيانات المالية.",
+  });
+  if (!hasPermission(actor.permissions, "finance.reconcile")) {
+    throw new Error("لا تملك صلاحية عرض البيانات المالية.");
+  }
+  if (!actor.profile.active_company_id) throw new Error("اختر الشركة النشطة قبل عرض البيانات المالية.");
+  const financialActor: FinancialActor = {
+    id: actor.profile.id as string,
+    activeCompanyId: actor.profile.active_company_id,
+  };
+  return { actor: financialActor, adminClient: createClient(ENV.supabaseUrl, ENV.supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } }) };
 }
 
 async function fetchSheetRows(spreadsheetId: string) {
@@ -101,7 +103,7 @@ export async function readFinancialSnapshot(authorization?: string) {
   const spreadsheetId = process.env.GOOGLE_FINANCIAL_SHEET_ID;
   if (!spreadsheetId) throw new Error("معرّف ملف التحكم المالي غير مضبوط.");
   try {
-    const [sheetRows, accountResponse] = await Promise.all([fetchSheetRows(spreadsheetId), adminClient.schema("tips_crm").from("accounts").select("id,local_ref,name,finance_customer_code").limit(1000)]);
+    const [sheetRows, accountResponse] = await Promise.all([fetchSheetRows(spreadsheetId), adminClient.schema("tips_crm").from("accounts").select("id,local_ref,name,finance_customer_code").eq("company_id", actor.activeCompanyId).limit(1000)]);
     if (accountResponse.error) throw new Error("تعذر قراءة الجهات لمطابقة أكواد العملاء.");
     const snapshot = buildFinancialSnapshot({ spreadsheetId, customers: sheetRows.get("Customers") ?? [], invoices: sheetRows.get("Invoices") ?? [], collections: sheetRows.get("Collections") ?? [], reconciliations: sheetRows.get("Reconciliation") ?? [], crmAccounts: accountResponse.data ?? [] });
     await writeSyncAudit(adminClient, { initiatedBy: actor.id, status: "success", summary: { customers: snapshot.summary.customerCount, invoices: snapshot.summary.invoiceCount, collections: snapshot.summary.collectionCount, unmatched_customer_codes: snapshot.summary.unmatchedCustomerCodes.length } });
@@ -117,7 +119,7 @@ export async function assignFinanceCustomerCode(input: { accountId: string; cust
   const { actor, adminClient } = await requireFinancialAccess(authorization);
   const customerCode = normalizedCode(input.customerCode);
   if (!input.accountId || !customerCode || customerCode.length > 96) throw new Error("أدخل كود عميل صحيحاً لا يتجاوز 96 حرفاً.");
-  const { error } = await adminClient.schema("tips_crm").from("accounts").update({ finance_customer_code: customerCode, updated_at: new Date().toISOString() }).eq("id", input.accountId);
+  const { error } = await adminClient.schema("tips_crm").from("accounts").update({ finance_customer_code: customerCode, updated_at: new Date().toISOString() }).eq("id", input.accountId).eq("company_id", actor.activeCompanyId);
   if (error) throw new Error("تعذر حفظ كود العميل. تأكد من عدم استخدامه لجهة أخرى.");
   await writeSyncAudit(adminClient, { initiatedBy: actor.id, status: "success", summary: { mapping_updated: true, customer_code: customerCode } });
   return { accountId: input.accountId, customerCode };

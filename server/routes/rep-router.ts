@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { resolveActor } from "../_core/authorize";
+import { AppError } from "../_core/app-error";
 import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
 import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
 import { sendPlanSubmissionEmail } from "../plan-submission-email";
@@ -7,9 +9,11 @@ export const repRouter = Router();
 
 repRouter.post("/plan-submission-email", async (req, res) => {
   try {
+    await resolveActor(req.header("authorization"));
     res.json(await sendPlanSubmissionEmail(req.body));
   } catch (error) {
-    res.status(400).json({ message: error instanceof Error ? error.message : "تعذر إرسال تنبيه الخطة." });
+    const statusCode = error instanceof AppError ? error.statusCode : 400;
+    res.status(statusCode).json({ message: error instanceof Error ? error.message : "تعذر إرسال تنبيه الخطة." });
   }
 });
 

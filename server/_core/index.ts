@@ -9,15 +9,8 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { ENV } from "./env";
-import { createTemporaryEmployeeAccount, listEmployeeAccounts, resetEmployeePassword } from "../employee-account";
-import { assignFinanceCustomerCode, readFinancialSnapshot } from "../financial-control";
-import { sendPlanSubmissionEmail } from "../plan-submission-email";
-import { sendManagedPasswordRecoveryEmail } from "../password-recovery-email";
-import { addRequestNote, approveCompanyRequest, cancelManagerInvitation, createCompanyDirect, createPublicCompanyRequest, getPublicCompanyRequestStatus, requestMoreInfo, resendManagerInvitation, reviewCompanyRequest } from "../platform-company";
-import { getCompanyOperationalSetup, saveCompanyOperationalSetup } from "../company-setup";
-import { getCompanyTeamSetup } from "../company-team-setup";
-import { getCompanyTerritorySetup, saveCompanyTerritory } from "../company-territory-setup";
-import { getCompanyAccountSetup, importCompanyAccounts } from "../company-account-import";
+import { createTemporaryEmployeeAccount } from "../employee-account";
+import { createPublicCompanyRequest, getPublicCompanyRequestStatus } from "../platform-company";
 import { platformRouter } from "../routes/platform-router";
 import { companyRouter } from "../routes/company-router";
 import { repRouter } from "../routes/rep-router";
@@ -126,37 +119,11 @@ async function startServer() {
     }
   });
 
-  app.post("/api/plan-submission-email", async (req, res) => {
-    try {
-      res.json(await sendPlanSubmissionEmail(req.body));
-    } catch (error) {
-      res.status(400).json({ message: error instanceof Error ? error.message : "تعذر إرسال تنبيه الخطة." });
-    }
-  });
-
-  app.post("/api/auth/password-recovery", async (req, res) => {
-    try {
-      const email = typeof req.body?.email === "string" ? req.body.email : "";
-      await sendManagedPasswordRecoveryEmail(email);
-      res.status(202).json({ sent: true });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "تعذر إرسال رسالة الاستعادة.";
-      res.status(400).json({ message });
-    }
-  });
-
   // Register 3 isolated API domain routers
   app.use("/api/platform", platformRouter);
   app.use("/api/company", companyRouter);
   app.use("/api", repRouter);
 
-  // Backwards compatibility aliases for existing endpoints
-  app.post("/api/employee-accounts", (req, res, next) => {
-    companyRouter(req, res, next);
-  });
-  app.get("/api/employee-accounts", (req, res, next) => {
-    companyRouter(req, res, next);
-  });
   app.post("/api/company-requests", async (req, res) => {
     try {
       const request = await createPublicCompanyRequest(req.body ?? {});

@@ -1,8 +1,17 @@
 import type { Express } from "express";
+import { resolveActor } from "./authorize";
 import { ENV } from "./env";
 
 export function registerStorageProxy(app: Express) {
   app.get("/manus-storage/*", async (req, res) => {
+    // Require a valid authenticated session before proxying any stored file.
+    try {
+      await resolveActor(req.header("authorization"));
+    } catch {
+      res.status(401).send("Authentication required");
+      return;
+    }
+
     const key = (req.params as Record<string, string>)[0];
     if (!key) {
       res.status(400).send("Missing storage key");

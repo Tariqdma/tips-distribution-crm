@@ -2,6 +2,9 @@ import { ENV } from "./_core/env";
 
 const RESET_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 3;
+// NOTE: in-memory rate limiter — resets on every server restart. Sufficient for a
+// single-process deployment; replace with a persistent store (Redis, DB) for
+// multi-instance or high-availability setups.
 const recentRequests = new Map<string, number[]>();
 
 function escapeHtml(value: string) {
